@@ -5,9 +5,12 @@ import { Label } from "@/components/ui/label";
 import { MessageCircle, Mail, Copy, Check } from "lucide-react";
 import { useState } from "react";
 import type { CartItemData } from "./CartItem";
+import { formatINR } from "./ProductCard";
 
 interface OrderSummaryProps {
   cartItems: CartItemData[];
+  discountPercent: number;
+  onDiscountChange: (discount: number) => void;
   onSendWhatsApp: (phone: string) => void;
   onSendEmail: (email: string) => void;
   onCopyMessage: () => void;
@@ -15,6 +18,8 @@ interface OrderSummaryProps {
 
 export default function OrderSummary({ 
   cartItems, 
+  discountPercent,
+  onDiscountChange,
   onSendWhatsApp, 
   onSendEmail,
   onCopyMessage 
@@ -27,7 +32,15 @@ export default function OrderSummary({
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
+  const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+  const discountAmount = subtotal * (safeDiscount / 100);
+  const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value) || 0;
+    onDiscountChange(Math.min(100, Math.max(0, value)));
+  };
 
   const handleCopy = () => {
     onCopyMessage();
@@ -46,18 +59,47 @@ export default function OrderSummary({
 
       <div className="space-y-2 py-4 border-y">
         {cartItems.map((item) => (
-          <div key={item.product.id} className="flex justify-between text-sm">
-            <span className="text-muted-foreground">
+          <div key={item.product.id} className="flex justify-between text-sm gap-2">
+            <span className="text-muted-foreground truncate flex-1">
               {item.product.name} x{item.quantity}
             </span>
-            <span>${(item.product.price * item.quantity).toFixed(2)}</span>
+            <span className="shrink-0">{formatINR(item.product.price * item.quantity)}</span>
           </div>
         ))}
       </div>
 
-      <div className="flex justify-between items-center text-lg font-semibold">
+      <div className="space-y-2">
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-muted-foreground">Subtotal</span>
+          <span data-testid="text-subtotal">{formatINR(subtotal)}</span>
+        </div>
+        
+        <div className="flex justify-between items-center gap-2">
+          <Label htmlFor="discount" className="text-sm text-muted-foreground">Discount %</Label>
+          <Input
+            id="discount"
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            value={discountPercent}
+            onChange={handleDiscountChange}
+            className="w-20 h-8 text-right"
+            data-testid="input-discount"
+          />
+        </div>
+        
+        {discountPercent > 0 && (
+          <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400">
+            <span>Discount ({discountPercent}%)</span>
+            <span data-testid="text-discount-amount">-{formatINR(discountAmount)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center text-lg font-semibold pt-2 border-t">
         <span>Total</span>
-        <span data-testid="text-total">${subtotal.toFixed(2)}</span>
+        <span data-testid="text-total">{formatINR(finalTotal)}</span>
       </div>
 
       <div className="space-y-3 pt-4">
@@ -66,7 +108,7 @@ export default function OrderSummary({
           <Input
             id="phone"
             type="tel"
-            placeholder="+1 234 567 8900"
+            placeholder="+91 98765 43210"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             className="h-12"

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import QuantitySelector from "./QuantitySelector";
-import type { Product } from "./ProductCard";
+import { formatINR, type Product } from "./ProductCard";
 
 export interface CartItemData {
   product: Product;
@@ -27,17 +27,16 @@ export default function CartItem({ item, onQuantityChange, onRemove }: CartItemP
           {item.product.sku}
         </p>
         <p className="text-sm text-muted-foreground">
-          ${item.product.price.toFixed(2)} each
+          {formatINR(item.product.price)} each
         </p>
       </div>
       <QuantitySelector
         quantity={item.quantity}
         onQuantityChange={(qty) => onQuantityChange(item.product.id, qty)}
-        max={item.product.stock}
       />
       <div className="text-right min-w-[80px]">
         <p className="font-semibold" data-testid={`cart-subtotal-${item.product.id}`}>
-          ${subtotal.toFixed(2)}
+          {formatINR(subtotal)}
         </p>
       </div>
       <Button

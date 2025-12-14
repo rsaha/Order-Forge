@@ -66,6 +66,7 @@ export const orders = pgTable("orders", {
   userId: varchar("user_id").notNull().references(() => users.id),
   status: varchar("status").notNull().default("pending"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
   whatsappPhone: varchar("whatsapp_phone"),
   email: varchar("email"),
   createdAt: timestamp("created_at").defaultNow(),

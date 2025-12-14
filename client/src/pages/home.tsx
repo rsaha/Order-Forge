@@ -34,6 +34,7 @@ export default function Home() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItemData[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [discountPercent, setDiscountPercent] = useState(0);
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -153,6 +154,14 @@ export default function Home() {
     setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
   }, []);
 
+  const formatINR = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
   const generateOrderMessage = useCallback(() => {
     const lines = [
       "NEW ORDER",
@@ -163,16 +172,24 @@ export default function Home() {
     cart.forEach(item => {
       lines.push(`${item.product.name}`);
       lines.push(`  SKU: ${item.product.sku}`);
-      lines.push(`  Qty: ${item.quantity} x $${item.product.price.toFixed(2)} = $${(item.quantity * item.product.price).toFixed(2)}`);
+      lines.push(`  Qty: ${item.quantity} x ${formatINR(item.product.price)} = ${formatINR(item.quantity * item.product.price)}`);
       lines.push("");
     });
 
-    const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+    const discountAmount = subtotal * (safeDiscount / 100);
+    const finalTotal = subtotal - discountAmount;
+    
     lines.push("─".repeat(20));
-    lines.push(`TOTAL: $${total.toFixed(2)}`);
+    lines.push(`SUBTOTAL: ${formatINR(subtotal)}`);
+    if (safeDiscount > 0) {
+      lines.push(`DISCOUNT (${safeDiscount}%): -${formatINR(discountAmount)}`);
+    }
+    lines.push(`TOTAL: ${formatINR(finalTotal)}`);
 
     return lines.join("\n");
-  }, [cart]);
+  }, [cart, discountPercent]);
 
   const handleSendWhatsApp = useCallback((phone: string) => {
     if (!phone.trim()) {
@@ -209,26 +226,48 @@ export default function Home() {
       Product: item.product.name,
       Brand: item.product.brand,
       Quantity: item.quantity,
-      "Unit Price": item.product.price,
-      Subtotal: item.quantity * item.product.price,
+      "Unit Price (INR)": item.product.price,
+      "Subtotal (INR)": item.quantity * item.product.price,
     }));
 
-    const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+    const discountAmount = subtotal * (safeDiscount / 100);
+    const finalTotal = subtotal - discountAmount;
+    
     orderData.push({
       SKU: "",
       Product: "",
       Brand: "",
       Quantity: 0,
-      "Unit Price": 0,
-      Subtotal: 0,
+      "Unit Price (INR)": 0,
+      "Subtotal (INR)": 0,
     });
+    orderData.push({
+      SKU: "SUBTOTAL",
+      Product: "",
+      Brand: "",
+      Quantity: cart.reduce((sum, item) => sum + item.quantity, 0),
+      "Unit Price (INR)": 0,
+      "Subtotal (INR)": subtotal,
+    });
+    if (safeDiscount > 0) {
+      orderData.push({
+        SKU: `DISCOUNT (${safeDiscount}%)`,
+        Product: "",
+        Brand: "",
+        Quantity: 0,
+        "Unit Price (INR)": 0,
+        "Subtotal (INR)": -discountAmount,
+      });
+    }
     orderData.push({
       SKU: "TOTAL",
       Product: "",
       Brand: "",
-      Quantity: cart.reduce((sum, item) => sum + item.quantity, 0),
-      "Unit Price": 0,
-      Subtotal: total,
+      Quantity: 0,
+      "Unit Price (INR)": 0,
+      "Subtotal (INR)": finalTotal,
     });
 
     const worksheet = XLSX.utils.json_to_sheet(orderData);
@@ -240,7 +279,7 @@ export default function Home() {
       title: "Spreadsheet downloaded",
       description: `Send the downloaded file to ${email}`,
     });
-  }, [cart, toast]);
+  }, [cart, discountPercent, toast]);
 
   const handleCopyMessage = useCallback(() => {
     navigator.clipboard.writeText(generateOrderMessage());
@@ -356,6 +395,8 @@ export default function Home() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cartItems={cart}
+        discountPercent={discountPercent}
+        onDiscountChange={setDiscountPercent}
         onQuantityChange={handleQuantityChange}
         onRemoveItem={handleRemoveItem}
         onSendWhatsApp={handleSendWhatsApp}
