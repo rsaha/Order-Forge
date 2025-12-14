@@ -1,15 +1,23 @@
 import { useState, useMemo, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import BrandFilter from "@/components/BrandFilter";
-import ProductCard, { type Product } from "@/components/ProductCard";
+import ProductCard from "@/components/ProductCard";
 import UploadDropzone from "@/components/UploadDropzone";
 import CartPanel from "@/components/CartPanel";
 import EmptyState from "@/components/EmptyState";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { isUnauthorizedError } from "@/lib/authUtils";
 import type { CartItemData } from "@/components/CartItem";
+import type { Product } from "@shared/schema";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 interface UploadedFile {
   name: string;
@@ -17,33 +25,65 @@ interface UploadedFile {
   productCount: number;
 }
 
-// todo: remove mock functionality
-const MOCK_PRODUCTS: Product[] = [
-  { id: "1", sku: "TB-001", name: "Premium Widget Pro", brand: "TechBrand", price: 29.99, stock: 15 },
-  { id: "2", sku: "TB-002", name: "Standard Widget", brand: "TechBrand", price: 19.99, stock: 8 },
-  { id: "3", sku: "PL-100", name: "ProLine Gadget X", brand: "ProLine", price: 45.00, stock: 25 },
-  { id: "4", sku: "PL-101", name: "ProLine Gadget Mini", brand: "ProLine", price: 25.00, stock: 0 },
-  { id: "5", sku: "VM-200", name: "ValueMax Essential", brand: "ValueMax", price: 12.99, stock: 50 },
-  { id: "6", sku: "VM-201", name: "ValueMax Premium", brand: "ValueMax", price: 22.99, stock: 30 },
-  { id: "7", sku: "TB-003", name: "TechBrand Elite Series", brand: "TechBrand", price: 89.99, stock: 5 },
-  { id: "8", sku: "PL-102", name: "ProLine Industrial Pack", brand: "ProLine", price: 150.00, stock: 12 },
-];
-
 export default function Home() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"products" | "upload">("products");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItemData[]>([]);
-  
-  // todo: remove mock functionality
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([
-    { name: "techbrand-inventory.xlsx", brand: "TechBrand", productCount: 3 },
-    { name: "proline-products.csv", brand: "ProLine", productCount: 3 },
-    { name: "valuemax-skus.xlsx", brand: "ValueMax", productCount: 2 },
-  ]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+
+  const { data: products = [], isLoading } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+    retry: false,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch("/api/products/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setUploadedFiles(prev => [...prev, {
+        name: data.fileName || "uploaded-file.xlsx",
+        brand: data.brand,
+        productCount: data.count,
+      }]);
+      toast({
+        title: "Upload successful",
+        description: `Imported ${data.count} products`,
+      });
+      setActiveTab("products");
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Session expired",
+          description: "Please log in again",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Upload failed",
+        description: "Could not parse the file",
+        variant: "destructive",
+      });
+    },
+  });
 
   const brands = useMemo(() => {
     const uniqueBrands = Array.from(new Set(products.map(p => p.brand)));
@@ -64,6 +104,15 @@ export default function Home() {
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleAddToCart = useCallback((product: Product) => {
+    const productForCart = {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      brand: product.brand,
+      price: Number(product.price),
+      stock: product.stock,
+    };
+    
     setCart(prevCart => {
       const existingItem = prevCart.find(item => item.product.id === product.id);
       if (existingItem) {
@@ -73,7 +122,7 @@ export default function Home() {
             : item
         );
       }
-      return [...prevCart, { product, quantity: 1 }];
+      return [...prevCart, { product: productForCart, quantity: 1 }];
     });
     toast({
       title: "Added to cart",
@@ -94,47 +143,11 @@ export default function Home() {
   }, []);
 
   const handleFileUpload = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: "binary" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
-        
-        const brandName = file.name.split(/[-_.]/)[0].toUpperCase();
-        
-        const newProducts: Product[] = jsonData.map((row, index) => ({
-          id: `${brandName}-${Date.now()}-${index}`,
-          sku: String(row.sku || row.SKU || row.Sku || `${brandName}-${index + 1}`),
-          name: String(row.name || row.Name || row.product || row.Product || "Unknown Product"),
-          brand: String(row.brand || row.Brand || brandName),
-          price: Number(row.price || row.Price || row.cost || row.Cost || 0),
-          stock: Number(row.stock || row.Stock || row.quantity || row.Quantity || 0),
-        }));
-
-        setProducts(prev => [...prev, ...newProducts]);
-        setUploadedFiles(prev => [...prev, {
-          name: file.name,
-          brand: brandName,
-          productCount: newProducts.length
-        }]);
-
-        toast({
-          title: "Upload successful",
-          description: `Imported ${newProducts.length} products from ${file.name}`,
-        });
-      } catch {
-        toast({
-          title: "Upload failed",
-          description: "Could not parse the file. Please check the format.",
-          variant: "destructive",
-        });
-      }
-    };
-    reader.readAsBinaryString(file);
-  }, [toast]);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("brand", file.name.split(/[-_.]/)[0].toUpperCase());
+    uploadMutation.mutate(formData);
+  }, [uploadMutation]);
 
   const handleRemoveFile = useCallback((fileName: string) => {
     setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
@@ -191,7 +204,6 @@ export default function Home() {
       return;
     }
 
-    // Generate Excel file
     const orderData = cart.map(item => ({
       SKU: item.product.sku,
       Product: item.product.name,
@@ -240,17 +252,49 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header
-        cartItemCount={cartItemCount}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onCartClick={() => setIsCartOpen(true)}
-      />
+      <header className="sticky top-0 z-50 bg-background border-b">
+        <div className="flex items-center justify-between gap-4 px-4 h-16">
+          <Header
+            cartItemCount={cartItemCount}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onCartClick={() => setIsCartOpen(true)}
+          />
+          
+          {user && (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user.profileImageUrl || undefined} />
+                <AvatarFallback>
+                  {user.firstName?.[0] || user.email?.[0] || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm hidden sm:block">
+                {user.firstName || user.email}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                data-testid="button-logout"
+              >
+                <a href="/api/logout">
+                  <LogOut className="w-5 h-5" />
+                </a>
+              </Button>
+            </div>
+          )}
+        </div>
+      </header>
 
       <main className="flex-1 overflow-hidden">
         {activeTab === "products" ? (
           <div className="h-full flex flex-col">
-            {products.length === 0 ? (
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-muted-foreground">Loading products...</p>
+              </div>
+            ) : products.length === 0 ? (
               <EmptyState type="no-products" onUploadClick={() => setActiveTab("upload")} />
             ) : (
               <>
@@ -272,8 +316,15 @@ export default function Home() {
                         {filteredProducts.map(product => (
                           <ProductCard
                             key={product.id}
-                            product={product}
-                            onAddToCart={handleAddToCart}
+                            product={{
+                              id: product.id,
+                              sku: product.sku,
+                              name: product.name,
+                              brand: product.brand,
+                              price: Number(product.price),
+                              stock: product.stock,
+                            }}
+                            onAddToCart={() => handleAddToCart(product)}
                           />
                         ))}
                       </div>
@@ -295,6 +346,7 @@ export default function Home() {
               onFileUpload={handleFileUpload}
               uploadedFiles={uploadedFiles}
               onRemoveFile={handleRemoveFile}
+              isUploading={uploadMutation.isPending}
             />
           </div>
         )}
