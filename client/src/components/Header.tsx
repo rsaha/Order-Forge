@@ -1,19 +1,21 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package } from "lucide-react";
+import { ShoppingCart, Upload, Package, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface HeaderProps {
   cartItemCount: number;
-  activeTab: "products" | "upload";
-  onTabChange: (tab: "products" | "upload") => void;
+  activeTab: "products" | "import" | "upload";
+  onTabChange: (tab: "products" | "import" | "upload") => void;
   onCartClick: () => void;
+  isAdmin?: boolean;
 }
 
 export default function Header({ 
   cartItemCount, 
   activeTab, 
   onTabChange,
-  onCartClick 
+  onCartClick,
+  isAdmin = false,
 }: HeaderProps) {
   return (
     <>
@@ -33,14 +35,25 @@ export default function Header({
           <span className="hidden sm:inline">Products</span>
         </Button>
         <Button
-          variant={activeTab === "upload" ? "default" : "ghost"}
+          variant={activeTab === "import" ? "default" : "ghost"}
           size="sm"
-          onClick={() => onTabChange("upload")}
-          data-testid="tab-upload"
+          onClick={() => onTabChange("import")}
+          data-testid="tab-import"
         >
-          <Upload className="w-4 h-4 sm:mr-2" />
-          <span className="hidden sm:inline">Upload</span>
+          <FileText className="w-4 h-4 sm:mr-2" />
+          <span className="hidden sm:inline">Import</span>
         </Button>
+        {isAdmin && (
+          <Button
+            variant={activeTab === "upload" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => onTabChange("upload")}
+            data-testid="tab-upload"
+          >
+            <Upload className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Upload</span>
+          </Button>
+        )}
       </nav>
 
       <Button

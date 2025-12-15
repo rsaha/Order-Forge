@@ -51,12 +51,16 @@ function updateUserSession(
 }
 
 async function upsertUser(claims: any) {
+  const isAdminClaim = claims["isAdmin"];
+  const isAdmin = isAdminClaim === true || isAdminClaim === "true" || isAdminClaim === "1" || isAdminClaim === 1;
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    isAdmin: isAdmin,
   });
 }
 

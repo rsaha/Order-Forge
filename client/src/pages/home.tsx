@@ -309,6 +309,63 @@ export default function Home() {
     });
   }, [generateOrderMessage, toast]);
 
+  const handleParsedItems = useCallback((items: ParsedItem[]) => {
+    setParsedItems(items);
+  }, []);
+
+  const handleUpdateParsedQuantity = useCallback((index: number, quantity: number) => {
+    setParsedItems(prev => 
+      prev.map((item, i) => i === index ? { ...item, quantity } : item)
+    );
+  }, []);
+
+  const handleRemoveParsedItem = useCallback((index: number) => {
+    setParsedItems(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleAddParsedToCart = useCallback(() => {
+    const matchedItems = parsedItems.filter(item => item.matchedProduct);
+    
+    matchedItems.forEach(item => {
+      if (item.matchedProduct) {
+        const product = products.find(p => p.id === item.matchedProduct!.id);
+        if (product) {
+          setCart(prevCart => {
+            const existingItem = prevCart.find(ci => ci.product.id === product.id);
+            if (existingItem) {
+              return prevCart.map(ci =>
+                ci.product.id === product.id
+                  ? { ...ci, quantity: Math.min(ci.quantity + item.quantity, product.stock) }
+                  : ci
+              );
+            }
+            return [...prevCart, { 
+              product: {
+                id: product.id,
+                sku: product.sku,
+                name: product.name,
+                brand: product.brand,
+                price: Number(product.price),
+                stock: product.stock,
+              }, 
+              quantity: Math.min(item.quantity, product.stock) 
+            }];
+          });
+        }
+      }
+    });
+
+    toast({
+      title: "Added to cart",
+      description: `${matchedItems.length} item(s) added to cart`,
+    });
+    setParsedItems([]);
+  }, [parsedItems, products, toast]);
+
+  const handleClearParsedItems = useCallback(() => {
+    setParsedItems([]);
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="sticky top-0 z-50 bg-background border-b">
@@ -318,6 +375,7 @@ export default function Home() {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onCartClick={() => setIsCartOpen(true)}
+            isAdmin={isAdmin}
           />
           
           {user && (
@@ -347,14 +405,14 @@ export default function Home() {
       </header>
 
       <main className="flex-1 overflow-hidden">
-        {activeTab === "products" ? (
+        {activeTab === "products" && (
           <div className="h-full flex flex-col">
             {isLoading ? (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-muted-foreground">Loading products...</p>
               </div>
             ) : products.length === 0 ? (
-              <EmptyState type="no-products" onUploadClick={() => setActiveTab("upload")} />
+              <EmptyState type="no-products" onUploadClick={() => setActiveTab(isAdmin ? "upload" : "import")} />
             ) : (
               <>
                 <div className="p-4 space-y-4 border-b bg-background sticky top-16 z-40">
@@ -393,7 +451,30 @@ export default function Home() {
               </>
             )}
           </div>
-        ) : (
+        )}
+
+        {activeTab === "import" && (
+          <div className="p-4 max-w-2xl mx-auto space-y-4">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">Import Order</h2>
+              <p className="text-muted-foreground">
+                Paste or type order text to quickly add items to your cart. The system will match product names and SKUs.
+              </p>
+            </div>
+            <ImportOrder onItemsParsed={handleParsedItems} />
+            {parsedItems.length > 0 && (
+              <ParsedOrderReview
+                items={parsedItems}
+                onUpdateQuantity={handleUpdateParsedQuantity}
+                onRemoveItem={handleRemoveParsedItem}
+                onAddToCart={handleAddParsedToCart}
+                onClear={handleClearParsedItems}
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === "upload" && isAdmin && (
           <div className="p-4 max-w-2xl mx-auto">
             <div className="mb-6">
               <h2 className="text-xl font-semibold mb-2">Upload Inventory</h2>

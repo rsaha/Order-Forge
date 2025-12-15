@@ -5,7 +5,6 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertProductSchema } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
-import { parseOrderFromImage, parseOrderFromText } from "./openai";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -127,49 +126,7 @@ export async function registerRoutes(
     }
   });
 
-  // Parse order from image (OCR)
-  app.post('/api/orders/parse-image', isAuthenticated, upload.single('image'), async (req: any, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No image uploaded" });
-      }
-
-      const base64Image = req.file.buffer.toString('base64');
-      const result = await parseOrderFromImage(base64Image);
-
-      if (!result.success) {
-        return res.status(400).json({ message: result.error || "Failed to parse image" });
-      }
-
-      // Try to match parsed items with user's products
-      const userId = req.user.claims.sub;
-      const userProducts = await storage.getUserProducts(userId);
-
-      const matchedItems = result.items.map(item => {
-        const productRef = item.productRef.toLowerCase().trim();
-        
-        // Find matching product by SKU or name
-        const matchedProduct = userProducts.find(p => {
-          const sku = p.sku.toLowerCase();
-          const name = p.name.toLowerCase();
-          return sku.includes(productRef) || productRef.includes(sku) ||
-                 name.includes(productRef) || productRef.includes(name);
-        });
-
-        return {
-          ...item,
-          matchedProduct: matchedProduct || null,
-        };
-      });
-
-      res.json({ items: matchedItems });
-    } catch (error) {
-      console.error("Error parsing order image:", error);
-      res.status(500).json({ message: "Failed to parse order image" });
-    }
-  });
-
-  // Parse order from text
+  // Parse order from text - simple pattern matching
   app.post('/api/orders/parse-text', isAuthenticated, async (req: any, res) => {
     try {
       const { text } = req.body;
@@ -178,30 +135,57 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No text provided" });
       }
 
-      const result = await parseOrderFromText(text);
-
-      if (!result.success) {
-        return res.status(400).json({ message: result.error || "Failed to parse text" });
+      // Simple text parsing - split by lines and extract patterns
+      const lines = text.split(/[\n,;]+/).map((l: string) => l.trim()).filter((l: string) => l);
+      const parsedItems: Array<{rawText: string; productRef: string; quantity: number}> = [];
+      
+      for (const line of lines) {
+        // Common patterns:
+        // "Product Name - Qty" or "Product Name x Qty" or "SKU Qty" or "Product Name 2"
+        const qtyMatch = line.match(/^(.+?)[\s\-x]+(\d+)\s*(?:case|cse|pcs|pc|units?)?$/i) ||
+                         line.match(/^(.+?)\s+(\d+)$/);
+        
+        if (qtyMatch) {
+          parsedItems.push({
+            rawText: line,
+            productRef: qtyMatch[1].trim(),
+            quantity: parseInt(qtyMatch[2]) || 1,
+          });
+        } else if (line.length > 0) {
+          // No quantity found, assume 1
+          parsedItems.push({
+            rawText: line,
+            productRef: line,
+            quantity: 1,
+          });
+        }
       }
 
       // Try to match parsed items with user's products
       const userId = req.user.claims.sub;
       const userProducts = await storage.getUserProducts(userId);
 
-      const matchedItems = result.items.map(item => {
+      const matchedItems = parsedItems.map(item => {
         const productRef = item.productRef.toLowerCase().trim();
         
         // Find matching product by SKU or name
         const matchedProduct = userProducts.find(p => {
           const sku = p.sku.toLowerCase();
           const name = p.name.toLowerCase();
-          return sku.includes(productRef) || productRef.includes(sku) ||
+          return sku === productRef || name === productRef ||
+                 sku.includes(productRef) || productRef.includes(sku) ||
                  name.includes(productRef) || productRef.includes(name);
         });
 
         return {
           ...item,
-          matchedProduct: matchedProduct || null,
+          matchedProduct: matchedProduct ? {
+            id: matchedProduct.id,
+            sku: matchedProduct.sku,
+            name: matchedProduct.name,
+            brand: matchedProduct.brand,
+            price: Number(matchedProduct.price),
+          } : null,
         };
       });
 
