@@ -10,6 +10,7 @@ import CartPanel from "@/components/CartPanel";
 import EmptyState from "@/components/EmptyState";
 import ImportOrder from "@/components/ImportOrder";
 import ParsedOrderReview from "@/components/ParsedOrderReview";
+import OrderTab from "@/components/OrderTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,7 +46,7 @@ interface UploadedFile {
 export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"products" | "import" | "upload">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "order" | "import" | "upload">("products");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -501,6 +502,28 @@ export default function Home() {
               </>
             )}
           </div>
+        )}
+
+        {activeTab === "order" && (
+          <OrderTab
+            products={products.map(p => ({
+              id: p.id,
+              sku: p.sku,
+              name: p.name,
+              brand: p.brand,
+              price: Number(p.price),
+              stock: p.stock,
+            }))}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            selectedBrand={selectedBrand}
+            onBrandSelect={setSelectedBrand}
+            orderDetails={orderDetails}
+            onOrderDetailsChange={setOrderDetails}
+            cart={cart}
+            onAddToCart={handleAddToCart}
+            onOpenCart={() => setIsCartOpen(true)}
+          />
         )}
 
         {activeTab === "import" && (

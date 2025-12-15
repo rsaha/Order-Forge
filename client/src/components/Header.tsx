@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package, FileText } from "lucide-react";
+import { ShoppingCart, Upload, Package, FileText, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface HeaderProps {
   cartItemCount: number;
-  activeTab: "products" | "import" | "upload";
-  onTabChange: (tab: "products" | "import" | "upload") => void;
+  activeTab: "products" | "order" | "import" | "upload";
+  onTabChange: (tab: "products" | "order" | "import" | "upload") => void;
   onCartClick: () => void;
   isAdmin?: boolean;
 }
@@ -33,6 +33,15 @@ export default function Header({
         >
           <Package className="w-4 h-4 sm:mr-2" />
           <span className="hidden sm:inline">Products</span>
+        </Button>
+        <Button
+          variant={activeTab === "order" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => onTabChange("order")}
+          data-testid="tab-order"
+        >
+          <ClipboardList className="w-4 h-4 sm:mr-2" />
+          <span className="hidden sm:inline">Order</span>
         </Button>
         <Button
           variant={activeTab === "import" ? "default" : "ghost"}

@@ -1,0 +1,130 @@
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+
+export interface OrderDetails {
+  partyName: string;
+  brand: string;
+  deliveryNotes: string;
+  specialNotes: string;
+}
+
+interface OrderDetailsFormProps {
+  orderDetails: OrderDetails;
+  onOrderDetailsChange: (details: OrderDetails) => void;
+  readOnly?: boolean;
+}
+
+const BRAND_OPTIONS = ["Tynor", "UM", "Morrison", "Biostige", "Karemed"];
+
+export default function OrderDetailsForm({
+  orderDetails,
+  onOrderDetailsChange,
+  readOnly = false,
+}: OrderDetailsFormProps) {
+  const updateOrderDetail = (field: keyof OrderDetails, value: string) => {
+    onOrderDetailsChange({ ...orderDetails, [field]: value });
+  };
+
+  if (readOnly) {
+    const hasDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryNotes || orderDetails.specialNotes;
+    
+    if (!hasDetails) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-2 text-sm">
+        {orderDetails.partyName && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground">Party:</span>
+            <span data-testid="text-party-name">{orderDetails.partyName}</span>
+          </div>
+        )}
+        {orderDetails.brand && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground">Brand:</span>
+            <span data-testid="text-brand">{orderDetails.brand}</span>
+          </div>
+        )}
+        {orderDetails.deliveryNotes && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground">Delivery:</span>
+            <span data-testid="text-delivery-notes" className="text-muted-foreground">{orderDetails.deliveryNotes}</span>
+          </div>
+        )}
+        {orderDetails.specialNotes && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground">Notes:</span>
+            <span data-testid="text-special-notes" className="text-muted-foreground">{orderDetails.specialNotes}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="p-4 space-y-4">
+      <h3 className="font-semibold text-lg">Order Details</h3>
+      
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="partyName">Party Name</Label>
+          <Input
+            id="partyName"
+            placeholder="Customer/Party name"
+            value={orderDetails.partyName}
+            onChange={(e) => updateOrderDetail("partyName", e.target.value)}
+            className="h-10"
+            data-testid="input-party-name"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="brand">Brand</Label>
+          <Select
+            value={orderDetails.brand}
+            onValueChange={(value) => updateOrderDetail("brand", value)}
+          >
+            <SelectTrigger id="brand" className="h-10" data-testid="select-brand">
+              <SelectValue placeholder="Select brand" />
+            </SelectTrigger>
+            <SelectContent>
+              {BRAND_OPTIONS.map((brand) => (
+                <SelectItem key={brand} value={brand} data-testid={`option-brand-${brand.toLowerCase()}`}>
+                  {brand}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="deliveryNotes">Delivery Notes (Optional)</Label>
+          <Textarea
+            id="deliveryNotes"
+            placeholder="Delivery instructions..."
+            value={orderDetails.deliveryNotes}
+            onChange={(e) => updateOrderDetail("deliveryNotes", e.target.value)}
+            className="min-h-[60px] resize-none"
+            data-testid="input-delivery-notes"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="specialNotes">Special Notes (Optional)</Label>
+          <Textarea
+            id="specialNotes"
+            placeholder="Any special requirements..."
+            value={orderDetails.specialNotes}
+            onChange={(e) => updateOrderDetail("specialNotes", e.target.value)}
+            className="min-h-[60px] resize-none"
+            data-testid="input-special-notes"
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
