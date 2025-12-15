@@ -2,24 +2,39 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MessageCircle, Mail, Copy, Check } from "lucide-react";
 import { useState } from "react";
 import type { CartItemData } from "./CartItem";
 import { formatINR } from "./ProductCard";
 
+export interface OrderDetails {
+  partyName: string;
+  brand: string;
+  deliveryNotes: string;
+  specialNotes: string;
+}
+
 interface OrderSummaryProps {
   cartItems: CartItemData[];
   discountPercent: number;
   onDiscountChange: (discount: number) => void;
+  orderDetails: OrderDetails;
+  onOrderDetailsChange: (details: OrderDetails) => void;
   onSendWhatsApp: (phone: string) => void;
   onSendEmail: (email: string) => void;
   onCopyMessage: () => void;
 }
 
+const BRAND_OPTIONS = ["Tynor", "UM", "Morrison", "Biostige", "Karemed"];
+
 export default function OrderSummary({ 
   cartItems, 
   discountPercent,
   onDiscountChange,
+  orderDetails,
+  onOrderDetailsChange,
   onSendWhatsApp, 
   onSendEmail,
   onCopyMessage 
@@ -27,6 +42,10 @@ export default function OrderSummary({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [copied, setCopied] = useState(false);
+
+  const updateOrderDetail = (field: keyof OrderDetails, value: string) => {
+    onOrderDetailsChange({ ...orderDetails, [field]: value });
+  };
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
@@ -51,13 +70,70 @@ export default function OrderSummary({
   return (
     <Card className="p-4 space-y-4">
       <div>
-        <h3 className="font-semibold text-lg">Order Summary</h3>
+        <h3 className="font-semibold text-lg">Order Details</h3>
         <p className="text-sm text-muted-foreground">
           {itemCount} item{itemCount !== 1 ? "s" : ""} in cart
         </p>
       </div>
 
-      <div className="space-y-2 py-4 border-y">
+      <div className="space-y-3 pb-3 border-b">
+        <div className="space-y-1.5">
+          <Label htmlFor="partyName">Party Name</Label>
+          <Input
+            id="partyName"
+            placeholder="Customer/Party name"
+            value={orderDetails.partyName}
+            onChange={(e) => updateOrderDetail("partyName", e.target.value)}
+            className="h-10"
+            data-testid="input-party-name"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="brand">Brand</Label>
+          <Select
+            value={orderDetails.brand}
+            onValueChange={(value) => updateOrderDetail("brand", value)}
+          >
+            <SelectTrigger id="brand" className="h-10" data-testid="select-brand">
+              <SelectValue placeholder="Select brand" />
+            </SelectTrigger>
+            <SelectContent>
+              {BRAND_OPTIONS.map((brand) => (
+                <SelectItem key={brand} value={brand} data-testid={`option-brand-${brand.toLowerCase()}`}>
+                  {brand}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="deliveryNotes">Delivery Notes (Optional)</Label>
+          <Textarea
+            id="deliveryNotes"
+            placeholder="Delivery instructions..."
+            value={orderDetails.deliveryNotes}
+            onChange={(e) => updateOrderDetail("deliveryNotes", e.target.value)}
+            className="min-h-[60px] resize-none"
+            data-testid="input-delivery-notes"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="specialNotes">Special Notes (Optional)</Label>
+          <Textarea
+            id="specialNotes"
+            placeholder="Any special requirements..."
+            value={orderDetails.specialNotes}
+            onChange={(e) => updateOrderDetail("specialNotes", e.target.value)}
+            className="min-h-[60px] resize-none"
+            data-testid="input-special-notes"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2 py-3 border-b">
         {cartItems.map((item) => (
           <div key={item.product.id} className="flex justify-between text-sm gap-2">
             <span className="text-muted-foreground truncate flex-1">

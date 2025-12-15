@@ -1,7 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CartItem, { type CartItemData } from "./CartItem";
-import OrderSummary from "./OrderSummary";
+import OrderSummary, { type OrderDetails } from "./OrderSummary";
 
 interface CartPanelProps {
   isOpen: boolean;
@@ -9,6 +9,8 @@ interface CartPanelProps {
   cartItems: CartItemData[];
   discountPercent: number;
   onDiscountChange: (discount: number) => void;
+  orderDetails: OrderDetails;
+  onOrderDetailsChange: (details: OrderDetails) => void;
   onQuantityChange: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
   onSendWhatsApp: (phone: string) => void;
@@ -22,6 +24,8 @@ export default function CartPanel({
   cartItems,
   discountPercent,
   onDiscountChange,
+  orderDetails,
+  onOrderDetailsChange,
   onQuantityChange,
   onRemoveItem,
   onSendWhatsApp,
@@ -60,6 +64,8 @@ export default function CartPanel({
                   cartItems={cartItems}
                   discountPercent={discountPercent}
                   onDiscountChange={onDiscountChange}
+                  orderDetails={orderDetails}
+                  onOrderDetailsChange={onOrderDetailsChange}
                   onSendWhatsApp={onSendWhatsApp}
                   onSendEmail={onSendEmail}
                   onCopyMessage={onCopyMessage}

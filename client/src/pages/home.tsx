@@ -54,6 +54,12 @@ export default function Home() {
   const [discountPercent, setDiscountPercent] = useState(0);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [partyName, setPartyName] = useState("");
+  const [orderDetails, setOrderDetails] = useState({
+    partyName: "",
+    brand: "",
+    deliveryNotes: "",
+    specialNotes: "",
+  });
   
   const isAdmin = user?.isAdmin === true;
 
@@ -187,8 +193,18 @@ export default function Home() {
     const lines = [
       "NEW ORDER",
       "─".repeat(20),
-      "",
     ];
+
+    if (orderDetails.partyName) {
+      lines.push(`Party: ${orderDetails.partyName}`);
+    }
+    if (orderDetails.brand) {
+      lines.push(`Brand: ${orderDetails.brand}`);
+    }
+    if (orderDetails.partyName || orderDetails.brand) {
+      lines.push("─".repeat(20));
+    }
+    lines.push("");
 
     cart.forEach(item => {
       lines.push(`${item.product.name}`);
@@ -209,8 +225,18 @@ export default function Home() {
     }
     lines.push(`TOTAL: ${formatINR(finalTotal)}`);
 
+    if (orderDetails.deliveryNotes) {
+      lines.push("");
+      lines.push("─".repeat(20));
+      lines.push(`DELIVERY NOTES: ${orderDetails.deliveryNotes}`);
+    }
+    if (orderDetails.specialNotes) {
+      lines.push("");
+      lines.push(`SPECIAL NOTES: ${orderDetails.specialNotes}`);
+    }
+
     return lines.join("\n");
-  }, [cart, discountPercent]);
+  }, [cart, discountPercent, orderDetails]);
 
   const handleSendWhatsApp = useCallback((phone: string) => {
     if (!phone.trim()) {
@@ -240,6 +266,20 @@ export default function Home() {
         variant: "destructive",
       });
       return;
+    }
+
+    const orderInfo: { Field: string; Value: string }[] = [];
+    if (orderDetails.partyName) {
+      orderInfo.push({ Field: "Party Name", Value: orderDetails.partyName });
+    }
+    if (orderDetails.brand) {
+      orderInfo.push({ Field: "Brand", Value: orderDetails.brand });
+    }
+    if (orderDetails.deliveryNotes) {
+      orderInfo.push({ Field: "Delivery Notes", Value: orderDetails.deliveryNotes });
+    }
+    if (orderDetails.specialNotes) {
+      orderInfo.push({ Field: "Special Notes", Value: orderDetails.specialNotes });
     }
 
     const orderData = cart.map(item => ({
@@ -291,16 +331,23 @@ export default function Home() {
       "Subtotal (INR)": finalTotal,
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(orderData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Order");
+    
+    if (orderInfo.length > 0) {
+      const infoSheet = XLSX.utils.json_to_sheet(orderInfo);
+      XLSX.utils.book_append_sheet(workbook, infoSheet, "Order Info");
+    }
+    
+    const orderSheet = XLSX.utils.json_to_sheet(orderData);
+    XLSX.utils.book_append_sheet(workbook, orderSheet, "Order Items");
+    
     XLSX.writeFile(workbook, `order-${Date.now()}.xlsx`);
 
     toast({
       title: "Spreadsheet downloaded",
       description: `Send the downloaded file to ${email}`,
     });
-  }, [cart, discountPercent, toast]);
+  }, [cart, discountPercent, orderDetails, toast]);
 
   const handleCopyMessage = useCallback(() => {
     navigator.clipboard.writeText(generateOrderMessage());
@@ -503,6 +550,8 @@ export default function Home() {
         cartItems={cart}
         discountPercent={discountPercent}
         onDiscountChange={setDiscountPercent}
+        orderDetails={orderDetails}
+        onOrderDetailsChange={setOrderDetails}
         onQuantityChange={handleQuantityChange}
         onRemoveItem={handleRemoveItem}
         onSendWhatsApp={handleSendWhatsApp}
