@@ -8,6 +8,8 @@ import ProductCard from "@/components/ProductCard";
 import UploadDropzone from "@/components/UploadDropzone";
 import CartPanel from "@/components/CartPanel";
 import EmptyState from "@/components/EmptyState";
+import ImportOrder from "@/components/ImportOrder";
+import ParsedOrderReview from "@/components/ParsedOrderReview";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +21,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
+interface ParsedItem {
+  rawText: string;
+  productRef: string;
+  size?: string;
+  quantity: number;
+  confidence: number;
+  matchedProduct: {
+    id: string;
+    sku: string;
+    name: string;
+    brand: string;
+    price: number;
+  } | null;
+}
+
 interface UploadedFile {
   name: string;
   brand: string;
@@ -28,13 +45,16 @@ interface UploadedFile {
 export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"products" | "upload">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "import" | "upload">("products");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItemData[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
+  
+  const isAdmin = user?.isAdmin === true;
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
