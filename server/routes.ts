@@ -136,7 +136,19 @@ export async function registerRoutes(
       }
 
       // Simple text parsing - split by lines and extract patterns
-      const lines = text.split(/[\n,;]+/).map((l: string) => l.trim()).filter((l: string) => l);
+      const allLines = text.split(/[\n]+/).map((l: string) => l.trim()).filter((l: string) => l);
+      
+      // First line is the party/customer name
+      const partyName = allLines.length > 0 ? allLines[0] : "";
+      const productLines = allLines.slice(1); // Skip first line for product parsing
+      
+      // Further split by comma/semicolon for product lines
+      const lines: string[] = [];
+      for (const line of productLines) {
+        const parts = line.split(/[,;]+/).map((p: string) => p.trim()).filter((p: string) => p);
+        lines.push(...parts);
+      }
+      
       const parsedItems: Array<{rawText: string; productRef: string; quantity: number}> = [];
       
       for (const line of lines) {
@@ -189,7 +201,7 @@ export async function registerRoutes(
         };
       });
 
-      res.json({ items: matchedItems });
+      res.json({ partyName, items: matchedItems });
     } catch (error) {
       console.error("Error parsing order text:", error);
       res.status(500).json({ message: "Failed to parse order text" });

@@ -19,7 +19,7 @@ interface ParsedItem {
 }
 
 interface ImportOrderProps {
-  onItemsParsed: (items: ParsedItem[]) => void;
+  onItemsParsed: (partyName: string, items: ParsedItem[]) => void;
 }
 
 export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
@@ -54,11 +54,18 @@ export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
       const data = await response.json();
       
       if (data.items && data.items.length > 0) {
-        onItemsParsed(data.items);
+        onItemsParsed(data.partyName || "", data.items);
         setText("");
         toast({
           title: "Order parsed",
-          description: `Found ${data.items.length} items`,
+          description: `Party: ${data.partyName || "Not specified"} - Found ${data.items.length} items`,
+        });
+      } else if (data.partyName) {
+        onItemsParsed(data.partyName, []);
+        setText("");
+        toast({
+          title: "Party name found",
+          description: `Party: ${data.partyName} - No product items found`,
         });
       } else {
         toast({
@@ -87,7 +94,7 @@ export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
       
       <div className="space-y-4">
         <Textarea
-          placeholder="Paste or type your order here...&#10;&#10;Examples:&#10;L.S Belt 2&#10;Knee Cap - 3&#10;Product Name x 5&#10;SKU-001, 2"
+          placeholder="Paste or type your order here...&#10;&#10;First line = Party/Customer Name&#10;Following lines = Products&#10;&#10;Example:&#10;ABC Traders&#10;L.S Belt 2&#10;Knee Cap - 3&#10;Product Name x 5"
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="min-h-[200px]"

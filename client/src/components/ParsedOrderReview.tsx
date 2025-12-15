@@ -22,7 +22,9 @@ interface ParsedItem {
 }
 
 interface ParsedOrderReviewProps {
+  partyName: string;
   items: ParsedItem[];
+  onPartyNameChange: (name: string) => void;
   onUpdateQuantity: (index: number, quantity: number) => void;
   onRemoveItem: (index: number) => void;
   onAddToCart: () => void;
@@ -30,7 +32,9 @@ interface ParsedOrderReviewProps {
 }
 
 export default function ParsedOrderReview({
+  partyName,
   items,
+  onPartyNameChange,
   onUpdateQuantity,
   onRemoveItem,
   onAddToCart,
@@ -49,10 +53,20 @@ export default function ParsedOrderReview({
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between gap-2 mb-4">
-        <h3 className="font-semibold text-lg">Parsed Order Items</h3>
+        <h3 className="font-semibold text-lg">Parsed Order</h3>
         <Button variant="ghost" size="sm" onClick={onClear} data-testid="button-clear-parsed">
           Clear All
         </Button>
+      </div>
+
+      <div className="mb-4">
+        <label className="text-sm font-medium mb-1 block">Party / Customer Name</label>
+        <Input
+          value={partyName}
+          onChange={(e) => onPartyNameChange(e.target.value)}
+          placeholder="Enter party name"
+          data-testid="input-party-name"
+        />
       </div>
 
       <ScrollArea className="max-h-[400px]">

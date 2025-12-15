@@ -53,6 +53,7 @@ export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
+  const [partyName, setPartyName] = useState("");
   
   const isAdmin = user?.isAdmin === true;
 
@@ -309,7 +310,8 @@ export default function Home() {
     });
   }, [generateOrderMessage, toast]);
 
-  const handleParsedItems = useCallback((items: ParsedItem[]) => {
+  const handleParsedItems = useCallback((name: string, items: ParsedItem[]) => {
+    setPartyName(name);
     setParsedItems(items);
   }, []);
 
@@ -364,6 +366,7 @@ export default function Home() {
 
   const handleClearParsedItems = useCallback(() => {
     setParsedItems([]);
+    setPartyName("");
   }, []);
 
   return (
@@ -462,9 +465,11 @@ export default function Home() {
               </p>
             </div>
             <ImportOrder onItemsParsed={handleParsedItems} />
-            {parsedItems.length > 0 && (
+            {(parsedItems.length > 0 || partyName) && (
               <ParsedOrderReview
+                partyName={partyName}
                 items={parsedItems}
+                onPartyNameChange={setPartyName}
                 onUpdateQuantity={handleUpdateParsedQuantity}
                 onRemoveItem={handleRemoveParsedItem}
                 onAddToCart={handleAddParsedToCart}
