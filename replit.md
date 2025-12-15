@@ -52,6 +52,16 @@ Key tables:
 - Files are parsed server-side using the `xlsx` library
 - Products are extracted and assigned to the uploading user's catalog
 
+### Order Import Feature
+- **Import Tab**: All users can access the Import tab to paste order text
+- **Text Parsing**: Simple pattern matching extracts product names and quantities from free-form text
+- **Product Matching**: Parsed items are matched against the user's product catalog by SKU or name
+- **Review Flow**: Users can review matched items, adjust quantities, and add to cart
+
+### User Roles
+- **Regular Users**: Can browse products, use Import tab for text-based order entry, manage cart
+- **Admin Users**: Have all regular user access plus the Upload tab for catalog management
+
 ## External Dependencies
 
 ### Third-Party Services
