@@ -27,7 +27,6 @@ interface ParsedItem {
   productRef: string;
   size?: string;
   quantity: number;
-  confidence: number;
   matchedProduct: {
     id: string;
     sku: string;
@@ -46,7 +45,7 @@ interface UploadedFile {
 export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"products" | "order" | "import" | "upload">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "order" | "import" | "upload">("order");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -92,7 +91,6 @@ export default function Home() {
         title: "Upload successful",
         description: `Imported ${data.count} products`,
       });
-      setActiveTab("products");
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
@@ -132,7 +130,7 @@ export default function Home() {
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleAddToCart = useCallback((product: Product) => {
+  const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }) => {
     const productForCart = {
       id: product.id,
       sku: product.sku,
@@ -552,9 +550,9 @@ export default function Home() {
         {activeTab === "upload" && isAdmin && (
           <div className="p-4 max-w-2xl mx-auto">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">Upload Inventory</h2>
+              <h2 className="text-xl font-semibold mb-2">Upload Product Inventory</h2>
               <p className="text-muted-foreground">
-                Import product SKU lists from your brands. Supported formats: Excel (.xlsx, .xls) and CSV files.
+                Import product lists from your brands. Upload Excel files (.xlsx, .xls) with columns: Brand, Product Name, Product SKU ID, and optionally MRP.
               </p>
             </div>
             <UploadDropzone

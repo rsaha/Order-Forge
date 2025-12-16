@@ -39,7 +39,7 @@ export default function UploadDropzone({
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.csv') || file.name.endsWith('.xls'))) {
+    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
       onFileUpload(file);
     }
   }, [onFileUpload]);
@@ -67,15 +67,15 @@ export default function UploadDropzone({
             <Upload className="w-8 h-8 text-muted-foreground" />
           </div>
           <div>
-            <p className="font-medium text-lg">Upload SKU List</p>
+            <p className="font-medium text-lg">Upload Product Inventory</p>
             <p className="text-sm text-muted-foreground">
-              Drag and drop your Excel or CSV file here
+              Drag and drop your Excel file here
             </p>
           </div>
           <label>
             <input
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.xls"
               onChange={handleFileSelect}
               className="hidden"
               data-testid="input-file-upload"
@@ -85,7 +85,10 @@ export default function UploadDropzone({
             </Button>
           </label>
           <p className="text-xs text-muted-foreground">
-            Supported formats: .xlsx, .xls, .csv
+            Required columns: Brand, Product Name, Product SKU ID (MRP optional)
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Supported formats: .xlsx, .xls
           </p>
         </div>
       </Card>

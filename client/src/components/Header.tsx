@@ -26,15 +26,6 @@ export default function Header({
 
       <nav className="flex gap-1">
         <Button
-          variant={activeTab === "products" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => onTabChange("products")}
-          data-testid="tab-products"
-        >
-          <Package className="w-4 h-4 sm:mr-2" />
-          <span className="hidden sm:inline">Products</span>
-        </Button>
-        <Button
           variant={activeTab === "order" ? "default" : "ghost"}
           size="sm"
           onClick={() => onTabChange("order")}
@@ -52,6 +43,17 @@ export default function Header({
           <FileText className="w-4 h-4 sm:mr-2" />
           <span className="hidden sm:inline">Import</span>
         </Button>
+        {isAdmin && (
+          <Button
+            variant={activeTab === "products" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => onTabChange("products")}
+            data-testid="tab-products"
+          >
+            <Package className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Products</span>
+          </Button>
+        )}
         {isAdmin && (
           <Button
             variant={activeTab === "upload" ? "default" : "ghost"}

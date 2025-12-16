@@ -28,7 +28,7 @@ interface OrderTabProps {
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
   cart: CartItemData[];
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }) => void;
   onOpenCart: () => void;
 }
 

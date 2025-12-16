@@ -11,7 +11,6 @@ interface ParsedItem {
   productRef: string;
   size?: string;
   quantity: number;
-  confidence: number;
   matchedProduct: {
     id: string;
     sku: string;
