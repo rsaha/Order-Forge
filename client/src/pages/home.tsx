@@ -472,6 +472,7 @@ export default function Home() {
               sku: p.sku,
               name: p.name,
               brand: p.brand,
+              size: p.size,
               price: Number(p.price),
               stock: p.stock,
             }))}
