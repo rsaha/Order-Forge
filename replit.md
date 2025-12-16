@@ -47,10 +47,12 @@ Key tables:
 - Protected routes use `isAuthenticated` middleware
 - User data automatically synced on login via `upsertUser`
 
-### File Processing
-- Excel files (.xlsx, .xls) and CSV files are supported
+### File Processing (Admin Only)
+- Only Excel files (.xlsx, .xls) are supported for product uploads
+- Required Excel columns: Brand, Product Name, Product SKU ID
+- Optional column: MRP (price)
 - Files are parsed server-side using the `xlsx` library
-- Products are extracted and assigned to the uploading user's catalog
+- Products are extracted and assigned to the uploading admin's catalog
 
 ### Order Import Feature
 - **Import Tab**: All users can access the Import tab to paste order text
@@ -59,8 +61,8 @@ Key tables:
 - **Review Flow**: Users can review matched items, adjust quantities, and add to cart
 
 ### User Roles
-- **Regular Users**: Can browse products, use Import tab for text-based order entry, manage cart
-- **Admin Users**: Have all regular user access plus the Upload tab for catalog management
+- **Regular Users**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email
+- **Admin Users**: Have all regular user access plus Products tab (view catalog) and Upload tab (upload product inventory from Excel files)
 
 ## External Dependencies
 
