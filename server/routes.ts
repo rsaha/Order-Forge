@@ -216,10 +216,12 @@ export async function registerRoutes(
       const parsedItems: Array<{rawText: string; productRef: string; quantity: number}> = [];
       
       for (const line of lines) {
-        // Common patterns:
-        // "Product Name - Qty" or "Product Name x Qty" or "SKU Qty" or "Product Name 2"
-        const qtyMatch = line.match(/^(.+?)[\s\-x]+(\d+)\s*(?:case|cse|pcs|pc|units?)?$/i) ||
-                         line.match(/^(.+?)\s+(\d+)$/);
+        // Structure: Product Name, Optional Size, then Qty (with possible punctuation before qty)
+        // Examples: "L.S Belt 2", "Knee Cap - 3", "Product Name x 5", "Product Large Size -3", "Item.5"
+        // Match quantity at the end, with optional punctuation/separators before it
+        const qtyMatch = line.match(/^(.+?)[\s\-x.:;]+(\d+)\s*(?:case|cse|pcs|pc|units?)?$/i) ||
+                         line.match(/^(.+?)\s+(\d+)$/i) ||
+                         line.match(/^(.+?)\.(\d+)$/i);
         
         if (qtyMatch) {
           parsedItems.push({

@@ -55,14 +55,12 @@ export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
       
       if (data.items && data.items.length > 0) {
         onItemsParsed(data.partyName || "", data.items);
-        setText("");
         toast({
           title: "Order parsed",
           description: `Party: ${data.partyName || "Not specified"} - Found ${data.items.length} items`,
         });
       } else if (data.partyName) {
         onItemsParsed(data.partyName, []);
-        setText("");
         toast({
           title: "Party name found",
           description: `Party: ${data.partyName} - No product items found`,
