@@ -70,22 +70,24 @@ export async function registerRoutes(
         return res.status(400).json({ message: "The uploaded file contains no data" });
       }
 
-      // Validate required columns: Brand, Product Name, SKU (MRP is optional)
+      // Validate required columns: Brand, Name, Product SKU ID, Size (MRP is optional)
       const firstRow = jsonData[0];
       const columnKeys = Object.keys(firstRow);
       
       // Check for required columns (case-insensitive)
       const hasBrand = columnKeys.some(k => /^brand$/i.test(k));
-      const hasProductName = columnKeys.some(k => /^(product\s*name|name|product)$/i.test(k));
+      const hasName = columnKeys.some(k => /^(name|product\s*name)$/i.test(k));
       const hasSku = columnKeys.some(k => /^(product\s*sku\s*id|sku\s*id|sku|product\s*sku)$/i.test(k));
+      const hasSize = columnKeys.some(k => /^size$/i.test(k));
       
-      if (!hasBrand || !hasProductName || !hasSku) {
+      if (!hasBrand || !hasName || !hasSku || !hasSize) {
         const missing = [];
         if (!hasBrand) missing.push("Brand");
-        if (!hasProductName) missing.push("Product Name");
+        if (!hasName) missing.push("Name");
         if (!hasSku) missing.push("Product SKU ID");
+        if (!hasSize) missing.push("Size");
         return res.status(400).json({ 
-          message: `Missing required columns: ${missing.join(", ")}. Required structure: Brand, Product Name, Product SKU ID, MRP (optional)` 
+          message: `Missing required columns: ${missing.join(", ")}. Required structure: Brand, Name, Product SKU ID, Size, MRP (optional)` 
         });
       }
 
@@ -101,14 +103,16 @@ export async function registerRoutes(
 
       const productsToCreate = jsonData.map((row) => {
         const brand = getValue(row, [/^brand$/i]) || "";
-        const name = getValue(row, [/^(product\s*name|name|product)$/i]) || "";
+        const name = getValue(row, [/^(name|product\s*name)$/i]) || "";
         const sku = getValue(row, [/^(product\s*sku\s*id|sku\s*id|sku|product\s*sku)$/i]) || "";
+        const size = getValue(row, [/^size$/i]) || "";
         const mrp = getValue(row, [/^(mrp|price|cost)$/i]);
         
         return {
           sku: sku.trim(),
           name: name.trim(),
           brand: brand.trim(),
+          size: size.trim() || null,
           price: mrp ? String(Number(mrp) || 0) : "0",
           stock: 0,
           category: null,
@@ -117,7 +121,7 @@ export async function registerRoutes(
 
       if (productsToCreate.length === 0) {
         return res.status(400).json({ 
-          message: "No valid products found. Each row must have Brand, Product Name, and SKU ID" 
+          message: "No valid products found. Each row must have Brand, Name, Product SKU ID, and Size" 
         });
       }
 
@@ -127,7 +131,7 @@ export async function registerRoutes(
       const productIds = createdProducts.map(p => p.id);
       await storage.assignProductsToUser(userId, productIds);
 
-      const uploadedBrands = [...new Set(createdProducts.map(p => p.brand))];
+      const uploadedBrands = Array.from(new Set(createdProducts.map(p => p.brand)));
       res.json({
         message: "Products uploaded successfully",
         count: createdProducts.length,

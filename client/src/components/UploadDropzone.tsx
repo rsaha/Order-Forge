@@ -85,7 +85,7 @@ export default function UploadDropzone({
             </Button>
           </label>
           <p className="text-xs text-muted-foreground">
-            Required columns: Brand, Product Name, Product SKU ID (MRP optional)
+            Required columns: Brand, Name, Product SKU ID, Size (MRP optional)
           </p>
           <p className="text-xs text-muted-foreground">
             Supported formats: .xlsx, .xls

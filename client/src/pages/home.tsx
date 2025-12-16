@@ -552,7 +552,7 @@ export default function Home() {
             <div className="mb-6">
               <h2 className="text-xl font-semibold mb-2">Upload Product Inventory</h2>
               <p className="text-muted-foreground">
-                Import product lists from your brands. Upload Excel files (.xlsx, .xls) with columns: Brand, Product Name, Product SKU ID, and optionally MRP.
+                Import product lists from your brands. Upload Excel files (.xlsx, .xls) with columns: Brand, Name, Product SKU ID, Size, and optionally MRP.
               </p>
             </div>
             <UploadDropzone

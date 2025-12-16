@@ -49,7 +49,7 @@ Key tables:
 
 ### File Processing (Admin Only)
 - Only Excel files (.xlsx, .xls) are supported for product uploads
-- Required Excel columns: Brand, Product Name, Product SKU ID
+- Required Excel columns: Brand, Name, Product SKU ID, Size
 - Optional column: MRP (price)
 - Files are parsed server-side using the `xlsx` library
 - Products are extracted and assigned to the uploading admin's catalog
