@@ -5,6 +5,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertProductSchema } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
+import { getUncachableResendClient } from "./resend";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -271,6 +272,103 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error parsing order text:", error);
       res.status(500).json({ message: "Failed to parse order text" });
+    }
+  });
+
+  // Send order via email with CSV attachment
+  app.post('/api/orders/send-email', isAuthenticated, async (req: any, res) => {
+    try {
+      const { email, orderDetails, cart, discountPercent } = req.body;
+      
+      if (!email || !email.trim()) {
+        return res.status(400).json({ message: "Email address is required" });
+      }
+      
+      if (!cart || cart.length === 0) {
+        return res.status(400).json({ message: "Cart is empty" });
+      }
+
+      // Generate CSV content
+      const csvRows: string[] = [];
+      
+      // Header row
+      csvRows.push("SKU,Product,Brand,Quantity,Unit Price (INR),Subtotal (INR)");
+      
+      // Item rows
+      let subtotal = 0;
+      let totalQty = 0;
+      for (const item of cart) {
+        const itemSubtotal = item.product.price * item.quantity;
+        subtotal += itemSubtotal;
+        totalQty += item.quantity;
+        csvRows.push(`"${item.product.sku}","${item.product.name}","${item.product.brand}",${item.quantity},${item.product.price},${itemSubtotal}`);
+      }
+      
+      // Add blank row then totals
+      csvRows.push("");
+      csvRows.push(`"SUBTOTAL","","",${totalQty},0,${subtotal}`);
+      
+      const safeDiscount = Math.min(100, Math.max(0, discountPercent || 0));
+      const discountAmount = subtotal * (safeDiscount / 100);
+      const finalTotal = subtotal - discountAmount;
+      
+      if (safeDiscount > 0) {
+        csvRows.push(`"DISCOUNT (${safeDiscount}%)","","",0,0,-${discountAmount}`);
+      }
+      csvRows.push(`"TOTAL","","",0,0,${finalTotal}`);
+      
+      const csvContent = csvRows.join("\n");
+
+      // Build email body
+      const emailLines = ["Order Details", "=".repeat(40), ""];
+      if (orderDetails?.partyName) {
+        emailLines.push(`Party Name: ${orderDetails.partyName}`);
+      }
+      if (orderDetails?.brand) {
+        emailLines.push(`Brand: ${orderDetails.brand}`);
+      }
+      if (orderDetails?.deliveryNotes) {
+        emailLines.push(`Delivery Notes: ${orderDetails.deliveryNotes}`);
+      }
+      if (orderDetails?.specialNotes) {
+        emailLines.push(`Special Notes: ${orderDetails.specialNotes}`);
+      }
+      emailLines.push("");
+      emailLines.push(`Total Items: ${totalQty}`);
+      emailLines.push(`Subtotal: INR ${subtotal.toFixed(2)}`);
+      if (safeDiscount > 0) {
+        emailLines.push(`Discount (${safeDiscount}%): -INR ${discountAmount.toFixed(2)}`);
+      }
+      emailLines.push(`Total: INR ${finalTotal.toFixed(2)}`);
+      emailLines.push("");
+      emailLines.push("Please see the attached CSV file for the full order details.");
+
+      // Send email via Resend
+      const { client, fromEmail } = await getUncachableResendClient();
+      
+      const result = await client.emails.send({
+        from: fromEmail,
+        to: [email],
+        subject: `Order from ${orderDetails?.partyName || 'Customer'} - ${new Date().toLocaleDateString()}`,
+        text: emailLines.join("\n"),
+        attachments: [
+          {
+            filename: `order-${Date.now()}.csv`,
+            content: Buffer.from(csvContent, 'utf8'),
+            contentType: 'text/csv',
+          }
+        ],
+      });
+
+      if (result.error) {
+        console.error("Resend error:", result.error);
+        return res.status(500).json({ message: "Failed to send email: " + result.error.message });
+      }
+
+      res.json({ message: "Order sent successfully", emailId: result.data?.id });
+    } catch (error: any) {
+      console.error("Error sending order email:", error);
+      res.status(500).json({ message: error.message || "Failed to send order email" });
     }
   });
 

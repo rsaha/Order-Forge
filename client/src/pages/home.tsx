@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import * as XLSX from "xlsx";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import BrandFilter from "@/components/BrandFilter";
@@ -257,7 +256,9 @@ export default function Home() {
     });
   }, [generateOrderMessage, toast]);
 
-  const handleSendEmail = useCallback((email: string) => {
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const handleSendEmail = useCallback(async (email: string) => {
     if (!email.trim()) {
       toast({
         title: "Email required",
@@ -267,85 +268,47 @@ export default function Home() {
       return;
     }
 
-    const orderInfo: { Field: string; Value: string }[] = [];
-    if (orderDetails.partyName) {
-      orderInfo.push({ Field: "Party Name", Value: orderDetails.partyName });
-    }
-    if (orderDetails.brand) {
-      orderInfo.push({ Field: "Brand", Value: orderDetails.brand });
-    }
-    if (orderDetails.deliveryNotes) {
-      orderInfo.push({ Field: "Delivery Notes", Value: orderDetails.deliveryNotes });
-    }
-    if (orderDetails.specialNotes) {
-      orderInfo.push({ Field: "Special Notes", Value: orderDetails.specialNotes });
-    }
-
-    const orderData = cart.map(item => ({
-      SKU: item.product.sku,
-      Product: item.product.name,
-      Brand: item.product.brand,
-      Quantity: item.quantity,
-      "Unit Price (INR)": item.product.price,
-      "Subtotal (INR)": item.quantity * item.product.price,
-    }));
-
-    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-    const safeDiscount = Math.min(100, Math.max(0, discountPercent));
-    const discountAmount = subtotal * (safeDiscount / 100);
-    const finalTotal = subtotal - discountAmount;
-    
-    orderData.push({
-      SKU: "",
-      Product: "",
-      Brand: "",
-      Quantity: 0,
-      "Unit Price (INR)": 0,
-      "Subtotal (INR)": 0,
-    });
-    orderData.push({
-      SKU: "SUBTOTAL",
-      Product: "",
-      Brand: "",
-      Quantity: cart.reduce((sum, item) => sum + item.quantity, 0),
-      "Unit Price (INR)": 0,
-      "Subtotal (INR)": subtotal,
-    });
-    if (safeDiscount > 0) {
-      orderData.push({
-        SKU: `DISCOUNT (${safeDiscount}%)`,
-        Product: "",
-        Brand: "",
-        Quantity: 0,
-        "Unit Price (INR)": 0,
-        "Subtotal (INR)": -discountAmount,
+    if (cart.length === 0) {
+      toast({
+        title: "Cart is empty",
+        description: "Add items to your cart before sending.",
+        variant: "destructive",
       });
+      return;
     }
-    orderData.push({
-      SKU: "TOTAL",
-      Product: "",
-      Brand: "",
-      Quantity: 0,
-      "Unit Price (INR)": 0,
-      "Subtotal (INR)": finalTotal,
-    });
 
-    const workbook = XLSX.utils.book_new();
-    
-    if (orderInfo.length > 0) {
-      const infoSheet = XLSX.utils.json_to_sheet(orderInfo);
-      XLSX.utils.book_append_sheet(workbook, infoSheet, "Order Info");
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch("/api/orders/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          orderDetails,
+          cart,
+          discountPercent,
+        }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to send email");
+      }
+
+      toast({
+        title: "Order sent!",
+        description: `Order email sent to ${email} with CSV attachment.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Email failed",
+        description: error.message || "Could not send the order email.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingEmail(false);
     }
-    
-    const orderSheet = XLSX.utils.json_to_sheet(orderData);
-    XLSX.utils.book_append_sheet(workbook, orderSheet, "Order Items");
-    
-    XLSX.writeFile(workbook, `order-${Date.now()}.xlsx`);
-
-    toast({
-      title: "Spreadsheet downloaded",
-      description: `Send the downloaded file to ${email}`,
-    });
   }, [cart, discountPercent, orderDetails, toast]);
 
   const handleCopyMessage = useCallback(() => {
@@ -578,6 +541,7 @@ export default function Home() {
         onSendWhatsApp={handleSendWhatsApp}
         onSendEmail={handleSendEmail}
         onCopyMessage={handleCopyMessage}
+        isSendingEmail={isSendingEmail}
       />
     </div>
   );

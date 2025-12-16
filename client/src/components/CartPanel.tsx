@@ -16,6 +16,7 @@ interface CartPanelProps {
   onSendWhatsApp: (phone: string) => void;
   onSendEmail: (email: string) => void;
   onCopyMessage: () => void;
+  isSendingEmail?: boolean;
 }
 
 export default function CartPanel({
@@ -30,7 +31,8 @@ export default function CartPanel({
   onRemoveItem,
   onSendWhatsApp,
   onSendEmail,
-  onCopyMessage
+  onCopyMessage,
+  isSendingEmail = false
 }: CartPanelProps) {
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -69,6 +71,7 @@ export default function CartPanel({
                   onSendWhatsApp={onSendWhatsApp}
                   onSendEmail={onSendEmail}
                   onCopyMessage={onCopyMessage}
+                  isSendingEmail={isSendingEmail}
                 />
               </div>
             </>

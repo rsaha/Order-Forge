@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Mail, Copy, Check } from "lucide-react";
+import { MessageCircle, Mail, Copy, Check, Loader2 } from "lucide-react";
 import { useState } from "react";
 import type { CartItemData } from "./CartItem";
 import { formatINR } from "./ProductCard";
@@ -19,6 +19,7 @@ interface OrderSummaryProps {
   onSendWhatsApp: (phone: string) => void;
   onSendEmail: (email: string) => void;
   onCopyMessage: () => void;
+  isSendingEmail?: boolean;
 }
 
 export default function OrderSummary({ 
@@ -29,7 +30,8 @@ export default function OrderSummary({
   onOrderDetailsChange,
   onSendWhatsApp, 
   onSendEmail,
-  onCopyMessage 
+  onCopyMessage,
+  isSendingEmail = false 
 }: OrderSummaryProps) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -191,11 +193,20 @@ export default function OrderSummary({
           variant="secondary"
           className="w-full"
           onClick={() => onSendEmail(email)}
-          disabled={cartItems.length === 0}
+          disabled={cartItems.length === 0 || isSendingEmail}
           data-testid="button-email"
         >
-          <Mail className="w-5 h-5 mr-2" />
-          Email Spreadsheet
+          {isSendingEmail ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Mail className="w-5 h-5 mr-2" />
+              Send Order via Email
+            </>
+          )}
         </Button>
       </div>
     </Card>
