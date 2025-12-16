@@ -1,12 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import SearchBar from "@/components/SearchBar";
 import BrandFilter from "@/components/BrandFilter";
-import ProductCard from "@/components/ProductCard";
+import ProductCardCompact, { groupProductsByName, type ProductVariant } from "@/components/ProductCardCompact";
 import OrderDetailsForm, { type OrderDetails } from "@/components/OrderDetailsForm";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CartItemData } from "@/components/CartItem";
 
@@ -15,9 +15,12 @@ interface Product {
   sku: string;
   name: string;
   brand: string;
+  size?: string | null;
   price: number;
   stock: number;
 }
+
+const ITEMS_PER_PAGE = 50;
 
 interface OrderTabProps {
   products: Product[];
@@ -44,6 +47,8 @@ export default function OrderTab({
   onAddToCart,
   onOpenCart,
 }: OrderTabProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+
   const brands = useMemo(() => {
     const uniqueBrands = Array.from(new Set(products.map(p => p.brand)));
     return uniqueBrands.sort();
@@ -59,6 +64,29 @@ export default function OrderTab({
       return matchesSearch && matchesBrand;
     });
   }, [products, searchQuery, selectedBrand]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedBrand]);
+
+  const groupedProducts = useMemo(() => {
+    const variants: ProductVariant[] = filteredProducts.map(p => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      brand: p.brand,
+      size: p.size || null,
+      price: p.price,
+      stock: p.stock,
+    }));
+    return groupProductsByName(variants);
+  }, [filteredProducts]);
+
+  const totalPages = Math.ceil(groupedProducts.length / ITEMS_PER_PAGE);
+  const paginatedGroups = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return groupedProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [groupedProducts, currentPage]);
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -84,21 +112,91 @@ export default function OrderTab({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4">
-            {filteredProducts.length === 0 ? (
+          <div className="p-3">
+            {groupedProducts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No products found
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {filteredProducts.map(product => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={(p, qty) => onAddToCart(product as any, qty)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="flex items-center justify-between gap-2 mb-3 text-sm text-muted-foreground">
+                  <span data-testid="text-product-count">
+                    {groupedProducts.length} products ({filteredProducts.length} SKUs)
+                  </span>
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        data-testid="button-prev-page"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <span className="px-2" data-testid="text-page-info">
+                        {currentPage} / {totalPages}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        data-testid="button-next-page"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
+                  {paginatedGroups.map(group => (
+                    <ProductCardCompact
+                      key={group.baseKey}
+                      group={group}
+                      onAddToCart={(variant, qty) => onAddToCart({
+                        id: variant.id,
+                        sku: variant.sku,
+                        name: variant.name,
+                        brand: variant.brand,
+                        price: variant.price,
+                        stock: variant.stock,
+                      }, qty)}
+                    />
+                  ))}
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex justify-center mt-4">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        data-testid="button-prev-page-bottom"
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="px-3 text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        data-testid="button-next-page-bottom"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </ScrollArea>
