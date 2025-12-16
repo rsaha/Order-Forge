@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Minus } from "lucide-react";
 
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -22,10 +24,22 @@ export interface Product {
 
 interface ProductCardProps {
   product: Product;
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: Product, quantity: number) => void;
 }
 
 export default function ProductCard({ product, onAddToCart }: ProductCardProps) {
+  const [quantity, setQuantity] = useState(1);
+
+  const handleQuantityChange = (value: number) => {
+    const newQty = Math.max(1, Math.min(value, product.stock || 999));
+    setQuantity(newQty);
+  };
+
+  const handleAdd = () => {
+    onAddToCart(product, quantity);
+    setQuantity(1);
+  };
+
   return (
     <Card className="p-4 flex flex-col gap-2">
       <div className="flex-1 min-w-0">
@@ -43,14 +57,42 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
         <span className="text-lg font-semibold" data-testid={`text-price-${product.id}`}>
           {formatINR(product.price)}
         </span>
-        <Button
-          size="sm"
-          onClick={() => onAddToCart(product)}
-          data-testid={`button-add-${product.id}`}
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => handleQuantityChange(quantity - 1)}
+            disabled={quantity <= 1}
+            data-testid={`button-qty-minus-${product.id}`}
+          >
+            <Minus className="w-3 h-3" />
+          </Button>
+          <Input
+            type="number"
+            min={1}
+            max={product.stock || 999}
+            value={quantity}
+            onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
+            className="w-14 h-9 text-center"
+            data-testid={`input-qty-${product.id}`}
+          />
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => handleQuantityChange(quantity + 1)}
+            data-testid={`button-qty-plus-${product.id}`}
+          >
+            <Plus className="w-3 h-3" />
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleAdd}
+            data-testid={`button-add-${product.id}`}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add
+          </Button>
+        </div>
       </div>
     </Card>
   );

@@ -130,7 +130,7 @@ export default function Home() {
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }) => {
+  const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }, quantity: number = 1) => {
     const productForCart = {
       id: product.id,
       sku: product.sku,
@@ -145,15 +145,15 @@ export default function Home() {
       if (existingItem) {
         return prevCart.map(item =>
           item.product.id === product.id
-            ? { ...item, quantity: Math.min(item.quantity + 1, product.stock) }
+            ? { ...item, quantity: Math.min(item.quantity + quantity, product.stock || 999) }
             : item
         );
       }
-      return [...prevCart, { product: productForCart, quantity: 1 }];
+      return [...prevCart, { product: productForCart, quantity: Math.min(quantity, product.stock || 999) }];
     });
     toast({
       title: "Added to cart",
-      description: `${product.name} has been added to your cart.`,
+      description: `${product.name} x${quantity} has been added to your cart.`,
     });
   }, [toast]);
 
@@ -490,7 +490,7 @@ export default function Home() {
                               price: Number(product.price),
                               stock: product.stock,
                             }}
-                            onAddToCart={() => handleAddToCart(product)}
+                            onAddToCart={(p, qty) => handleAddToCart(product, qty)}
                           />
                         ))}
                       </div>

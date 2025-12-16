@@ -28,7 +28,7 @@ interface OrderTabProps {
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
   cart: CartItemData[];
-  onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }) => void;
+  onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }, quantity: number) => void;
   onOpenCart: () => void;
 }
 
@@ -95,7 +95,7 @@ export default function OrderTab({
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onAddToCart={() => onAddToCart(product as any)}
+                    onAddToCart={(p, qty) => onAddToCart(product as any, qty)}
                   />
                 ))}
               </div>
