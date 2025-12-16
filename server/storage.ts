@@ -14,9 +14,10 @@ import {
   type InsertOrder,
   type OrderItem,
   type InsertOrderItem,
+  type UpdateOrder,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - required for Replit Auth
@@ -39,6 +40,10 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   getUserOrders(userId: string): Promise<Order[]>;
+  getAllOrders(status?: string): Promise<Order[]>;
+  getOrderById(id: string): Promise<Order | undefined>;
+  getOrderItems(orderId: string): Promise<OrderItem[]>;
+  updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -133,7 +138,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserOrders(userId: string): Promise<Order[]> {
-    return db.select().from(orders).where(eq(orders.userId, userId));
+    return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+  }
+
+  async getAllOrders(status?: string): Promise<Order[]> {
+    if (status) {
+      return db.select().from(orders).where(eq(orders.status, status)).orderBy(desc(orders.createdAt));
+    }
+    return db.select().from(orders).orderBy(desc(orders.createdAt));
+  }
+
+  async getOrderById(id: string): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, id));
+    return order;
+  }
+
+  async getOrderItems(orderId: string): Promise<OrderItem[]> {
+    return db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  }
+
+  async updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined> {
+    const updateData: Record<string, unknown> = {};
+    
+    if (updates.status !== undefined) updateData.status = updates.status;
+    if (updates.partyName !== undefined) updateData.partyName = updates.partyName;
+    if (updates.deliveryAddress !== undefined) updateData.deliveryAddress = updates.deliveryAddress;
+    if (updates.invoiceNumber !== undefined) updateData.invoiceNumber = updates.invoiceNumber;
+    if (updates.invoiceDate !== undefined) updateData.invoiceDate = updates.invoiceDate ? new Date(updates.invoiceDate) : null;
+    if (updates.dispatchDate !== undefined) updateData.dispatchDate = updates.dispatchDate ? new Date(updates.dispatchDate) : null;
+    if (updates.dispatchBy !== undefined) updateData.dispatchBy = updates.dispatchBy;
+    if (updates.cases !== undefined) updateData.cases = updates.cases;
+    if (updates.remarks !== undefined) updateData.remarks = updates.remarks;
+    if (updates.estimatedDeliveryDate !== undefined) updateData.estimatedDeliveryDate = updates.estimatedDeliveryDate ? new Date(updates.estimatedDeliveryDate) : null;
+    if (updates.actualDeliveryDate !== undefined) updateData.actualDeliveryDate = updates.actualDeliveryDate ? new Date(updates.actualDeliveryDate) : null;
+    if (updates.deliveryCost !== undefined) updateData.deliveryCost = updates.deliveryCost;
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getOrderById(id);
+    }
+
+    const [updated] = await db.update(orders).set(updateData).where(eq(orders.id, id)).returning();
+    return updated;
   }
 }
 

@@ -61,15 +61,30 @@ export const userProducts = pgTable("user_products", {
   index("idx_user_products_product").on(table.productId),
 ]);
 
+// Order status values
+export const ORDER_STATUSES = ["Created", "Pending", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
+export type OrderStatus = typeof ORDER_STATUSES[number];
+
 // Orders table
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  status: varchar("status").notNull().default("pending"),
+  status: varchar("status").notNull().default("Created"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
   whatsappPhone: varchar("whatsapp_phone"),
   email: varchar("email"),
+  partyName: varchar("party_name"),
+  deliveryAddress: text("delivery_address"),
+  invoiceNumber: varchar("invoice_number"),
+  invoiceDate: timestamp("invoice_date"),
+  dispatchDate: timestamp("dispatch_date"),
+  dispatchBy: varchar("dispatch_by"),
+  cases: integer("cases"),
+  remarks: text("remarks"),
+  estimatedDeliveryDate: timestamp("estimated_delivery_date"),
+  actualDeliveryDate: timestamp("actual_delivery_date"),
+  deliveryCost: numeric("delivery_cost", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -128,6 +143,23 @@ export const insertProductSchema = createInsertSchema(products).omit({ id: true,
 export const insertUserProductSchema = createInsertSchema(userProducts).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
+
+// Update schema for orders (all fields optional except id)
+export const updateOrderSchema = z.object({
+  status: z.enum(ORDER_STATUSES).optional(),
+  partyName: z.string().nullable().optional(),
+  deliveryAddress: z.string().nullable().optional(),
+  invoiceNumber: z.string().nullable().optional(),
+  invoiceDate: z.string().nullable().optional(),
+  dispatchDate: z.string().nullable().optional(),
+  dispatchBy: z.string().nullable().optional(),
+  cases: z.number().nullable().optional(),
+  remarks: z.string().nullable().optional(),
+  estimatedDeliveryDate: z.string().nullable().optional(),
+  actualDeliveryDate: z.string().nullable().optional(),
+  deliveryCost: z.string().nullable().optional(),
+});
+export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;

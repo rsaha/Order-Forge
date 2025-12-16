@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package, FileText, ClipboardList } from "lucide-react";
+import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "wouter";
 
 interface HeaderProps {
   cartItemCount: number;
@@ -64,6 +65,18 @@ export default function Header({
             <Upload className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Upload</span>
           </Button>
+        )}
+        {isAdmin && (
+          <Link href="/orders">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="tab-orders"
+            >
+              <ListOrdered className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Orders</span>
+            </Button>
+          </Link>
         )}
       </nav>
 
