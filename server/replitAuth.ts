@@ -53,6 +53,7 @@ function updateUserSession(
 const ADMIN_EMAILS = [
   "rakesh.x.saha@gmail.com",
   "xmaplepharma@gmail.com",
+  "elmericbio@gmail.com",
 ];
 
 async function upsertUser(claims: any) {
