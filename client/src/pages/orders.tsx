@@ -90,6 +90,7 @@ interface OrderEditFormData {
   estimatedDeliveryDate: string;
   actualDeliveryDate: string;
   deliveryCost: string;
+  deliveryNote: string;
 }
 
 export default function OrdersPage() {
@@ -111,6 +112,7 @@ export default function OrdersPage() {
     estimatedDeliveryDate: "",
     actualDeliveryDate: "",
     deliveryCost: "",
+    deliveryNote: "",
   });
   const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -160,6 +162,7 @@ export default function OrdersPage() {
       if (updates.estimatedDeliveryDate !== undefined) payload.estimatedDeliveryDate = updates.estimatedDeliveryDate || null;
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
       if (updates.deliveryCost !== undefined) payload.deliveryCost = updates.deliveryCost || null;
+      if (updates.deliveryNote !== undefined) payload.deliveryNote = updates.deliveryNote || null;
 
       return apiRequest("PATCH", `/api/admin/orders/${id}`, payload);
     },
@@ -189,6 +192,7 @@ export default function OrdersPage() {
       estimatedDeliveryDate: order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toISOString().split("T")[0] : "",
       actualDeliveryDate: order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toISOString().split("T")[0] : "",
       deliveryCost: order.deliveryCost || "",
+      deliveryNote: order.deliveryNote || "",
     });
     
     setLoadingItems(true);
@@ -606,6 +610,18 @@ export default function OrdersPage() {
                     placeholder="Additional notes..."
                     rows={3}
                     data-testid="input-remarks"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="deliveryNote">Delivery Note</Label>
+                  <Textarea
+                    id="deliveryNote"
+                    value={editFormData.deliveryNote}
+                    onChange={(e) => setEditFormData({ ...editFormData, deliveryNote: e.target.value })}
+                    placeholder="Delivery instructions or notes..."
+                    rows={3}
+                    data-testid="input-delivery-note"
                   />
                 </div>
               </div>

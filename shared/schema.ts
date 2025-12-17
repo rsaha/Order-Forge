@@ -85,6 +85,7 @@ export const orders = pgTable("orders", {
   estimatedDeliveryDate: timestamp("estimated_delivery_date"),
   actualDeliveryDate: timestamp("actual_delivery_date"),
   deliveryCost: numeric("delivery_cost", { precision: 10, scale: 2 }),
+  deliveryNote: text("delivery_note"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -158,6 +159,7 @@ export const updateOrderSchema = z.object({
   estimatedDeliveryDate: z.string().nullable().optional(),
   actualDeliveryDate: z.string().nullable().optional(),
   deliveryCost: z.string().nullable().optional(),
+  deliveryNote: z.string().nullable().optional(),
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
