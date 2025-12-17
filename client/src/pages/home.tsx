@@ -19,7 +19,11 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, Pencil, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface ParsedItem {
   rawText: string;
@@ -58,6 +62,17 @@ export default function Home() {
     brand: "",
     deliveryNotes: "",
     specialNotes: "",
+  });
+  
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    brand: "",
+    sku: "",
+    size: "",
+    price: "",
+    stock: "",
   });
   
   const isAdmin = user?.isAdmin === true;
@@ -110,6 +125,74 @@ export default function Home() {
       });
     },
   });
+
+  const updateProductMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
+      return apiRequest("PATCH", `/api/products/${id}`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({ title: "Product updated successfully" });
+      setSelectedProduct(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to update product", variant: "destructive" });
+    },
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/products/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({ title: "Product deleted successfully" });
+      setProductToDelete(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to delete product", variant: "destructive" });
+    },
+  });
+
+  const handleProductClick = useCallback((product: Product) => {
+    setSelectedProduct(product);
+    setEditFormData({
+      name: product.name,
+      brand: product.brand,
+      sku: product.sku,
+      size: product.size || "",
+      price: String(product.price),
+      stock: String(product.stock),
+    });
+  }, []);
+
+  const handleSaveProduct = useCallback(() => {
+    if (!selectedProduct) return;
+    updateProductMutation.mutate({
+      id: selectedProduct.id,
+      updates: {
+        name: editFormData.name,
+        brand: editFormData.brand,
+        sku: editFormData.sku,
+        size: editFormData.size || null,
+        price: editFormData.price,
+        stock: parseInt(editFormData.stock) || 0,
+      },
+    });
+  }, [selectedProduct, editFormData, updateProductMutation]);
+
+  const handleDeleteProduct = useCallback(() => {
+    if (!productToDelete) return;
+    deleteProductMutation.mutate(productToDelete.id);
+  }, [productToDelete, deleteProductMutation]);
+
+  const formatINR = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
 
   const brands = useMemo(() => {
     const uniqueBrands = Array.from(new Set(products.map(p => p.brand)));
@@ -178,14 +261,6 @@ export default function Home() {
   const handleRemoveFile = useCallback((fileName: string) => {
     setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
   }, []);
-
-  const formatINR = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   const generateOrderMessage = useCallback(() => {
     const lines = [
@@ -416,21 +491,69 @@ export default function Home() {
                     {filteredProducts.length === 0 ? (
                       <EmptyState type="no-results" />
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredProducts.map(product => (
-                          <ProductCard
-                            key={product.id}
-                            product={{
-                              id: product.id,
-                              sku: product.sku,
-                              name: product.name,
-                              brand: product.brand,
-                              price: Number(product.price),
-                              stock: product.stock,
-                            }}
-                            onAddToCart={(p, qty) => handleAddToCart(product, qty)}
-                          />
-                        ))}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 sticky top-0">
+                            <tr className="border-b">
+                              <th className="p-3 text-left font-medium">SKU</th>
+                              <th className="p-3 text-left font-medium">Name</th>
+                              <th className="p-3 text-left font-medium">Brand</th>
+                              <th className="p-3 text-left font-medium">Size</th>
+                              <th className="p-3 text-right font-medium">Price</th>
+                              <th className="p-3 text-right font-medium">Stock</th>
+                              <th className="p-3 text-center font-medium">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredProducts.map(product => (
+                              <tr
+                                key={product.id}
+                                className="border-b hover-elevate cursor-pointer"
+                                onClick={() => handleProductClick(product)}
+                                data-testid={`row-product-${product.id}`}
+                              >
+                                <td className="p-3 font-mono text-muted-foreground" data-testid={`text-sku-${product.id}`}>
+                                  {product.sku}
+                                </td>
+                                <td className="p-3 font-medium" data-testid={`text-name-${product.id}`}>
+                                  {product.name}
+                                </td>
+                                <td className="p-3" data-testid={`text-brand-${product.id}`}>
+                                  {product.brand}
+                                </td>
+                                <td className="p-3" data-testid={`text-size-${product.id}`}>
+                                  {product.size || "-"}
+                                </td>
+                                <td className="p-3 text-right" data-testid={`text-price-${product.id}`}>
+                                  {formatINR(Number(product.price))}
+                                </td>
+                                <td className="p-3 text-right" data-testid={`text-stock-${product.id}`}>
+                                  {product.stock}
+                                </td>
+                                <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => handleProductClick(product)}
+                                      data-testid={`button-edit-${product.id}`}
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => setProductToDelete(product)}
+                                      data-testid={`button-delete-${product.id}`}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
@@ -517,6 +640,104 @@ export default function Home() {
         onSendOrder={handleSendOrder}
         isSending={isSendingOrder}
       />
+
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-sku">SKU</Label>
+              <Input
+                id="edit-sku"
+                value={editFormData.sku}
+                onChange={(e) => setEditFormData({ ...editFormData, sku: e.target.value })}
+                data-testid="input-edit-sku"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                data-testid="input-edit-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-brand">Brand</Label>
+              <Input
+                id="edit-brand"
+                value={editFormData.brand}
+                onChange={(e) => setEditFormData({ ...editFormData, brand: e.target.value })}
+                data-testid="input-edit-brand"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-size">Size</Label>
+                <Input
+                  id="edit-size"
+                  value={editFormData.size}
+                  onChange={(e) => setEditFormData({ ...editFormData, size: e.target.value })}
+                  data-testid="input-edit-size"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-stock">Stock</Label>
+                <Input
+                  id="edit-stock"
+                  type="number"
+                  value={editFormData.stock}
+                  onChange={(e) => setEditFormData({ ...editFormData, stock: e.target.value })}
+                  data-testid="input-edit-stock"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-price">Price</Label>
+              <Input
+                id="edit-price"
+                type="number"
+                step="0.01"
+                value={editFormData.price}
+                onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })}
+                data-testid="input-edit-price"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedProduct(null)} data-testid="button-cancel-edit">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveProduct} disabled={updateProductMutation.isPending} data-testid="button-save-product">
+              {updateProductMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{productToDelete?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProduct}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteProductMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

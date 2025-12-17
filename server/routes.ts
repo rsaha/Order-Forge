@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, ORDER_STATUSES } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, ORDER_STATUSES } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
@@ -142,6 +142,55 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error uploading products:", error);
       res.status(500).json({ message: "Failed to upload products" });
+    }
+  });
+
+  // Update product (Admin only)
+  app.patch('/api/products/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can update products" });
+      }
+
+      const productId = req.params.id;
+      
+      const parseResult = updateProductSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid product data", errors: parseResult.error.errors });
+      }
+
+      const updated = await storage.updateProduct(productId, parseResult.data);
+      if (!updated) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating product:", error);
+      res.status(500).json({ message: "Failed to update product" });
+    }
+  });
+
+  // Delete product (Admin only)
+  app.delete('/api/products/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can delete products" });
+      }
+
+      const productId = req.params.id;
+      const deleted = await storage.deleteProduct(productId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+      res.json({ message: "Product deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      res.status(500).json({ message: "Failed to delete product" });
     }
   });
 

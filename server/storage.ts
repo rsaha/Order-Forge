@@ -15,6 +15,7 @@ import {
   type OrderItem,
   type InsertOrderItem,
   type UpdateOrder,
+  type UpdateProduct,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, desc } from "drizzle-orm";
@@ -29,6 +30,8 @@ export interface IStorage {
   getAllProducts(): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   createProducts(productList: InsertProduct[]): Promise<Product[]>;
+  updateProduct(id: string, updates: UpdateProduct): Promise<Product | undefined>;
+  deleteProduct(id: string): Promise<boolean>;
   
   // User-Product assignment operations
   getUserProducts(userId: string): Promise<Product[]>;
@@ -86,6 +89,35 @@ export class DatabaseStorage implements IStorage {
   async createProducts(productList: InsertProduct[]): Promise<Product[]> {
     if (productList.length === 0) return [];
     return db.insert(products).values(productList).returning();
+  }
+
+  async updateProduct(id: string, updates: UpdateProduct): Promise<Product | undefined> {
+    const updateData: Record<string, unknown> = {};
+    
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.brand !== undefined) updateData.brand = updates.brand;
+    if (updates.sku !== undefined) updateData.sku = updates.sku;
+    if (updates.size !== undefined) updateData.size = updates.size;
+    if (updates.price !== undefined) updateData.price = updates.price;
+    if (updates.stock !== undefined) updateData.stock = updates.stock;
+    if (updates.category !== undefined) updateData.category = updates.category;
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getProduct(id);
+    }
+
+    const [updated] = await db.update(products).set(updateData).where(eq(products.id, id)).returning();
+    return updated;
+  }
+
+  async deleteProduct(id: string): Promise<boolean> {
+    const existing = await this.getProduct(id);
+    if (!existing) {
+      return false;
+    }
+    await db.delete(userProducts).where(eq(userProducts.productId, id));
+    await db.delete(products).where(eq(products.id, id));
+    return true;
   }
 
   // User-Product assignment operations

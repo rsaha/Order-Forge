@@ -163,6 +163,18 @@ export const updateOrderSchema = z.object({
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
+// Update schema for products (all fields optional for partial updates)
+export const updateProductSchema = z.object({
+  name: z.string().optional(),
+  brand: z.string().optional(),
+  sku: z.string().optional(),
+  size: z.string().nullable().optional(),
+  price: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
+  stock: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? parseInt(v) || 0 : v).optional(),
+  category: z.string().nullable().optional(),
+});
+export type UpdateProduct = z.infer<typeof updateProductSchema>;
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
