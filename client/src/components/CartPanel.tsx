@@ -13,10 +13,8 @@ interface CartPanelProps {
   onOrderDetailsChange: (details: OrderDetails) => void;
   onQuantityChange: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
-  onSendWhatsApp: (phone: string) => void;
-  onSendEmail: (email: string) => void;
-  onCopyMessage: () => void;
-  isSendingEmail?: boolean;
+  onSendOrder: () => void;
+  isSending?: boolean;
 }
 
 export default function CartPanel({
@@ -29,10 +27,8 @@ export default function CartPanel({
   onOrderDetailsChange,
   onQuantityChange,
   onRemoveItem,
-  onSendWhatsApp,
-  onSendEmail,
-  onCopyMessage,
-  isSendingEmail = false
+  onSendOrder,
+  isSending = false
 }: CartPanelProps) {
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -68,10 +64,8 @@ export default function CartPanel({
                   onDiscountChange={onDiscountChange}
                   orderDetails={orderDetails}
                   onOrderDetailsChange={onOrderDetailsChange}
-                  onSendWhatsApp={onSendWhatsApp}
-                  onSendEmail={onSendEmail}
-                  onCopyMessage={onCopyMessage}
-                  isSendingEmail={isSendingEmail}
+                  onSendOrder={onSendOrder}
+                  isSending={isSending}
                 />
               </div>
             </>

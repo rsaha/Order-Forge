@@ -35,6 +35,7 @@ import {
   Loader2,
   ChevronLeft,
   AlertCircle,
+  Download,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus } from "@shared/schema";
@@ -183,6 +184,50 @@ export default function OrdersPage() {
     updateMutation.mutate({ id: selectedOrder.id, updates: editFormData });
   };
 
+  const handleDownloadCSV = async (order: Order, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch order details");
+      
+      const data = await res.json();
+      const items = data.items || [];
+      
+      const csvRows = [
+        ["Product Name", "Size", "Order Qty"].join(","),
+        ...items.map((item: { productName?: string; size?: string; quantity: number }) => 
+          [
+            `"${(item.productName || "Unknown").replace(/"/g, '""')}"`,
+            `"${(item.size || "Uni").replace(/"/g, '""')}"`,
+            item.quantity
+          ].join(",")
+        )
+      ];
+      
+      const csvContent = csvRows.join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      
+      const brand = order.partyName ? order.partyName.split(" ")[0] : "Order";
+      const partyName = order.partyName || "Unknown";
+      const date = order.createdAt ? new Date(order.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+      const filename = `${brand}_${partyName}_${date}.csv`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+      
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "CSV downloaded" });
+    } catch (error: any) {
+      toast({ title: "Download failed", description: error.message, variant: "destructive" });
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -293,15 +338,25 @@ export default function OrdersPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-semibold" data-testid={`text-total-${order.id}`}>
-                          {formatINR(order.total)}
-                        </div>
-                        {order.cases && (
-                          <div className="text-sm text-muted-foreground">
-                            {order.cases} cases
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="text-lg font-semibold" data-testid={`text-total-${order.id}`}>
+                            {formatINR(order.total)}
                           </div>
-                        )}
+                          {order.cases && (
+                            <div className="text-sm text-muted-foreground">
+                              {order.cases} cases
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => handleDownloadCSV(order, e)}
+                          data-testid={`button-download-${order.id}`}
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   </Card>

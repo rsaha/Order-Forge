@@ -236,38 +236,9 @@ export default function Home() {
     return lines.join("\n");
   }, [cart, discountPercent, orderDetails]);
 
-  const handleSendWhatsApp = useCallback((phone: string) => {
-    if (!phone.trim()) {
-      toast({
-        title: "Phone number required",
-        description: "Please enter a WhatsApp number.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const [isSendingOrder, setIsSendingOrder] = useState(false);
 
-    const message = encodeURIComponent(generateOrderMessage());
-    const cleanPhone = phone.replace(/\D/g, "");
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, "_blank");
-    
-    toast({
-      title: "Opening WhatsApp",
-      description: "Your order message is ready to send.",
-    });
-  }, [generateOrderMessage, toast]);
-
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-
-  const handleSendEmail = useCallback(async (email: string) => {
-    if (!email.trim()) {
-      toast({
-        title: "Email required",
-        description: "Please enter an email address.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleSendOrder = useCallback(async () => {
     if (cart.length === 0) {
       toast({
         title: "Cart is empty",
@@ -277,47 +248,51 @@ export default function Home() {
       return;
     }
 
-    setIsSendingEmail(true);
+    setIsSendingOrder(true);
     try {
-      const response = await fetch("/api/orders/send-email", {
+      const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+      const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+      const discountAmount = subtotal * (safeDiscount / 100);
+      const finalTotal = subtotal - discountAmount;
+
+      const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
-          orderDetails,
-          cart,
-          discountPercent,
+          items: cart.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+            price: String(item.product.price),
+          })),
+          total: String(finalTotal),
+          partyName: orderDetails.partyName || null,
+          deliveryAddress: orderDetails.deliveryNotes || null,
         }),
         credentials: "include",
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to send email");
+        throw new Error(error.message || "Failed to create order");
       }
 
       toast({
         title: "Order sent!",
-        description: `Order email sent to ${email} with CSV attachment.`,
+        description: "Your order has been submitted successfully.",
       });
+      
+      setCart([]);
+      setIsCartOpen(false);
     } catch (error: any) {
       toast({
-        title: "Email failed",
-        description: error.message || "Could not send the order email.",
+        title: "Order failed",
+        description: error.message || "Could not submit the order.",
         variant: "destructive",
       });
     } finally {
-      setIsSendingEmail(false);
+      setIsSendingOrder(false);
     }
   }, [cart, discountPercent, orderDetails, toast]);
-
-  const handleCopyMessage = useCallback(() => {
-    navigator.clipboard.writeText(generateOrderMessage());
-    toast({
-      title: "Copied!",
-      description: "Order message copied to clipboard.",
-    });
-  }, [generateOrderMessage, toast]);
 
   const handleParsedItems = useCallback((name: string, items: ParsedItem[]) => {
     setPartyName(name);
@@ -539,10 +514,8 @@ export default function Home() {
         onOrderDetailsChange={setOrderDetails}
         onQuantityChange={handleQuantityChange}
         onRemoveItem={handleRemoveItem}
-        onSendWhatsApp={handleSendWhatsApp}
-        onSendEmail={handleSendEmail}
-        onCopyMessage={handleCopyMessage}
-        isSendingEmail={isSendingEmail}
+        onSendOrder={handleSendOrder}
+        isSending={isSendingOrder}
       />
     </div>
   );

@@ -2,8 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Mail, Copy, Check, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Send, Loader2 } from "lucide-react";
 import type { CartItemData } from "./CartItem";
 import { formatINR } from "./ProductCard";
 import OrderDetailsForm, { type OrderDetails } from "./OrderDetailsForm";
@@ -16,10 +15,8 @@ interface OrderSummaryProps {
   onDiscountChange: (discount: number) => void;
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
-  onSendWhatsApp: (phone: string) => void;
-  onSendEmail: (email: string) => void;
-  onCopyMessage: () => void;
-  isSendingEmail?: boolean;
+  onSendOrder: () => void;
+  isSending?: boolean;
 }
 
 export default function OrderSummary({ 
@@ -28,15 +25,9 @@ export default function OrderSummary({
   onDiscountChange,
   orderDetails,
   onOrderDetailsChange,
-  onSendWhatsApp, 
-  onSendEmail,
-  onCopyMessage,
-  isSendingEmail = false 
+  onSendOrder,
+  isSending = false 
 }: OrderSummaryProps) {
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [copied, setCopied] = useState(false);
-
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
@@ -49,12 +40,6 @@ export default function OrderSummary({
   const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value) || 0;
     onDiscountChange(Math.min(100, Math.max(0, value)));
-  };
-
-  const handleCopy = () => {
-    onCopyMessage();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const hasOrderDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryNotes || orderDetails.specialNotes;
@@ -123,88 +108,22 @@ export default function OrderSummary({
         <span data-testid="text-total">{formatINR(finalTotal)}</span>
       </div>
 
-      <div className="space-y-3 pt-4">
-        <div className="space-y-2">
-          <Label htmlFor="phone">WhatsApp Number</Label>
-          <Input
-            id="phone"
-            type="tel"
-            placeholder="+91 98765 43210"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="h-12"
-            data-testid="input-phone"
-          />
-        </div>
-
+      <div className="pt-4">
         <Button
           className="w-full h-12"
-          onClick={() => onSendWhatsApp(phone)}
-          disabled={cartItems.length === 0}
-          data-testid="button-whatsapp"
+          onClick={onSendOrder}
+          disabled={cartItems.length === 0 || isSending}
+          data-testid="button-send-order"
         >
-          <MessageCircle className="w-5 h-5 mr-2" />
-          Send via WhatsApp
-        </Button>
-
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={handleCopy}
-          disabled={cartItems.length === 0}
-          data-testid="button-copy"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 mr-2" />
-              Copied!
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Order Message
-            </>
-          )}
-        </Button>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">Or</span>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="email">Email Address</Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="orders@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="h-12"
-            data-testid="input-email"
-          />
-        </div>
-
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => onSendEmail(email)}
-          disabled={cartItems.length === 0 || isSendingEmail}
-          data-testid="button-email"
-        >
-          {isSendingEmail ? (
+          {isSending ? (
             <>
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               Sending...
             </>
           ) : (
             <>
-              <Mail className="w-5 h-5 mr-2" />
-              Send Order via Email
+              <Send className="w-5 h-5 mr-2" />
+              Send Order
             </>
           )}
         </Button>
