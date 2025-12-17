@@ -65,6 +65,24 @@ export const userProducts = pgTable("user_products", {
 export const ORDER_STATUSES = ["Created", "Pending", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
+// Brand options
+export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"] as const;
+export type Brand = typeof BRAND_OPTIONS[number];
+
+// Delivery company options
+export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elemric"] as const;
+export type DeliveryCompany = typeof DELIVERY_COMPANY_OPTIONS[number];
+
+// User-Brand access - which brands each user can see
+export const userBrandAccess = pgTable("user_brand_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  brand: varchar("brand").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_user_brand_access_user").on(table.userId),
+]);
+
 // Orders table
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -86,6 +104,7 @@ export const orders = pgTable("orders", {
   actualDeliveryDate: timestamp("actual_delivery_date"),
   deliveryCost: numeric("delivery_cost", { precision: 10, scale: 2 }),
   deliveryNote: text("delivery_note"),
+  deliveryCompany: varchar("delivery_company"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -101,7 +120,15 @@ export const orderItems = pgTable("order_items", {
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   userProducts: many(userProducts),
+  userBrandAccess: many(userBrandAccess),
   orders: many(orders),
+}));
+
+export const userBrandAccessRelations = relations(userBrandAccess, ({ one }) => ({
+  user: one(users, {
+    fields: [userBrandAccess.userId],
+    references: [users.id],
+  }),
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({
@@ -142,6 +169,7 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertUserProductSchema = createInsertSchema(userProducts).omit({ id: true, createdAt: true });
+export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 
@@ -160,6 +188,7 @@ export const updateOrderSchema = z.object({
   actualDeliveryDate: z.string().nullable().optional(),
   deliveryCost: z.string().nullable().optional(),
   deliveryNote: z.string().nullable().optional(),
+  deliveryCompany: z.enum(DELIVERY_COMPANY_OPTIONS).nullable().optional(),
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
@@ -182,6 +211,8 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type UserProduct = typeof userProducts.$inferSelect;
 export type InsertUserProduct = z.infer<typeof insertUserProductSchema>;
+export type UserBrandAccess = typeof userBrandAccess.$inferSelect;
+export type InsertUserBrandAccess = z.infer<typeof insertUserBrandAccessSchema>;
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;

@@ -2,6 +2,7 @@ import {
   users,
   products,
   userProducts,
+  userBrandAccess,
   orders,
   orderItems,
   type User,
@@ -10,6 +11,8 @@ import {
   type InsertProduct,
   type UserProduct,
   type InsertUserProduct,
+  type UserBrandAccess,
+  type InsertUserBrandAccess,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -38,6 +41,11 @@ export interface IStorage {
   assignProductToUser(assignment: InsertUserProduct): Promise<UserProduct>;
   assignProductsToUser(userId: string, productIds: string[]): Promise<void>;
   removeProductFromUser(userId: string, productId: string): Promise<void>;
+  
+  // User-Brand access operations
+  getUserBrandAccess(userId: string): Promise<string[]>;
+  setUserBrandAccess(userId: string, brands: string[]): Promise<void>;
+  getUserProductsByBrand(userId: string, isAdmin: boolean): Promise<Product[]>;
   
   // Order operations
   createOrder(order: InsertOrder): Promise<Order>;
@@ -156,6 +164,39 @@ export class DatabaseStorage implements IStorage {
         eq(userProducts.productId, productId)
       )
     );
+  }
+
+  // User-Brand access operations
+  async getUserBrandAccess(userId: string): Promise<string[]> {
+    const access = await db
+      .select({ brand: userBrandAccess.brand })
+      .from(userBrandAccess)
+      .where(eq(userBrandAccess.userId, userId));
+    return access.map(a => a.brand);
+  }
+
+  async setUserBrandAccess(userId: string, brands: string[]): Promise<void> {
+    await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, userId));
+    if (brands.length === 0) return;
+    
+    const entries = brands.map(brand => ({
+      userId,
+      brand,
+    }));
+    await db.insert(userBrandAccess).values(entries);
+  }
+
+  async getUserProductsByBrand(userId: string, isAdmin: boolean): Promise<Product[]> {
+    if (isAdmin) {
+      return this.getAllProducts();
+    }
+    
+    const allowedBrands = await this.getUserBrandAccess(userId);
+    if (allowedBrands.length === 0) {
+      return [];
+    }
+    
+    return db.select().from(products).where(inArray(products.brand, allowedBrands));
   }
 
   // Order operations
