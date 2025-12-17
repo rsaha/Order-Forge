@@ -96,7 +96,7 @@ export default function OrdersPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editFormData, setEditFormData] = useState<OrderEditFormData>({
     status: "Created",
@@ -124,12 +124,23 @@ export default function OrdersPage() {
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["/api/admin/orders", statusFilter],
     queryFn: async () => {
-      const url = statusFilter === "all" 
+      const url = statusFilter === "all" || statusFilter === "active"
         ? "/api/admin/orders" 
         : `/api/admin/orders?status=${statusFilter}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch orders");
-      return res.json();
+      const data: Order[] = await res.json();
+      
+      // Sort by creation date (newest first)
+      const sorted = data.sort((a, b) => 
+        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      
+      // For "active" filter, exclude Cancelled and Delivered
+      if (statusFilter === "active") {
+        return sorted.filter(o => o.status !== "Cancelled" && o.status !== "Delivered");
+      }
+      return sorted;
     },
     enabled: !!user?.isAdmin,
   });
@@ -298,6 +309,7 @@ export default function OrdersPage() {
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="active">Active Orders</SelectItem>
             <SelectItem value="all">All Statuses</SelectItem>
             {ORDER_STATUSES.map((status) => (
               <SelectItem key={status} value={status}>
@@ -320,90 +332,73 @@ export default function OrdersPage() {
               <p>No orders found</p>
             </div>
           ) : (
-            <div className="grid gap-3">
-              {orders.map((order) => {
-                const StatusIcon = statusIcons[order.status as OrderStatus] || FileText;
-                return (
-                  <Card
-                    key={order.id}
-                    className="p-4 cursor-pointer hover-elevate"
-                    onClick={() => handleOrderClick(order)}
-                    data-testid={`card-order-${order.id}`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-md bg-muted">
-                          <StatusIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium" data-testid={`text-party-${order.id}`}>
-                              {order.partyName || "Unknown Customer"}
-                            </span>
-                            <Select
-                              value={order.status}
-                              onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
-                            >
-                              <SelectTrigger 
-                                className={`w-auto h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
-                                onClick={(e) => e.stopPropagation()}
-                                data-testid={`select-status-${order.id}`}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ORDER_STATUSES.map((status) => (
-                                  <SelectItem key={status} value={status}>
-                                    {status}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                            <span data-testid={`text-date-${order.id}`}>
-                              <Calendar className="w-3 h-3 inline mr-1" />
-                              {formatDate(order.createdAt)}
-                            </span>
-                            {order.invoiceNumber && (
-                              <span data-testid={`text-invoice-${order.id}`}>
-                                <FileText className="w-3 h-3 inline mr-1" />
-                                {order.invoiceNumber}
-                              </span>
-                            )}
-                            {order.dispatchBy && (
-                              <span>
-                                <Truck className="w-3 h-3 inline mr-1" />
-                                {order.dispatchBy}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <div className="text-lg font-semibold" data-testid={`text-total-${order.id}`}>
-                            {formatINR(order.total)}
-                          </div>
-                          {order.cases && (
-                            <div className="text-sm text-muted-foreground">
-                              {order.cases} cases
-                            </div>
+            <div className="border rounded-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Date</th>
+                      <th className="text-left p-3 font-medium">Party Name</th>
+                      <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-right p-3 font-medium">Total</th>
+                      <th className="text-center p-3 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {orders.map((order) => (
+                      <tr
+                        key={order.id}
+                        className="hover-elevate cursor-pointer"
+                        onClick={() => handleOrderClick(order)}
+                        data-testid={`row-order-${order.id}`}
+                      >
+                        <td className="p-3 whitespace-nowrap" data-testid={`text-date-${order.id}`}>
+                          {formatDate(order.createdAt)}
+                        </td>
+                        <td className="p-3" data-testid={`text-party-${order.id}`}>
+                          <div className="font-medium">{order.partyName || "Unknown"}</div>
+                          {order.invoiceNumber && (
+                            <div className="text-xs text-muted-foreground">Inv: {order.invoiceNumber}</div>
                           )}
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => handleDownloadCSV(order, e)}
-                          data-testid={`button-download-${order.id}`}
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                        </td>
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={order.status}
+                            onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
+                          >
+                            <SelectTrigger 
+                              className={`w-28 h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
+                              data-testid={`select-status-${order.id}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ORDER_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {status}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="p-3 text-right font-medium whitespace-nowrap" data-testid={`text-total-${order.id}`}>
+                          {formatINR(order.total)}
+                        </td>
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => handleDownloadCSV(order, e)}
+                            data-testid={`button-download-${order.id}`}
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
