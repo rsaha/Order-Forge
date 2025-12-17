@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
@@ -465,6 +465,67 @@ export async function registerRoutes(
       console.error("Error parsing order text:", error);
       res.status(500).json({ message: "Failed to parse order text" });
     }
+  });
+
+  // === User Management (Admin only) ===
+  
+  // Get all users (Admin only)
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const allUsers = await storage.getAllUsers();
+      
+      // Get brand access for each user
+      const usersWithBrands = await Promise.all(
+        allUsers.map(async (u) => {
+          const brands = await storage.getUserBrandAccess(u.id);
+          return { ...u, brandAccess: brands };
+        })
+      );
+      
+      res.json(usersWithBrands);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Update user role (Admin only)
+  app.patch('/api/admin/users/:id/role', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.id;
+      const { role } = req.body;
+
+      if (!role || !USER_ROLES.includes(role)) {
+        return res.status(400).json({ message: `Invalid role. Must be one of: ${USER_ROLES.join(', ')}` });
+      }
+
+      const updatedUser = await storage.updateUserRole(targetUserId, role);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  // Get user role options
+  app.get('/api/options/roles', isAuthenticated, async (req: any, res) => {
+    res.json({ roles: USER_ROLES });
   });
 
   // Send order via email with CSV attachment
