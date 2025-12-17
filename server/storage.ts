@@ -51,7 +51,7 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   getUserOrders(userId: string): Promise<Order[]>;
-  getAllOrders(status?: string): Promise<Order[]>;
+  getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]>;
   getOrderById(id: string): Promise<Order | undefined>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
@@ -214,9 +214,17 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
   }
 
-  async getAllOrders(status?: string): Promise<Order[]> {
-    if (status) {
-      return db.select().from(orders).where(eq(orders.status, status)).orderBy(desc(orders.createdAt));
+  async getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]> {
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(orders.status, filters.status));
+    }
+    if (filters?.deliveryCompany) {
+      conditions.push(eq(orders.deliveryCompany, filters.deliveryCompany));
+    }
+    
+    if (conditions.length > 0) {
+      return db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
     }
     return db.select().from(orders).orderBy(desc(orders.createdAt));
   }

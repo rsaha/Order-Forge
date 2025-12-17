@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, ORDER_STATUSES } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
@@ -194,11 +194,78 @@ export async function registerRoutes(
     }
   });
 
+  // Get products filtered by user's brand access (for Order page)
+  app.get('/api/products/by-brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const isAdmin = user?.isAdmin || false;
+      const products = await storage.getUserProductsByBrand(userId, isAdmin);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products by brand:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  // Get user's brand access
+  app.get('/api/users/:userId/brand-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const requestingUserId = req.user.claims.sub;
+      const requestingUser = await storage.getUser(requestingUserId);
+      const targetUserId = req.params.userId;
+      
+      if (!requestingUser?.isAdmin && requestingUserId !== targetUserId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const brands = await storage.getUserBrandAccess(targetUserId);
+      res.json({ brands });
+    } catch (error) {
+      console.error("Error fetching brand access:", error);
+      res.status(500).json({ message: "Failed to fetch brand access" });
+    }
+  });
+
+  // Set user's brand access (Admin only)
+  app.put('/api/users/:userId/brand-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can manage brand access" });
+      }
+
+      const targetUserId = req.params.userId;
+      const { brands } = req.body;
+      
+      if (!Array.isArray(brands)) {
+        return res.status(400).json({ message: "Brands must be an array" });
+      }
+      
+      const validBrands = brands.filter(b => BRAND_OPTIONS.includes(b));
+      await storage.setUserBrandAccess(targetUserId, validBrands);
+      
+      res.json({ message: "Brand access updated", brands: validBrands });
+    } catch (error) {
+      console.error("Error setting brand access:", error);
+      res.status(500).json({ message: "Failed to set brand access" });
+    }
+  });
+
+  // Get available brand and delivery company options
+  app.get('/api/options', isAuthenticated, async (req: any, res) => {
+    res.json({
+      brands: BRAND_OPTIONS,
+      deliveryCompanies: DELIVERY_COMPANY_OPTIONS,
+    });
+  });
+
   // Create order
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { items, whatsappPhone, email, total, partyName, deliveryAddress } = req.body;
+      const { items, whatsappPhone, email, total, partyName, deliveryAddress, deliveryCompany } = req.body;
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: "No items in order" });
@@ -215,6 +282,7 @@ export async function registerRoutes(
         email,
         partyName: partyName.trim(),
         deliveryAddress: deliveryAddress || null,
+        deliveryCompany: deliveryCompany || null,
         status: "Created",
       });
 
@@ -255,8 +323,11 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const status = req.query.status as string | undefined;
-      const orders = await storage.getAllOrders(status);
+      const filters: { status?: string; deliveryCompany?: string } = {};
+      if (req.query.status) filters.status = req.query.status as string;
+      if (req.query.deliveryCompany) filters.deliveryCompany = req.query.deliveryCompany as string;
+      
+      const orders = await storage.getAllOrders(Object.keys(filters).length > 0 ? filters : undefined);
       res.json(orders);
     } catch (error) {
       console.error("Error fetching all orders:", error);
