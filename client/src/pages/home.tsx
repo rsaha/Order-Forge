@@ -82,6 +82,11 @@ export default function Home() {
     retry: false,
   });
 
+  const { data: orderProducts = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products/by-brand"],
+    retry: false,
+  });
+
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       const response = await fetch("/api/products/upload", {
@@ -563,7 +568,7 @@ export default function Home() {
 
         {activeTab === "order" && (
           <OrderTab
-            products={products.map(p => ({
+            products={orderProducts.map(p => ({
               id: p.id,
               sku: p.sku,
               name: p.name,
