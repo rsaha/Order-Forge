@@ -66,18 +66,16 @@ export default function Header({
             <span className="hidden sm:inline">Upload</span>
           </Button>
         )}
-        {isAdmin && (
-          <Link href="/orders">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="tab-orders"
-            >
-              <ListOrdered className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Orders</span>
-            </Button>
-          </Link>
-        )}
+        <Link href="/orders">
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="tab-orders"
+          >
+            <ListOrdered className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Orders</span>
+          </Button>
+        </Link>
       </nav>
 
       <Button
