@@ -244,11 +244,10 @@ export default function OrdersPage() {
       const items = data.items || [];
       
       const csvRows = [
-        ["Product", "HSN (SAC)", "MRP", "Qty"].join(","),
-        ...items.map((item: { productName?: string; hsn?: string; unitPrice?: string; quantity: number }) => 
+        ["Product", "MRP", "Qty"].join(","),
+        ...items.map((item: { productName?: string; unitPrice?: string; quantity: number }) => 
           [
             `"${(item.productName || "Unknown").replace(/"/g, '""')}"`,
-            `"${(item.hsn || "").replace(/"/g, '""')}"`,
             item.unitPrice || "0",
             item.quantity
           ].join(",")
