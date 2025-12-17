@@ -282,7 +282,7 @@ export async function registerRoutes(
         email,
         partyName: partyName.trim(),
         deliveryAddress: deliveryAddress || null,
-        deliveryCompany: deliveryCompany || null,
+        deliveryCompany: deliveryCompany || "Guided",
         status: "Created",
       });
 
