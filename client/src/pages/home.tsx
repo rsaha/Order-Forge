@@ -60,6 +60,7 @@ export default function Home() {
   const [orderDetails, setOrderDetails] = useState({
     partyName: "",
     brand: "",
+    deliveryCompany: "",
     deliveryNotes: "",
     specialNotes: "",
   });
@@ -349,6 +350,7 @@ export default function Home() {
           total: String(finalTotal),
           partyName: orderDetails.partyName || null,
           deliveryAddress: orderDetails.deliveryNotes || null,
+          deliveryCompany: orderDetails.deliveryCompany || null,
         }),
         credentials: "include",
       });

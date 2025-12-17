@@ -42,7 +42,7 @@ export default function OrderSummary({
     onDiscountChange(Math.min(100, Math.max(0, value)));
   };
 
-  const hasOrderDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryNotes || orderDetails.specialNotes;
+  const hasOrderDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes;
   const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
 
   return (

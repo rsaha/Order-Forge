@@ -98,6 +98,7 @@ export default function OrdersPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editFormData, setEditFormData] = useState<OrderEditFormData>({
     status: "Created",
@@ -124,11 +125,18 @@ export default function OrdersPage() {
   }, [authLoading, user, navigate]);
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: ["/api/admin/orders", statusFilter],
+    queryKey: ["/api/admin/orders", statusFilter, deliveryCompanyFilter],
     queryFn: async () => {
-      const url = statusFilter === "all" || statusFilter === "active"
-        ? "/api/admin/orders" 
-        : `/api/admin/orders?status=${statusFilter}`;
+      const params = new URLSearchParams();
+      if (statusFilter !== "all" && statusFilter !== "active") {
+        params.append("status", statusFilter);
+      }
+      if (deliveryCompanyFilter !== "all") {
+        params.append("deliveryCompany", deliveryCompanyFilter);
+      }
+      const queryString = params.toString();
+      const url = queryString ? `/api/admin/orders?${queryString}` : "/api/admin/orders";
+      
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch orders");
       const data: Order[] = await res.json();
@@ -308,20 +316,34 @@ export default function OrdersPage() {
           </Badge>
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40" data-testid="select-status-filter">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">Active Orders</SelectItem>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {ORDER_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40" data-testid="select-status-filter">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active Orders</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {ORDER_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
+            <SelectTrigger className="w-36" data-testid="select-delivery-filter">
+              <SelectValue placeholder="Delivery Co." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Delivery</SelectItem>
+              <SelectItem value="Guided">Guided</SelectItem>
+              <SelectItem value="Xmaple">Xmaple</SelectItem>
+              <SelectItem value="Elemric">Elemric</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </header>
 
       <ScrollArea className="flex-1">
@@ -343,6 +365,7 @@ export default function OrdersPage() {
                     <tr>
                       <th className="text-left p-3 font-medium">Date</th>
                       <th className="text-left p-3 font-medium">Party Name</th>
+                      <th className="text-left p-3 font-medium">Delivery</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-right p-3 font-medium">Total</th>
                       <th className="text-center p-3 font-medium">Actions</th>
@@ -364,6 +387,9 @@ export default function OrdersPage() {
                           {order.invoiceNumber && (
                             <div className="text-xs text-muted-foreground">Inv: {order.invoiceNumber}</div>
                           )}
+                        </td>
+                        <td className="p-3" data-testid={`text-delivery-${order.id}`}>
+                          {order.deliveryCompany || "-"}
                         </td>
                         <td className="p-3" onClick={(e) => e.stopPropagation()}>
                           <Select

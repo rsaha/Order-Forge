@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 export interface OrderDetails {
   partyName: string;
   brand: string;
+  deliveryCompany: string;
   deliveryNotes: string;
   specialNotes: string;
 }
@@ -17,7 +18,8 @@ interface OrderDetailsFormProps {
   readOnly?: boolean;
 }
 
-const BRAND_OPTIONS = ["Tynor", "UM", "Morrison", "Biostige", "Karemed"];
+const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"];
+const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elemric"];
 
 export default function OrderDetailsForm({
   orderDetails,
@@ -29,7 +31,7 @@ export default function OrderDetailsForm({
   };
 
   if (readOnly) {
-    const hasDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryNotes || orderDetails.specialNotes;
+    const hasDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes;
     
     if (!hasDetails) {
       return null;
@@ -49,9 +51,15 @@ export default function OrderDetailsForm({
             <span data-testid="text-brand">{orderDetails.brand}</span>
           </div>
         )}
+        {orderDetails.deliveryCompany && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground">Delivery Company:</span>
+            <span data-testid="text-delivery-company">{orderDetails.deliveryCompany}</span>
+          </div>
+        )}
         {orderDetails.deliveryNotes && (
           <div className="flex gap-2">
-            <span className="text-muted-foreground">Delivery:</span>
+            <span className="text-muted-foreground">Delivery Notes:</span>
             <span data-testid="text-delivery-notes" className="text-muted-foreground">{orderDetails.deliveryNotes}</span>
           </div>
         )}
@@ -95,6 +103,25 @@ export default function OrderDetailsForm({
               {BRAND_OPTIONS.map((brand) => (
                 <SelectItem key={brand} value={brand} data-testid={`option-brand-${brand.toLowerCase()}`}>
                   {brand}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="deliveryCompany">Delivery Company</Label>
+          <Select
+            value={orderDetails.deliveryCompany}
+            onValueChange={(value) => updateOrderDetail("deliveryCompany", value)}
+          >
+            <SelectTrigger id="deliveryCompany" className="h-10" data-testid="select-delivery-company">
+              <SelectValue placeholder="Select delivery company" />
+            </SelectTrigger>
+            <SelectContent>
+              {DELIVERY_COMPANY_OPTIONS.map((company) => (
+                <SelectItem key={company} value={company} data-testid={`option-delivery-${company.toLowerCase()}`}>
+                  {company}
                 </SelectItem>
               ))}
             </SelectContent>
