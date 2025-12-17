@@ -112,6 +112,8 @@ export default function OrdersPage() {
     actualDeliveryDate: "",
     deliveryCost: "",
   });
+  const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; unitPrice: string }>>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user && !user.isAdmin) {
@@ -160,7 +162,7 @@ export default function OrdersPage() {
     },
   });
 
-  const handleOrderClick = (order: Order) => {
+  const handleOrderClick = async (order: Order) => {
     setSelectedOrder(order);
     const normalizedStatus = ORDER_STATUSES.find(s => s.toLowerCase() === (order.status || "created").toLowerCase()) || "Created";
     setEditFormData({
@@ -177,6 +179,30 @@ export default function OrdersPage() {
       actualDeliveryDate: order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toISOString().split("T")[0] : "",
       deliveryCost: order.deliveryCost || "",
     });
+    
+    setLoadingItems(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setOrderItems(data.items || []);
+      }
+    } catch {
+      setOrderItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const handleInlineStatusUpdate = async (order: Order, newStatus: OrderStatus, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await apiRequest("PATCH", `/api/admin/orders/${order.id}`, { status: newStatus });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      toast({ title: `Order status updated to ${newStatus}` });
+    } catch (error: any) {
+      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+    }
   };
 
   const handleSave = () => {
@@ -314,9 +340,25 @@ export default function OrdersPage() {
                             <span className="font-medium" data-testid={`text-party-${order.id}`}>
                               {order.partyName || "Unknown Customer"}
                             </span>
-                            <Badge className={statusColors[order.status as OrderStatus]} data-testid={`badge-status-${order.id}`}>
-                              {order.status}
-                            </Badge>
+                            <Select
+                              value={order.status}
+                              onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
+                            >
+                              <SelectTrigger 
+                                className={`w-auto h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`select-status-${order.id}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ORDER_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>
+                                    {status}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1">
                             <span data-testid={`text-date-${order.id}`}>
@@ -388,6 +430,40 @@ export default function OrdersPage() {
                     {selectedOrder.deliveryAddress}
                   </div>
                 )}
+              </div>
+
+              <div className="border rounded-md">
+                <div className="p-3 border-b bg-muted/50">
+                  <h4 className="font-medium text-sm">Products Ordered</h4>
+                </div>
+                <div className="max-h-40 overflow-y-auto">
+                  {loadingItems ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : orderItems.length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground text-center">
+                      No items found
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {orderItems.map((item, idx) => (
+                        <div key={idx} className="px-3 py-2 flex justify-between items-center text-sm">
+                          <div>
+                            <span className="font-medium">{item.productName || "Unknown Product"}</span>
+                            {item.size && item.size !== "Uni" && (
+                              <span className="text-muted-foreground ml-2">({item.size})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted-foreground">x{item.quantity}</span>
+                            <span>{formatINR(Number(item.unitPrice) * item.quantity)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid gap-4">

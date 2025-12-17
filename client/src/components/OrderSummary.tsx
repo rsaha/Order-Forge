@@ -43,6 +43,7 @@ export default function OrderSummary({
   };
 
   const hasOrderDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryNotes || orderDetails.specialNotes;
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
 
   return (
     <Card className="p-4 space-y-4">
@@ -52,6 +53,12 @@ export default function OrderSummary({
           {itemCount} item{itemCount !== 1 ? "s" : ""} in cart
         </p>
       </div>
+
+      {!orderDetails.partyName.trim() && (
+        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+          <p className="text-sm text-destructive">Party name is required to send order</p>
+        </div>
+      )}
 
       {hasOrderDetails && (
         <div className="pb-3 border-b">
@@ -112,7 +119,7 @@ export default function OrderSummary({
         <Button
           className="w-full h-12"
           onClick={onSendOrder}
-          disabled={cartItems.length === 0 || isSending}
+          disabled={!canSendOrder || isSending}
           data-testid="button-send-order"
         >
           {isSending ? (

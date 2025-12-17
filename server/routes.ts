@@ -149,10 +149,14 @@ export async function registerRoutes(
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { items, whatsappPhone, email, total } = req.body;
+      const { items, whatsappPhone, email, total, partyName, deliveryAddress } = req.body;
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: "No items in order" });
+      }
+
+      if (!partyName || partyName.trim() === "") {
+        return res.status(400).json({ message: "Party name is required" });
       }
 
       const order = await storage.createOrder({
@@ -160,6 +164,8 @@ export async function registerRoutes(
         total: String(total),
         whatsappPhone,
         email,
+        partyName: partyName.trim(),
+        deliveryAddress: deliveryAddress || null,
         status: "Created",
       });
 
@@ -167,7 +173,7 @@ export async function registerRoutes(
         orderId: order.id,
         productId: item.productId,
         quantity: item.quantity,
-        unitPrice: String(item.unitPrice),
+        unitPrice: String(item.price || item.unitPrice || "0"),
       }));
 
       await storage.createOrderItems(orderItemsData);
