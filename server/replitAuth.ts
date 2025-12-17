@@ -50,9 +50,15 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
+const ADMIN_EMAILS = [
+  "rakesh.x.saha@gmail.com",
+  "xmaplepharma@gmail.com",
+];
+
 async function upsertUser(claims: any) {
   const isAdminClaim = claims["isAdmin"];
-  const isAdmin = isAdminClaim === true || isAdminClaim === "true" || isAdminClaim === "1" || isAdminClaim === 1;
+  const email = claims["email"]?.toLowerCase() || "";
+  const isAdmin = isAdminClaim === true || isAdminClaim === "true" || isAdminClaim === "1" || isAdminClaim === 1 || ADMIN_EMAILS.includes(email);
   
   await storage.upsertUser({
     id: claims["sub"],
