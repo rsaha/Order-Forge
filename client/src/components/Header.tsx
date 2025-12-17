@@ -1,14 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered } from "lucide-react";
+import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
 interface HeaderProps {
   cartItemCount: number;
-  activeTab: "products" | "order" | "import" | "upload";
-  onTabChange: (tab: "products" | "order" | "import" | "upload") => void;
+  activeTab?: "products" | "order" | "import" | "upload";
+  onTabChange?: (tab: "products" | "order" | "import" | "upload") => void;
   onCartClick: () => void;
   isAdmin?: boolean;
+  showTabs?: boolean;
 }
 
 export default function Header({ 
@@ -17,6 +18,7 @@ export default function Header({
   onTabChange,
   onCartClick,
   isAdmin = false,
+  showTabs = true,
 }: HeaderProps) {
   return (
     <>
@@ -26,45 +28,49 @@ export default function Header({
       </div>
 
       <nav className="flex gap-1">
-        <Button
-          variant={activeTab === "order" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => onTabChange("order")}
-          data-testid="tab-order"
-        >
-          <ClipboardList className="w-4 h-4 sm:mr-2" />
-          <span className="hidden sm:inline">Order</span>
-        </Button>
-        <Button
-          variant={activeTab === "import" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => onTabChange("import")}
-          data-testid="tab-import"
-        >
-          <FileText className="w-4 h-4 sm:mr-2" />
-          <span className="hidden sm:inline">Import</span>
-        </Button>
-        {isAdmin && (
-          <Button
-            variant={activeTab === "products" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onTabChange("products")}
-            data-testid="tab-products"
-          >
-            <Package className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Products</span>
-          </Button>
-        )}
-        {isAdmin && (
-          <Button
-            variant={activeTab === "upload" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onTabChange("upload")}
-            data-testid="tab-upload"
-          >
-            <Upload className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Upload</span>
-          </Button>
+        {showTabs && onTabChange && (
+          <>
+            <Button
+              variant={activeTab === "order" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onTabChange("order")}
+              data-testid="tab-order"
+            >
+              <ClipboardList className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Order</span>
+            </Button>
+            <Button
+              variant={activeTab === "import" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onTabChange("import")}
+              data-testid="tab-import"
+            >
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Import</span>
+            </Button>
+            {isAdmin && (
+              <Button
+                variant={activeTab === "products" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => onTabChange("products")}
+                data-testid="tab-products"
+              >
+                <Package className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Products</span>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant={activeTab === "upload" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => onTabChange("upload")}
+                data-testid="tab-upload"
+              >
+                <Upload className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Upload</span>
+              </Button>
+            )}
+          </>
         )}
         <Link href="/orders">
           <Button
@@ -76,6 +82,18 @@ export default function Header({
             <span className="hidden sm:inline">Orders</span>
           </Button>
         </Link>
+        {isAdmin && (
+          <Link href="/users">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="tab-users"
+            >
+              <Users className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+          </Link>
+        )}
       </nav>
 
       <Button
