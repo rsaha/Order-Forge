@@ -501,8 +501,7 @@ export default function Home() {
                               <th className="p-3 text-left font-medium">Name</th>
                               <th className="p-3 text-left font-medium">Brand</th>
                               <th className="p-3 text-left font-medium">Size</th>
-                              <th className="p-3 text-right font-medium">Price</th>
-                              <th className="p-3 text-right font-medium">Stock</th>
+                              <th className="p-3 text-right font-medium">MRP</th>
                               <th className="p-3 text-center font-medium">Actions</th>
                             </tr>
                           </thead>
@@ -526,11 +525,8 @@ export default function Home() {
                                 <td className="p-3" data-testid={`text-size-${product.id}`}>
                                   {product.size || "-"}
                                 </td>
-                                <td className="p-3 text-right" data-testid={`text-price-${product.id}`}>
+                                <td className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
                                   {formatINR(Number(product.price))}
-                                </td>
-                                <td className="p-3 text-right" data-testid={`text-stock-${product.id}`}>
-                                  {product.stock}
                                 </td>
                                 <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                                   <div className="flex items-center justify-center gap-1">
@@ -676,29 +672,17 @@ export default function Home() {
                 data-testid="input-edit-brand"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-size">Size</Label>
-                <Input
-                  id="edit-size"
-                  value={editFormData.size}
-                  onChange={(e) => setEditFormData({ ...editFormData, size: e.target.value })}
-                  data-testid="input-edit-size"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-stock">Stock</Label>
-                <Input
-                  id="edit-stock"
-                  type="number"
-                  value={editFormData.stock}
-                  onChange={(e) => setEditFormData({ ...editFormData, stock: e.target.value })}
-                  data-testid="input-edit-stock"
-                />
-              </div>
+            <div>
+              <Label htmlFor="edit-size">Size</Label>
+              <Input
+                id="edit-size"
+                value={editFormData.size}
+                onChange={(e) => setEditFormData({ ...editFormData, size: e.target.value })}
+                data-testid="input-edit-size"
+              />
             </div>
             <div>
-              <Label htmlFor="edit-price">Price</Label>
+              <Label htmlFor="edit-price">MRP</Label>
               <Input
                 id="edit-price"
                 type="number"
