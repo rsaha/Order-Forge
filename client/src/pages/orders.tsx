@@ -118,41 +118,57 @@ export default function OrdersPage() {
   const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && user && !user.isAdmin) {
-      navigate("/");
-    }
-  }, [authLoading, user, navigate]);
+  const isAdmin = user?.isAdmin || false;
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: ["/api/admin/orders", statusFilter, deliveryCompanyFilter],
+    queryKey: [isAdmin ? "/api/admin/orders" : "/api/orders", statusFilter, deliveryCompanyFilter],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (statusFilter !== "all" && statusFilter !== "active") {
-        params.append("status", statusFilter);
+      if (isAdmin) {
+        const params = new URLSearchParams();
+        if (statusFilter !== "all" && statusFilter !== "active") {
+          params.append("status", statusFilter);
+        }
+        if (deliveryCompanyFilter !== "all") {
+          params.append("deliveryCompany", deliveryCompanyFilter);
+        }
+        const queryString = params.toString();
+        const url = queryString ? `/api/admin/orders?${queryString}` : "/api/admin/orders";
+        
+        const res = await fetch(url, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch orders");
+        const data: Order[] = await res.json();
+        
+        const sorted = data.sort((a, b) => 
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+        
+        if (statusFilter === "active") {
+          return sorted.filter(o => o.status !== "Cancelled" && o.status !== "Delivered");
+        }
+        return sorted;
+      } else {
+        const res = await fetch("/api/orders", { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch orders");
+        const data: Order[] = await res.json();
+        
+        let sorted = data.sort((a, b) => 
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+        
+        if (statusFilter === "active") {
+          sorted = sorted.filter(o => o.status !== "Cancelled" && o.status !== "Delivered");
+        } else if (statusFilter !== "all") {
+          sorted = sorted.filter(o => o.status === statusFilter);
+        }
+        
+        if (deliveryCompanyFilter !== "all") {
+          sorted = sorted.filter(o => o.deliveryCompany === deliveryCompanyFilter);
+        }
+        
+        return sorted;
       }
-      if (deliveryCompanyFilter !== "all") {
-        params.append("deliveryCompany", deliveryCompanyFilter);
-      }
-      const queryString = params.toString();
-      const url = queryString ? `/api/admin/orders?${queryString}` : "/api/admin/orders";
-      
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch orders");
-      const data: Order[] = await res.json();
-      
-      // Sort by creation date (newest first)
-      const sorted = data.sort((a, b) => 
-        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-      );
-      
-      // For "active" filter, exclude Cancelled and Delivered
-      if (statusFilter === "active") {
-        return sorted.filter(o => o.status !== "Cancelled" && o.status !== "Delivered");
-      }
-      return sorted;
     },
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   });
 
   const updateMutation = useMutation({
@@ -203,17 +219,21 @@ export default function OrdersPage() {
       deliveryNote: order.deliveryNote || "",
     });
     
-    setLoadingItems(true);
-    try {
-      const res = await fetch(`/api/admin/orders/${order.id}`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setOrderItems(data.items || []);
+    if (isAdmin) {
+      setLoadingItems(true);
+      try {
+        const res = await fetch(`/api/admin/orders/${order.id}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setOrderItems(data.items || []);
+        }
+      } catch {
+        setOrderItems([]);
+      } finally {
+        setLoadingItems(false);
       }
-    } catch {
+    } else {
       setOrderItems([]);
-    } finally {
-      setLoadingItems(false);
     }
   };
 
@@ -285,12 +305,12 @@ export default function OrdersPage() {
     );
   }
 
-  if (!user?.isAdmin) {
+  if (!user) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Admin Access Required</h2>
-        <p className="text-muted-foreground">You don't have permission to view this page.</p>
+        <h2 className="text-xl font-semibold">Login Required</h2>
+        <p className="text-muted-foreground">Please log in to view orders.</p>
         <Link href="/">
           <Button variant="outline">
             <ChevronLeft className="w-4 h-4 mr-2" />
@@ -365,10 +385,12 @@ export default function OrdersPage() {
                     <tr>
                       <th className="text-left p-3 font-medium">Date</th>
                       <th className="text-left p-3 font-medium">Party Name</th>
+                      <th className="text-left p-3 font-medium">Invoice</th>
                       <th className="text-left p-3 font-medium">Delivery</th>
                       <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-left p-3 font-medium">Delivery Date</th>
                       <th className="text-right p-3 font-medium">Total</th>
-                      <th className="text-center p-3 font-medium">Actions</th>
+                      {isAdmin && <th className="text-center p-3 font-medium">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -384,46 +406,71 @@ export default function OrdersPage() {
                         </td>
                         <td className="p-3" data-testid={`text-party-${order.id}`}>
                           <div className="font-medium">{order.partyName || "Unknown"}</div>
-                          {order.invoiceNumber && (
-                            <div className="text-xs text-muted-foreground">Inv: {order.invoiceNumber}</div>
-                          )}
+                        </td>
+                        <td className="p-3" data-testid={`text-invoice-${order.id}`}>
+                          {order.invoiceNumber ? (
+                            <div>
+                              <div className="font-medium">{order.invoiceNumber}</div>
+                              {order.invoiceDate && (
+                                <div className="text-xs text-muted-foreground">{formatDate(order.invoiceDate)}</div>
+                              )}
+                            </div>
+                          ) : "-"}
                         </td>
                         <td className="p-3" data-testid={`text-delivery-${order.id}`}>
                           {order.deliveryCompany || "-"}
                         </td>
-                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                          <Select
-                            value={order.status}
-                            onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
-                          >
-                            <SelectTrigger 
-                              className={`w-28 h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
-                              data-testid={`select-status-${order.id}`}
+                        <td className="p-3" onClick={(e) => isAdmin && e.stopPropagation()}>
+                          {isAdmin ? (
+                            <Select
+                              value={order.status}
+                              onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
                             >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ORDER_STATUSES.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {status}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                              <SelectTrigger 
+                                className={`w-28 h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
+                                data-testid={`select-status-${order.id}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ORDER_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>
+                                    {status}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge className={statusColors[order.status as OrderStatus]} data-testid={`badge-status-${order.id}`}>
+                              {order.status}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="p-3 whitespace-nowrap" data-testid={`text-delivery-date-${order.id}`}>
+                          {order.status === "Dispatched" && order.estimatedDeliveryDate ? (
+                            <div>
+                              <div className="text-xs text-muted-foreground">Est:</div>
+                              <div>{formatDate(order.estimatedDeliveryDate)}</div>
+                            </div>
+                          ) : order.status === "Delivered" && order.actualDeliveryDate ? (
+                            <div>{formatDate(order.actualDeliveryDate)}</div>
+                          ) : "-"}
                         </td>
                         <td className="p-3 text-right font-medium whitespace-nowrap" data-testid={`text-total-${order.id}`}>
                           {formatINR(order.total)}
                         </td>
-                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => handleDownloadCSV(order, e)}
-                            data-testid={`button-download-${order.id}`}
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        </td>
+                        {isAdmin && (
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => handleDownloadCSV(order, e)}
+                              data-testid={`button-download-${order.id}`}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -437,9 +484,9 @@ export default function OrdersPage() {
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Order</DialogTitle>
+            <DialogTitle>{isAdmin ? "Edit Order" : "Order Details"}</DialogTitle>
             <DialogDescription>
-              Update order details and tracking information.
+              {isAdmin ? "Update order details and tracking information." : "View your order details."}
             </DialogDescription>
           </DialogHeader>
 
@@ -491,190 +538,236 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4">
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={editFormData.status}
-                    onValueChange={(v) => setEditFormData({ ...editFormData, status: v as OrderStatus })}
-                  >
-                    <SelectTrigger id="status" data-testid="select-edit-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ORDER_STATUSES.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {isAdmin ? (
+                <>
+                  <div className="grid gap-4">
+                    <div>
+                      <Label htmlFor="status">Status</Label>
+                      <Select
+                        value={editFormData.status}
+                        onValueChange={(v) => setEditFormData({ ...editFormData, status: v as OrderStatus })}
+                      >
+                        <SelectTrigger id="status" data-testid="select-edit-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ORDER_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div>
-                  <Label htmlFor="partyName">Party Name</Label>
-                  <Input
-                    id="partyName"
-                    value={editFormData.partyName}
-                    onChange={(e) => setEditFormData({ ...editFormData, partyName: e.target.value })}
-                    placeholder="Customer name"
-                    data-testid="input-party-name"
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="partyName">Party Name</Label>
+                      <Input
+                        id="partyName"
+                        value={editFormData.partyName}
+                        onChange={(e) => setEditFormData({ ...editFormData, partyName: e.target.value })}
+                        placeholder="Customer name"
+                        data-testid="input-party-name"
+                      />
+                    </div>
 
-                <div>
-                  <Label htmlFor="deliveryAddress">Delivery Address</Label>
-                  <Textarea
-                    id="deliveryAddress"
-                    value={editFormData.deliveryAddress}
-                    onChange={(e) => setEditFormData({ ...editFormData, deliveryAddress: e.target.value })}
-                    placeholder="Full delivery address"
-                    rows={2}
-                    data-testid="input-delivery-address"
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="deliveryAddress">Delivery Address</Label>
+                      <Textarea
+                        id="deliveryAddress"
+                        value={editFormData.deliveryAddress}
+                        onChange={(e) => setEditFormData({ ...editFormData, deliveryAddress: e.target.value })}
+                        placeholder="Full delivery address"
+                        rows={2}
+                        data-testid="input-delivery-address"
+                      />
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="invoiceNumber">Invoice No</Label>
-                    <Input
-                      id="invoiceNumber"
-                      value={editFormData.invoiceNumber}
-                      onChange={(e) => setEditFormData({ ...editFormData, invoiceNumber: e.target.value })}
-                      placeholder="INV-001"
-                      data-testid="input-invoice-number"
-                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="invoiceNumber">Invoice No</Label>
+                        <Input
+                          id="invoiceNumber"
+                          value={editFormData.invoiceNumber}
+                          onChange={(e) => setEditFormData({ ...editFormData, invoiceNumber: e.target.value })}
+                          placeholder="INV-001"
+                          data-testid="input-invoice-number"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="invoiceDate">Invoice Date</Label>
+                        <Input
+                          id="invoiceDate"
+                          type="date"
+                          value={editFormData.invoiceDate}
+                          onChange={(e) => setEditFormData({ ...editFormData, invoiceDate: e.target.value })}
+                          data-testid="input-invoice-date"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="dispatchDate">Dispatch Date</Label>
+                        <Input
+                          id="dispatchDate"
+                          type="date"
+                          value={editFormData.dispatchDate}
+                          onChange={(e) => setEditFormData({ ...editFormData, dispatchDate: e.target.value })}
+                          data-testid="input-dispatch-date"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="dispatchBy">Dispatch By</Label>
+                        <Input
+                          id="dispatchBy"
+                          value={editFormData.dispatchBy}
+                          onChange={(e) => setEditFormData({ ...editFormData, dispatchBy: e.target.value })}
+                          placeholder="Courier name"
+                          data-testid="input-dispatch-by"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="cases">Cases</Label>
+                        <Input
+                          id="cases"
+                          type="number"
+                          value={editFormData.cases}
+                          onChange={(e) => setEditFormData({ ...editFormData, cases: e.target.value })}
+                          placeholder="0"
+                          data-testid="input-cases"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="deliveryCost">Delivery Cost</Label>
+                        <Input
+                          id="deliveryCost"
+                          value={editFormData.deliveryCost}
+                          onChange={(e) => setEditFormData({ ...editFormData, deliveryCost: e.target.value })}
+                          placeholder="0.00"
+                          data-testid="input-delivery-cost"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="estimatedDeliveryDate">Est. Delivery</Label>
+                        <Input
+                          id="estimatedDeliveryDate"
+                          type="date"
+                          value={editFormData.estimatedDeliveryDate}
+                          onChange={(e) => setEditFormData({ ...editFormData, estimatedDeliveryDate: e.target.value })}
+                          data-testid="input-est-delivery"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="actualDeliveryDate">Actual Delivery</Label>
+                        <Input
+                          id="actualDeliveryDate"
+                          type="date"
+                          value={editFormData.actualDeliveryDate}
+                          onChange={(e) => setEditFormData({ ...editFormData, actualDeliveryDate: e.target.value })}
+                          data-testid="input-actual-delivery"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="remarks">Remarks</Label>
+                      <Textarea
+                        id="remarks"
+                        value={editFormData.remarks}
+                        onChange={(e) => setEditFormData({ ...editFormData, remarks: e.target.value })}
+                        placeholder="Additional notes..."
+                        rows={3}
+                        data-testid="input-remarks"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="deliveryNote">Delivery Note</Label>
+                      <Textarea
+                        id="deliveryNote"
+                        value={editFormData.deliveryNote}
+                        onChange={(e) => setEditFormData({ ...editFormData, deliveryNote: e.target.value })}
+                        placeholder="Delivery instructions or notes..."
+                        rows={3}
+                        data-testid="input-delivery-note"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="invoiceDate">Invoice Date</Label>
-                    <Input
-                      id="invoiceDate"
-                      type="date"
-                      value={editFormData.invoiceDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, invoiceDate: e.target.value })}
-                      data-testid="input-invoice-date"
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="dispatchDate">Dispatch Date</Label>
-                    <Input
-                      id="dispatchDate"
-                      type="date"
-                      value={editFormData.dispatchDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, dispatchDate: e.target.value })}
-                      data-testid="input-dispatch-date"
-                    />
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedOrder(null)}
+                      data-testid="button-cancel-edit"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={updateMutation.isPending}
+                      data-testid="button-save-order"
+                    >
+                      {updateMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </Button>
                   </div>
-                  <div>
-                    <Label htmlFor="dispatchBy">Dispatch By</Label>
-                    <Input
-                      id="dispatchBy"
-                      value={editFormData.dispatchBy}
-                      onChange={(e) => setEditFormData({ ...editFormData, dispatchBy: e.target.value })}
-                      placeholder="Courier name"
-                      data-testid="input-dispatch-by"
-                    />
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge className={statusColors[selectedOrder.status as OrderStatus]}>
+                      {selectedOrder.status}
+                    </Badge>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="cases">Cases</Label>
-                    <Input
-                      id="cases"
-                      type="number"
-                      value={editFormData.cases}
-                      onChange={(e) => setEditFormData({ ...editFormData, cases: e.target.value })}
-                      placeholder="0"
-                      data-testid="input-cases"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="deliveryCost">Delivery Cost</Label>
-                    <Input
-                      id="deliveryCost"
-                      value={editFormData.deliveryCost}
-                      onChange={(e) => setEditFormData({ ...editFormData, deliveryCost: e.target.value })}
-                      placeholder="0.00"
-                      data-testid="input-delivery-cost"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="estimatedDeliveryDate">Est. Delivery</Label>
-                    <Input
-                      id="estimatedDeliveryDate"
-                      type="date"
-                      value={editFormData.estimatedDeliveryDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, estimatedDeliveryDate: e.target.value })}
-                      data-testid="input-est-delivery"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="actualDeliveryDate">Actual Delivery</Label>
-                    <Input
-                      id="actualDeliveryDate"
-                      type="date"
-                      value={editFormData.actualDeliveryDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, actualDeliveryDate: e.target.value })}
-                      data-testid="input-actual-delivery"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="remarks">Remarks</Label>
-                  <Textarea
-                    id="remarks"
-                    value={editFormData.remarks}
-                    onChange={(e) => setEditFormData({ ...editFormData, remarks: e.target.value })}
-                    placeholder="Additional notes..."
-                    rows={3}
-                    data-testid="input-remarks"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="deliveryNote">Delivery Note</Label>
-                  <Textarea
-                    id="deliveryNote"
-                    value={editFormData.deliveryNote}
-                    onChange={(e) => setEditFormData({ ...editFormData, deliveryNote: e.target.value })}
-                    placeholder="Delivery instructions or notes..."
-                    rows={3}
-                    data-testid="input-delivery-note"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedOrder(null)}
-                  data-testid="button-cancel-edit"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={updateMutation.isPending}
-                  data-testid="button-save-order"
-                >
-                  {updateMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Changes"
+                  {selectedOrder.invoiceNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Invoice:</span>
+                      <span>{selectedOrder.invoiceNumber} {selectedOrder.invoiceDate && `(${formatDate(selectedOrder.invoiceDate)})`}</span>
+                    </div>
                   )}
-                </Button>
-              </div>
+                  {selectedOrder.status === "Dispatched" && selectedOrder.estimatedDeliveryDate && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Est. Delivery:</span>
+                      <span>{formatDate(selectedOrder.estimatedDeliveryDate)}</span>
+                    </div>
+                  )}
+                  {selectedOrder.status === "Delivered" && selectedOrder.actualDeliveryDate && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Delivered:</span>
+                      <span>{formatDate(selectedOrder.actualDeliveryDate)}</span>
+                    </div>
+                  )}
+                  {selectedOrder.remarks && (
+                    <div>
+                      <span className="text-muted-foreground">Remarks:</span>
+                      <p className="mt-1 text-sm">{selectedOrder.remarks}</p>
+                    </div>
+                  )}
+                  <div className="flex justify-end pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedOrder(null)}
+                      data-testid="button-close-details"
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
