@@ -234,7 +234,7 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
-  async getOrderItems(orderId: string): Promise<(OrderItem & { productName?: string | null; size?: string | null })[]> {
+  async getOrderItems(orderId: string): Promise<(OrderItem & { productName?: string | null; size?: string | null; hsn?: string | null })[]> {
     const items = await db.select({
       id: orderItems.id,
       orderId: orderItems.orderId,
@@ -243,6 +243,7 @@ export class DatabaseStorage implements IStorage {
       unitPrice: orderItems.unitPrice,
       productName: products.name,
       size: products.size,
+      hsn: products.hsn,
     })
     .from(orderItems)
     .leftJoin(products, eq(orderItems.productId, products.id))
