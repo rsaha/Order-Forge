@@ -1,5 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 import CartItem, { type CartItemData } from "./CartItem";
 import OrderSummary, { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm from "./OrderDetailsForm";
@@ -12,6 +14,7 @@ interface CartPanelProps {
   onOrderDetailsChange: (details: OrderDetails) => void;
   onQuantityChange: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
+  onClearCart: () => void;
   onSendOrder: () => void;
   isSending?: boolean;
 }
@@ -24,6 +27,7 @@ export default function CartPanel({
   onOrderDetailsChange,
   onQuantityChange,
   onRemoveItem,
+  onClearCart,
   onSendOrder,
   isSending = false
 }: CartPanelProps) {
@@ -31,7 +35,21 @@ export default function CartPanel({
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col p-0">
         <SheetHeader className="p-4 border-b">
-          <SheetTitle>Shopping Cart</SheetTitle>
+          <div className="flex items-center justify-between gap-2">
+            <SheetTitle>Shopping Cart</SheetTitle>
+            {cartItems.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearCart}
+                className="text-destructive"
+                data-testid="button-clear-cart"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </SheetHeader>
         
         <div className="flex-1 flex flex-col overflow-hidden">

@@ -457,7 +457,7 @@ export default function Home() {
             if (existingItem) {
               return prevCart.map(ci =>
                 ci.product.id === product.id
-                  ? { ...ci, quantity: Math.min(ci.quantity + item.quantity, product.stock) }
+                  ? { ...ci, quantity: ci.quantity + item.quantity }
                   : ci
               );
             }
@@ -470,7 +470,7 @@ export default function Home() {
                 price: Number(product.price),
                 stock: product.stock,
               }, 
-              quantity: Math.min(item.quantity, product.stock) 
+              quantity: item.quantity 
             }];
           });
         }
@@ -703,6 +703,16 @@ export default function Home() {
         onOrderDetailsChange={setOrderDetails}
         onQuantityChange={handleQuantityChange}
         onRemoveItem={handleRemoveItem}
+        onClearCart={() => {
+          setCart([]);
+          setOrderDetails({
+            partyName: "",
+            deliveryCompany: "Guided",
+            deliveryNotes: "",
+            specialNotes: "",
+            proposedDiscount: 0,
+          });
+        }}
         onSendOrder={handleSendOrder}
         isSending={isSendingOrder}
       />
