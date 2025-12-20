@@ -19,7 +19,7 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, Trash2 } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -533,6 +533,40 @@ export default function Home() {
           )}
         </div>
       </header>
+
+      {cart.length > 0 && (
+        <div className="sticky top-16 z-40 bg-primary text-primary-foreground border-b shadow-md">
+          <div className="flex items-center justify-between gap-4 px-4 py-2">
+            <div className="flex items-center gap-2 text-sm">
+              <ShoppingCart className="w-4 h-4" />
+              <span className="font-medium">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''}</span>
+              <span className="text-primary-foreground/80">
+                {formatINR(cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0))}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsCartOpen(true)}
+                data-testid="button-view-cart-bar"
+              >
+                View Cart
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-primary-foreground text-primary"
+                onClick={handleSendOrder}
+                disabled={isSendingOrder || !orderDetails.partyName}
+                data-testid="button-send-order-bar"
+              >
+                {isSendingOrder ? "Sending..." : "Send Order"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 overflow-hidden">
         {activeTab === "products" && (
