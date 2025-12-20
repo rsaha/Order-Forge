@@ -377,7 +377,7 @@ export async function registerRoutes(
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { items, whatsappPhone, email, total, partyName, deliveryAddress, deliveryCompany, brand } = req.body;
+      const { items, whatsappPhone, email, total, partyName, deliveryNote, deliveryCompany, brand } = req.body;
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: "No items in order" });
@@ -410,7 +410,7 @@ export async function registerRoutes(
         whatsappPhone,
         email,
         partyName: partyName.trim(),
-        deliveryAddress: deliveryAddress || null,
+        deliveryNote: deliveryNote || null,
         deliveryCompany: deliveryCompany || "Guided",
         status: "Created",
       });

@@ -498,8 +498,8 @@ export default function OrdersPage() {
                           {(order as any).createdByName || "-"}
                         </td>
                         <td className="p-3 max-w-[200px]" data-testid={`text-delivery-notes-${order.id}`}>
-                          <div className="truncate" title={order.deliveryNotes || ""}>
-                            {order.deliveryNotes || "-"}
+                          <div className="truncate" title={order.deliveryNote || ""}>
+                            {order.deliveryNote || "-"}
                           </div>
                         </td>
                         <td className="p-3" data-testid={`text-invoice-${order.id}`}>

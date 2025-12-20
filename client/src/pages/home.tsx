@@ -364,7 +364,7 @@ export default function Home() {
           total: String(finalTotal),
           brand: cart[0]?.product.brand || null,
           partyName: orderDetails.partyName || null,
-          deliveryAddress: orderDetails.deliveryNotes || null,
+          deliveryNote: orderDetails.deliveryNotes || null,
           deliveryCompany: orderDetails.deliveryCompany || "Guided",
           remarks: orderDetails.specialNotes || null,
         }),
