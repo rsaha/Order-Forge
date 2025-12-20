@@ -8,8 +8,6 @@ interface CartPanelProps {
   isOpen: boolean;
   onClose: () => void;
   cartItems: CartItemData[];
-  discountPercent: number;
-  onDiscountChange: (discount: number) => void;
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
   onQuantityChange: (productId: string, quantity: number) => void;
@@ -22,8 +20,6 @@ export default function CartPanel({
   isOpen,
   onClose,
   cartItems,
-  discountPercent,
-  onDiscountChange,
   orderDetails,
   onOrderDetailsChange,
   onQuantityChange,
@@ -68,10 +64,7 @@ export default function CartPanel({
               <div className="p-4 border-t bg-muted/30">
                 <OrderSummary
                   cartItems={cartItems}
-                  discountPercent={discountPercent}
-                  onDiscountChange={onDiscountChange}
                   orderDetails={orderDetails}
-                  onOrderDetailsChange={onOrderDetailsChange}
                   onSendOrder={onSendOrder}
                   isSending={isSending}
                 />

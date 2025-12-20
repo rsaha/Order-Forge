@@ -1,7 +1,5 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Send, Loader2 } from "lucide-react";
 import type { CartItemData } from "./CartItem";
 import { formatINR } from "./ProductCard";
@@ -11,20 +9,14 @@ export type { OrderDetails };
 
 interface OrderSummaryProps {
   cartItems: CartItemData[];
-  discountPercent: number;
-  onDiscountChange: (discount: number) => void;
   orderDetails: OrderDetails;
-  onOrderDetailsChange: (details: OrderDetails) => void;
   onSendOrder: () => void;
   isSending?: boolean;
 }
 
 export default function OrderSummary({ 
   cartItems, 
-  discountPercent,
-  onDiscountChange,
   orderDetails,
-  onOrderDetailsChange,
   onSendOrder,
   isSending = false 
 }: OrderSummaryProps) {
@@ -32,15 +24,11 @@ export default function OrderSummary({
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
+  const discountPercent = orderDetails.proposedDiscount || 0;
   const safeDiscount = Math.min(100, Math.max(0, discountPercent));
   const discountAmount = subtotal * (safeDiscount / 100);
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-
-  const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value) || 0;
-    onDiscountChange(Math.min(100, Math.max(0, value)));
-  };
 
   const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
 
@@ -63,21 +51,6 @@ export default function OrderSummary({
         <div className="flex justify-between items-center text-sm">
           <span className="text-muted-foreground">Subtotal</span>
           <span data-testid="text-subtotal">{formatINR(subtotal)}</span>
-        </div>
-        
-        <div className="flex justify-between items-center gap-2">
-          <Label htmlFor="discount" className="text-sm text-muted-foreground">Discount %</Label>
-          <Input
-            id="discount"
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={discountPercent}
-            onChange={handleDiscountChange}
-            className="w-20 h-8 text-right"
-            data-testid="input-discount"
-          />
         </div>
         
         {discountPercent > 0 && (

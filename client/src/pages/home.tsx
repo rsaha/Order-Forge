@@ -54,7 +54,6 @@ export default function Home() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItemData[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [discountPercent, setDiscountPercent] = useState(0);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [partyName, setPartyName] = useState("");
   const [orderDetails, setOrderDetails] = useState({
@@ -62,6 +61,7 @@ export default function Home() {
     deliveryCompany: "Guided",
     deliveryNotes: "",
     specialNotes: "",
+    proposedDiscount: 0,
   });
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -309,7 +309,7 @@ export default function Home() {
     });
 
     const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-    const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+    const safeDiscount = Math.min(100, Math.max(0, orderDetails.proposedDiscount || 0));
     const discountAmount = subtotal * (safeDiscount / 100);
     const finalTotal = subtotal - discountAmount;
     
@@ -331,7 +331,7 @@ export default function Home() {
     }
 
     return lines.join("\n");
-  }, [cart, discountPercent, orderDetails]);
+  }, [cart, orderDetails]);
 
   const [isSendingOrder, setIsSendingOrder] = useState(false);
 
@@ -348,7 +348,7 @@ export default function Home() {
     setIsSendingOrder(true);
     try {
       const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-      const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+      const safeDiscount = Math.min(100, Math.max(0, orderDetails.proposedDiscount || 0));
       const discountAmount = subtotal * (safeDiscount / 100);
       const finalTotal = subtotal - discountAmount;
 
@@ -366,6 +366,7 @@ export default function Home() {
           partyName: orderDetails.partyName || null,
           deliveryAddress: orderDetails.deliveryNotes || null,
           deliveryCompany: orderDetails.deliveryCompany || "Guided",
+          remarks: orderDetails.specialNotes || null,
         }),
         credentials: "include",
       });
@@ -381,6 +382,13 @@ export default function Home() {
       });
       
       setCart([]);
+      setOrderDetails({
+        partyName: "",
+        deliveryCompany: "Guided",
+        deliveryNotes: "",
+        specialNotes: "",
+        proposedDiscount: 0,
+      });
       setIsCartOpen(false);
     } catch (error: any) {
       toast({
@@ -391,7 +399,7 @@ export default function Home() {
     } finally {
       setIsSendingOrder(false);
     }
-  }, [cart, discountPercent, orderDetails, toast]);
+  }, [cart, orderDetails, toast]);
 
   const handleParsedItems = useCallback((name: string, items: ParsedItem[]) => {
     setPartyName(name);
@@ -469,12 +477,19 @@ export default function Home() {
       }
     });
 
+    setOrderDetails(prev => ({
+      ...prev,
+      partyName: partyName || prev.partyName,
+    }));
+
     toast({
       title: "Added to cart",
       description: `${matchedItems.length} item(s) added to cart`,
     });
     setParsedItems([]);
-  }, [parsedItems, products, toast, cart]);
+    setPartyName("");
+    setIsCartOpen(true);
+  }, [parsedItems, products, toast, cart, partyName]);
 
   const handleClearParsedItems = useCallback(() => {
     setParsedItems([]);
@@ -684,8 +699,6 @@ export default function Home() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cartItems={cart}
-        discountPercent={discountPercent}
-        onDiscountChange={setDiscountPercent}
         orderDetails={orderDetails}
         onOrderDetailsChange={setOrderDetails}
         onQuantityChange={handleQuantityChange}

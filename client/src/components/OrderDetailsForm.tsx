@@ -9,6 +9,7 @@ export interface OrderDetails {
   deliveryCompany: string;
   deliveryNotes: string;
   specialNotes: string;
+  proposedDiscount: number;
 }
 
 interface OrderDetailsFormProps {
@@ -29,7 +30,7 @@ export default function OrderDetailsForm({
   };
 
   if (readOnly) {
-    const hasDetails = orderDetails.partyName || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes;
+    const hasDetails = orderDetails.partyName || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes || orderDetails.proposedDiscount > 0;
     
     if (!hasDetails) {
       return null;
@@ -47,6 +48,12 @@ export default function OrderDetailsForm({
           <div className="flex gap-2">
             <span className="text-muted-foreground">Delivery Company:</span>
             <span data-testid="text-delivery-company">{orderDetails.deliveryCompany}</span>
+          </div>
+        )}
+        {orderDetails.proposedDiscount > 0 && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground">Proposed Discount:</span>
+            <span data-testid="text-proposed-discount">{orderDetails.proposedDiscount}%</span>
           </div>
         )}
         {orderDetails.deliveryNotes && (
@@ -99,6 +106,25 @@ export default function OrderDetailsForm({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="proposedDiscount">Proposed Discount % (Optional)</Label>
+          <Input
+            id="proposedDiscount"
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            placeholder="0"
+            value={orderDetails.proposedDiscount === 0 ? "0" : orderDetails.proposedDiscount || ""}
+            onChange={(e) => {
+              const value = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+              onOrderDetailsChange({ ...orderDetails, proposedDiscount: value });
+            }}
+            className="h-10"
+            data-testid="input-proposed-discount"
+          />
         </div>
 
         <div className="space-y-1.5">
