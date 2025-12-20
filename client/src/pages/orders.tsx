@@ -495,7 +495,7 @@ export default function OrdersPage() {
                           <div className="font-medium">{order.partyName || "Unknown"}</div>
                         </td>
                         <td className="p-3" data-testid={`text-created-by-${order.id}`}>
-                          {(order as any).createdByName || "-"}
+                          {(order as any).createdByName || (order as any).createdByEmail || "-"}
                         </td>
                         <td className="p-3 max-w-[200px]" data-testid={`text-delivery-notes-${order.id}`}>
                           <div className="truncate" title={order.deliveryNote || ""}>
@@ -610,10 +610,10 @@ export default function OrdersPage() {
                 <div className="text-sm text-muted-foreground">
                   Order Total: {formatINR(selectedOrder.total)}
                 </div>
-                {(selectedOrder as any).createdByName && (
+                {((selectedOrder as any).createdByName || (selectedOrder as any).createdByEmail) && (
                   <div className="text-sm">
                     <span className="font-medium">Created By: </span>
-                    <span className="text-muted-foreground">{(selectedOrder as any).createdByName}</span>
+                    <span className="text-muted-foreground">{(selectedOrder as any).createdByName || (selectedOrder as any).createdByEmail}</span>
                   </div>
                 )}
                 {selectedOrder.deliveryAddress && (

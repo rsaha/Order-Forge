@@ -310,7 +310,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
   }
 
-  async getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null })[]> {
+  async getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
     const conditions = [];
     if (filters?.status) {
       conditions.push(eq(orders.status, filters.status));
@@ -343,6 +343,7 @@ export class DatabaseStorage implements IStorage {
       deliveryCompany: orders.deliveryCompany,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
+      createdByEmail: users.email,
     })
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id))
@@ -354,7 +355,7 @@ export class DatabaseStorage implements IStorage {
     return baseQuery;
   }
 
-  async getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null })[]> {
+  async getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
     if (brands.length === 0) return [];
     
     const conditions = [inArray(orders.brand, brands)];
@@ -389,6 +390,7 @@ export class DatabaseStorage implements IStorage {
       deliveryCompany: orders.deliveryCompany,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
+      createdByEmail: users.email,
     })
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id))
