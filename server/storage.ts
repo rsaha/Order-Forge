@@ -92,10 +92,10 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     } else if (existingByEmail) {
-      // Update existing user by email (update their ID to the new one)
+      // Update existing user by email (keep their existing ID to preserve foreign key references)
       const [updated] = await db
         .update(users)
-        .set({ ...updateData, id: userData.id })
+        .set(updateData)
         .where(eq(users.email, userData.email!))
         .returning();
       return updated;
