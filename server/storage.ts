@@ -97,7 +97,23 @@ export class DatabaseStorage implements IStorage {
       
       if (oldId !== newId) {
         // ID has changed - need to migrate all foreign key references
-        // First, create the new user record
+        // Use raw SQL to update the user ID since Drizzle doesn't support updating primary keys easily
+        // First delete old FK references, then update user, then recreate FK references
+        
+        // Get existing brand access and products for this user
+        const existingBrandAccess = await db.select().from(userBrandAccess).where(eq(userBrandAccess.userId, oldId));
+        const existingUserProducts = await db.select().from(userProducts).where(eq(userProducts.userId, oldId));
+        
+        // Delete old FK references
+        await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, oldId));
+        await db.delete(userProducts).where(eq(userProducts.userId, oldId));
+        
+        // Update orders to point to new ID (orders don't have unique constraint issues)
+        await db.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
+        
+        // Delete old user and create new one with the new ID
+        await db.delete(users).where(eq(users.id, oldId));
+        
         const [newUser] = await db
           .insert(users)
           .values({
@@ -107,13 +123,13 @@ export class DatabaseStorage implements IStorage {
           })
           .returning();
         
-        // Update all foreign key references to use the new ID
-        await db.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
-        await db.update(userBrandAccess).set({ userId: newId }).where(eq(userBrandAccess.userId, oldId));
-        await db.update(userProducts).set({ userId: newId }).where(eq(userProducts.userId, oldId));
-        
-        // Delete the old user record
-        await db.delete(users).where(eq(users.id, oldId));
+        // Recreate FK references with new user ID
+        for (const access of existingBrandAccess) {
+          await db.insert(userBrandAccess).values({ userId: newId, brand: access.brand }).onConflictDoNothing();
+        }
+        for (const product of existingUserProducts) {
+          await db.insert(userProducts).values({ userId: newId, productId: product.productId }).onConflictDoNothing();
+        }
         
         return newUser;
       } else {
