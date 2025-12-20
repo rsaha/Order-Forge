@@ -243,7 +243,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
   }
 
-  async getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]> {
+  async getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null })[]> {
     const conditions = [];
     if (filters?.status) {
       conditions.push(eq(orders.status, filters.status));
@@ -252,13 +252,42 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(orders.deliveryCompany, filters.deliveryCompany));
     }
     
+    const baseQuery = db.select({
+      id: orders.id,
+      userId: orders.userId,
+      brand: orders.brand,
+      status: orders.status,
+      total: orders.total,
+      discountPercent: orders.discountPercent,
+      whatsappPhone: orders.whatsappPhone,
+      email: orders.email,
+      partyName: orders.partyName,
+      deliveryAddress: orders.deliveryAddress,
+      invoiceNumber: orders.invoiceNumber,
+      invoiceDate: orders.invoiceDate,
+      dispatchDate: orders.dispatchDate,
+      dispatchBy: orders.dispatchBy,
+      cases: orders.cases,
+      remarks: orders.remarks,
+      estimatedDeliveryDate: orders.estimatedDeliveryDate,
+      actualDeliveryDate: orders.actualDeliveryDate,
+      deliveryCost: orders.deliveryCost,
+      deliveryNote: orders.deliveryNote,
+      deliveryCompany: orders.deliveryCompany,
+      createdAt: orders.createdAt,
+      createdByName: users.firstName,
+    })
+    .from(orders)
+    .leftJoin(users, eq(orders.userId, users.id))
+    .orderBy(desc(orders.createdAt));
+    
     if (conditions.length > 0) {
-      return db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
+      return baseQuery.where(and(...conditions));
     }
-    return db.select().from(orders).orderBy(desc(orders.createdAt));
+    return baseQuery;
   }
 
-  async getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]> {
+  async getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null })[]> {
     if (brands.length === 0) return [];
     
     const conditions = [inArray(orders.brand, brands)];
@@ -269,7 +298,35 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(orders.deliveryCompany, filters.deliveryCompany));
     }
     
-    return db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
+    return db.select({
+      id: orders.id,
+      userId: orders.userId,
+      brand: orders.brand,
+      status: orders.status,
+      total: orders.total,
+      discountPercent: orders.discountPercent,
+      whatsappPhone: orders.whatsappPhone,
+      email: orders.email,
+      partyName: orders.partyName,
+      deliveryAddress: orders.deliveryAddress,
+      invoiceNumber: orders.invoiceNumber,
+      invoiceDate: orders.invoiceDate,
+      dispatchDate: orders.dispatchDate,
+      dispatchBy: orders.dispatchBy,
+      cases: orders.cases,
+      remarks: orders.remarks,
+      estimatedDeliveryDate: orders.estimatedDeliveryDate,
+      actualDeliveryDate: orders.actualDeliveryDate,
+      deliveryCost: orders.deliveryCost,
+      deliveryNote: orders.deliveryNote,
+      deliveryCompany: orders.deliveryCompany,
+      createdAt: orders.createdAt,
+      createdByName: users.firstName,
+    })
+    .from(orders)
+    .leftJoin(users, eq(orders.userId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(orders.createdAt));
   }
 
   async getOrderById(id: string): Promise<Order | undefined> {

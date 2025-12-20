@@ -600,6 +600,12 @@ export default function OrdersPage() {
                 <div className="text-sm text-muted-foreground">
                   Order Total: {formatINR(selectedOrder.total)}
                 </div>
+                {(selectedOrder as any).createdByName && (
+                  <div className="text-sm">
+                    <span className="font-medium">Created By: </span>
+                    <span className="text-muted-foreground">{(selectedOrder as any).createdByName}</span>
+                  </div>
+                )}
                 {selectedOrder.deliveryAddress && (
                   <div className="text-sm mt-1">
                     <span className="font-medium">Delivery Notes: </span>
