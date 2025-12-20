@@ -381,6 +381,9 @@ export default function Home() {
         description: "Your order has been submitted successfully.",
       });
       
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      
       setCart([]);
       setOrderDetails({
         partyName: "",
