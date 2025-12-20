@@ -71,6 +71,7 @@ export default function Home() {
     brand: "",
     sku: "",
     size: "",
+    aliases: "",
     price: "",
     stock: "",
   });
@@ -166,6 +167,7 @@ export default function Home() {
       brand: product.brand,
       sku: product.sku,
       size: product.size || "",
+      aliases: (product as any).aliases || "",
       price: String(product.price),
       stock: String(product.stock),
     });
@@ -180,6 +182,7 @@ export default function Home() {
         brand: editFormData.brand,
         sku: editFormData.sku,
         size: editFormData.size || null,
+        aliases: editFormData.aliases || null,
         price: editFormData.price,
         stock: parseInt(editFormData.stock) || 0,
       },
@@ -734,6 +737,19 @@ export default function Home() {
                 onChange={(e) => setEditFormData({ ...editFormData, size: e.target.value })}
                 data-testid="input-edit-size"
               />
+            </div>
+            <div>
+              <Label htmlFor="edit-aliases">Aliases (comma-separated)</Label>
+              <Input
+                id="edit-aliases"
+                value={editFormData.aliases}
+                onChange={(e) => setEditFormData({ ...editFormData, aliases: e.target.value })}
+                placeholder="e.g., short name, abbreviation"
+                data-testid="input-edit-aliases"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Short names used in import order matching
+              </p>
             </div>
             <div>
               <Label htmlFor="edit-price">MRP</Label>

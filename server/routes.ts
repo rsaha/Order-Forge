@@ -74,7 +74,7 @@ function calculateSimilarity(query: string, target: string): number {
   return matchedWords / queryWords.length;
 }
 
-function findBestMatch<T extends { sku: string; name: string }>(
+function findBestMatch<T extends { sku: string; name: string; aliases?: string | null }>(
   query: string,
   products: T[],
   threshold: number = 0.5
@@ -85,7 +85,23 @@ function findBestMatch<T extends { sku: string; name: string }>(
   for (const product of products) {
     const skuScore = calculateSimilarity(query, product.sku);
     const nameScore = calculateSimilarity(query, product.name);
-    const score = Math.max(skuScore, nameScore);
+    let aliasScore = 0;
+    
+    if (product.aliases) {
+      const aliasesList = product.aliases.split(',').map(a => a.trim()).filter(a => a);
+      for (const alias of aliasesList) {
+        const score = calculateSimilarity(query, alias);
+        if (score > aliasScore) {
+          aliasScore = score;
+        }
+        if (normalizeText(query) === normalizeText(alias)) {
+          aliasScore = 1;
+          break;
+        }
+      }
+    }
+    
+    const score = Math.max(skuScore, nameScore, aliasScore);
     
     if (score > bestScore) {
       bestScore = score;

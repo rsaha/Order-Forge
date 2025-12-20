@@ -120,7 +120,7 @@ export default function ParsedOrderReview({
           />
         </div>
 
-        <ScrollArea className="max-h-[400px]">
+        <ScrollArea className="h-[50vh] min-h-[300px] max-h-[500px] pr-4">
           <div className="space-y-3">
             {items.map((item, index) => (
               <div
