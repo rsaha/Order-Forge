@@ -259,21 +259,21 @@ export default function OrdersPage() {
       deliveryNote: order.deliveryNote || "",
     });
     
-    if (isAdmin) {
-      setLoadingItems(true);
-      try {
-        const res = await fetch(`/api/admin/orders/${order.id}`, { credentials: "include" });
-        if (res.ok) {
-          const data = await res.json();
-          setOrderItems(data.items || []);
-        }
-      } catch {
-        setOrderItems([]);
-      } finally {
-        setLoadingItems(false);
+    setLoadingItems(true);
+    try {
+      // Use admin endpoint for admins/brand admins, regular endpoint for users
+      const endpoint = hasAdminAccess 
+        ? `/api/admin/orders/${order.id}` 
+        : `/api/orders/${order.id}`;
+      const res = await fetch(endpoint, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setOrderItems(data.items || []);
       }
-    } else {
+    } catch {
       setOrderItems([]);
+    } finally {
+      setLoadingItems(false);
     }
   };
 

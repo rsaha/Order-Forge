@@ -443,6 +443,29 @@ export async function registerRoutes(
     }
   });
 
+  // Get single order with items for the user who owns it
+  app.get('/api/orders/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getOrderById(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Check if user owns this order
+      if (order.userId !== userId) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+      
+      const items = await storage.getOrderItems(order.id);
+      res.json({ ...order, items });
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      res.status(500).json({ message: "Failed to fetch order" });
+    }
+  });
+
   // Get all orders (Admin and BrandAdmin)
   app.get('/api/admin/orders', isAuthenticated, async (req: any, res) => {
     try {
