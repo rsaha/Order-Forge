@@ -9,6 +9,93 @@ import { getUncachableResendClient } from "./resend";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Fuzzy matching utilities
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function calculateSimilarity(query: string, target: string): number {
+  const normalizedQuery = normalizeText(query);
+  const normalizedTarget = normalizeText(target);
+  
+  if (normalizedQuery === normalizedTarget) return 1;
+  if (normalizedTarget.includes(normalizedQuery) || normalizedQuery.includes(normalizedTarget)) {
+    return 0.9;
+  }
+  
+  const queryWords = normalizedQuery.split(' ').filter(w => w.length > 1);
+  const targetWords = normalizedTarget.split(' ').filter(w => w.length > 1);
+  
+  let matchedWords = 0;
+  for (const qWord of queryWords) {
+    for (const tWord of targetWords) {
+      if (tWord.includes(qWord) || qWord.includes(tWord)) {
+        matchedWords++;
+        break;
+      }
+      const distance = levenshteinDistance(qWord, tWord);
+      const maxLen = Math.max(qWord.length, tWord.length);
+      if (distance <= Math.floor(maxLen * 0.3)) {
+        matchedWords++;
+        break;
+      }
+    }
+  }
+  
+  if (queryWords.length === 0) return 0;
+  return matchedWords / queryWords.length;
+}
+
+function findBestMatch<T extends { sku: string; name: string }>(
+  query: string,
+  products: T[],
+  threshold: number = 0.5
+): T | null {
+  let bestMatch: T | null = null;
+  let bestScore = threshold;
+  
+  for (const product of products) {
+    const skuScore = calculateSimilarity(query, product.sku);
+    const nameScore = calculateSimilarity(query, product.name);
+    const score = Math.max(skuScore, nameScore);
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = product;
+    }
+  }
+  
+  return bestMatch;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -432,21 +519,15 @@ export async function registerRoutes(
         }
       }
 
-      // Try to match parsed items with user's products
+      // Try to match parsed items with user's products using fuzzy matching
       const userId = req.user.claims.sub;
       const userProducts = await storage.getUserProducts(userId);
 
       const matchedItems = parsedItems.map(item => {
-        const productRef = item.productRef.toLowerCase().trim();
+        const productRef = item.productRef.trim();
         
-        // Find matching product by SKU or name
-        const matchedProduct = userProducts.find(p => {
-          const sku = p.sku.toLowerCase();
-          const name = p.name.toLowerCase();
-          return sku === productRef || name === productRef ||
-                 sku.includes(productRef) || productRef.includes(sku) ||
-                 name.includes(productRef) || productRef.includes(name);
-        });
+        // Use fuzzy matching to find the best matching product
+        const matchedProduct = findBestMatch(productRef, userProducts, 0.4);
 
         return {
           ...item,
