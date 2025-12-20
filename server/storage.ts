@@ -92,13 +92,39 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     } else if (existingByEmail) {
-      // Update existing user by email (keep their existing ID to preserve foreign key references)
-      const [updated] = await db
-        .update(users)
-        .set(updateData)
-        .where(eq(users.email, userData.email!))
-        .returning();
-      return updated;
+      const oldId = existingByEmail.id;
+      const newId = userData.id!;
+      
+      if (oldId !== newId) {
+        // ID has changed - need to migrate all foreign key references
+        // First, create the new user record
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            ...userData,
+            isAdmin: existingByEmail.isAdmin,
+            role: existingByEmail.role,
+          })
+          .returning();
+        
+        // Update all foreign key references to use the new ID
+        await db.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
+        await db.update(userBrandAccess).set({ userId: newId }).where(eq(userBrandAccess.userId, oldId));
+        await db.update(userProducts).set({ userId: newId }).where(eq(userProducts.userId, oldId));
+        
+        // Delete the old user record
+        await db.delete(users).where(eq(users.id, oldId));
+        
+        return newUser;
+      } else {
+        // Same ID, just update the user data
+        const [updated] = await db
+          .update(users)
+          .set(updateData)
+          .where(eq(users.email, userData.email!))
+          .returning();
+        return updated;
+      }
     } else {
       // Insert new user
       const [user] = await db
