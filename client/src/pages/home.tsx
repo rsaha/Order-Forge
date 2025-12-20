@@ -665,53 +665,75 @@ export default function Home() {
         )}
 
         {activeTab === "order" && (
-          <OrderTab
-            products={orderProducts.map(p => ({
-              id: p.id,
-              sku: p.sku,
-              name: p.name,
-              brand: p.brand,
-              size: p.size,
-              price: Number(p.price),
-              stock: p.stock,
-            }))}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            selectedBrand={selectedBrand}
-            onBrandSelect={setSelectedBrand}
-            cart={cart}
-            onAddToCart={handleAddToCart}
-            onOpenCart={() => setIsCartOpen(true)}
-          />
+          !isAdmin && orderProducts.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center max-w-md">
+                <h2 className="text-2xl font-semibold mb-4">Welcome to Order Entry App</h2>
+                <p className="text-muted-foreground">
+                  Please contact Tuhin Ghosh or Sujoy Kar for required access.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <OrderTab
+              products={orderProducts.map(p => ({
+                id: p.id,
+                sku: p.sku,
+                name: p.name,
+                brand: p.brand,
+                size: p.size,
+                price: Number(p.price),
+                stock: p.stock,
+              }))}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedBrand={selectedBrand}
+              onBrandSelect={setSelectedBrand}
+              cart={cart}
+              onAddToCart={handleAddToCart}
+              onOpenCart={() => setIsCartOpen(true)}
+            />
+          )
         )}
 
         {activeTab === "import" && (
-          <div className="p-4 max-w-2xl mx-auto space-y-4">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">Import Order</h2>
-              <p className="text-muted-foreground">
-                Paste or type order text to quickly add items to your cart. The system will match product names and SKUs.
-              </p>
+          !isAdmin && orderProducts.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center max-w-md">
+                <h2 className="text-2xl font-semibold mb-4">Welcome to Order Entry App</h2>
+                <p className="text-muted-foreground">
+                  Please contact Tuhin Ghosh or Sujoy Kar for required access.
+                </p>
+              </div>
             </div>
-            <ImportOrder onItemsParsed={handleParsedItems} />
-            {(parsedItems.length > 0 || partyName) && (
-              <ParsedOrderReview
-                partyName={partyName}
-                items={parsedItems}
-                products={products}
-                onPartyNameChange={setPartyName}
-                onUpdateQuantity={handleUpdateParsedQuantity}
-                onUpdateProduct={(index, product) => {
-                  setParsedItems(prev => prev.map((item, i) => 
-                    i === index ? { ...item, matchedProduct: product } : item
-                  ));
-                }}
-                onRemoveItem={handleRemoveParsedItem}
-                onAddToCart={handleAddParsedToCart}
-                onClear={handleClearParsedItems}
-              />
-            )}
-          </div>
+          ) : (
+            <div className="p-4 max-w-2xl mx-auto space-y-4">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold mb-2">Import Order</h2>
+                <p className="text-muted-foreground">
+                  Paste or type order text to quickly add items to your cart. The system will match product names and SKUs.
+                </p>
+              </div>
+              <ImportOrder onItemsParsed={handleParsedItems} />
+              {(parsedItems.length > 0 || partyName) && (
+                <ParsedOrderReview
+                  partyName={partyName}
+                  items={parsedItems}
+                  products={products}
+                  onPartyNameChange={setPartyName}
+                  onUpdateQuantity={handleUpdateParsedQuantity}
+                  onUpdateProduct={(index, product) => {
+                    setParsedItems(prev => prev.map((item, i) => 
+                      i === index ? { ...item, matchedProduct: product } : item
+                    ));
+                  }}
+                  onRemoveItem={handleRemoveParsedItem}
+                  onAddToCart={handleAddParsedToCart}
+                  onClear={handleClearParsedItems}
+                />
+              )}
+            </div>
+          )
         )}
 
         {activeTab === "upload" && isAdmin && (
