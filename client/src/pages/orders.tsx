@@ -470,8 +470,10 @@ export default function OrdersPage() {
                     <tr>
                       <th className="text-left p-3 font-medium">Date</th>
                       <th className="text-left p-3 font-medium">Party Name</th>
+                      <th className="text-left p-3 font-medium">Created By</th>
+                      <th className="text-left p-3 font-medium">Delivery Notes</th>
                       <th className="text-left p-3 font-medium">Invoice</th>
-                      <th className="text-left p-3 font-medium">Delivery</th>
+                      <th className="text-left p-3 font-medium">Delivery Co.</th>
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">Delivery Date</th>
                       <th className="text-right p-3 font-medium">Total</th>
@@ -491,6 +493,14 @@ export default function OrdersPage() {
                         </td>
                         <td className="p-3" data-testid={`text-party-${order.id}`}>
                           <div className="font-medium">{order.partyName || "Unknown"}</div>
+                        </td>
+                        <td className="p-3" data-testid={`text-created-by-${order.id}`}>
+                          {(order as any).createdByName || "-"}
+                        </td>
+                        <td className="p-3 max-w-[200px]" data-testid={`text-delivery-notes-${order.id}`}>
+                          <div className="truncate" title={order.deliveryNotes || ""}>
+                            {order.deliveryNotes || "-"}
+                          </div>
                         </td>
                         <td className="p-3" data-testid={`text-invoice-${order.id}`}>
                           {order.invoiceNumber ? (
