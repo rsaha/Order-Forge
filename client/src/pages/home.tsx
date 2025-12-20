@@ -219,7 +219,21 @@ export default function Home() {
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  const cartBrand = useMemo(() => {
+    if (cart.length === 0) return null;
+    return cart[0].product.brand;
+  }, [cart]);
+
   const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }, quantity: number = 1) => {
+    if (cart.length > 0 && cart[0].product.brand !== product.brand) {
+      toast({
+        title: "Cannot mix brands",
+        description: `Your cart contains ${cart[0].product.brand} products. Clear the cart to add ${product.brand} products.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const productForCart = {
       id: product.id,
       sku: product.sku,
@@ -244,7 +258,7 @@ export default function Home() {
       title: "Added to cart",
       description: `${product.name} x${quantity} has been added to your cart.`,
     });
-  }, [toast]);
+  }, [toast, cart]);
 
   const handleQuantityChange = useCallback((productId: string, quantity: number) => {
     setCart(prevCart =>
@@ -345,6 +359,7 @@ export default function Home() {
             price: String(item.product.price),
           })),
           total: String(finalTotal),
+          brand: cart[0]?.product.brand || null,
           partyName: orderDetails.partyName || null,
           deliveryAddress: orderDetails.deliveryNotes || null,
           deliveryCompany: orderDetails.deliveryCompany || "Guided",
@@ -393,6 +408,35 @@ export default function Home() {
   const handleAddParsedToCart = useCallback(() => {
     const matchedItems = parsedItems.filter(item => item.matchedProduct);
     
+    if (matchedItems.length === 0) {
+      toast({
+        title: "No items to add",
+        description: "No matched products found to add to cart",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const brands = new Set(matchedItems.map(item => item.matchedProduct!.brand));
+    if (brands.size > 1) {
+      toast({
+        title: "Cannot mix brands",
+        description: "All items in an order must be from the same brand. Please select items from only one brand.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const parsedBrand = matchedItems[0].matchedProduct!.brand;
+    if (cart.length > 0 && cart[0].product.brand !== parsedBrand) {
+      toast({
+        title: "Cannot mix brands",
+        description: `Your cart contains ${cart[0].product.brand} products. Clear the cart to add ${parsedBrand} products.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     matchedItems.forEach(item => {
       if (item.matchedProduct) {
         const product = products.find(p => p.id === item.matchedProduct!.id);
@@ -427,7 +471,7 @@ export default function Home() {
       description: `${matchedItems.length} item(s) added to cart`,
     });
     setParsedItems([]);
-  }, [parsedItems, products, toast]);
+  }, [parsedItems, products, toast, cart]);
 
   const handleClearParsedItems = useCallback(() => {
     setParsedItems([]);

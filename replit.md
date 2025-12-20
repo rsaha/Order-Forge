@@ -61,8 +61,15 @@ Key tables:
 - **Review Flow**: Users can review matched items, adjust quantities, and add to cart
 
 ### User Roles
-- **Regular Users**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email
-- **Admin Users**: Have all regular user access plus Products tab (view catalog) and Upload tab (upload product inventory from Excel files)
+- **Regular Users (User)**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email. See only products from their assigned brands.
+- **Brand Admin (BrandAdmin)**: All regular user access plus can view orders for their assigned brands. Can change order status from Pending to Invoiced only.
+- **Admin Users**: Full access including Products tab, Upload tab (product inventory), Users management, and complete order management with all status transitions.
+
+### Single-Brand Order Requirement
+- Each order must contain products from only one brand
+- Cart enforces single-brand constraint: users cannot add products from different brands to the same cart
+- Backend validates all products in order belong to the same brand before creation
+- Orders table has a required `brand` field that stores the brand of all products in the order
 
 ## External Dependencies
 

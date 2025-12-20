@@ -119,11 +119,13 @@ export default function OrdersPage() {
   const [loadingItems, setLoadingItems] = useState(false);
 
   const isAdmin = user?.isAdmin || false;
+  const isBrandAdmin = user?.role === 'BrandAdmin';
+  const hasAdminAccess = isAdmin || isBrandAdmin;
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: [isAdmin ? "/api/admin/orders" : "/api/orders", statusFilter, deliveryCompanyFilter],
+    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", statusFilter, deliveryCompanyFilter],
     queryFn: async () => {
-      if (isAdmin) {
+      if (hasAdminAccess) {
         const params = new URLSearchParams();
         if (statusFilter !== "all" && statusFilter !== "active") {
           params.append("status", statusFilter);
@@ -390,7 +392,7 @@ export default function OrdersPage() {
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">Delivery Date</th>
                       <th className="text-right p-3 font-medium">Total</th>
-                      {isAdmin && <th className="text-center p-3 font-medium">Actions</th>}
+                      {hasAdminAccess && <th className="text-center p-3 font-medium">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -420,7 +422,7 @@ export default function OrdersPage() {
                         <td className="p-3" data-testid={`text-delivery-${order.id}`}>
                           {order.deliveryCompany || "-"}
                         </td>
-                        <td className="p-3" onClick={(e) => isAdmin && e.stopPropagation()}>
+                        <td className="p-3" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Pending")) && e.stopPropagation()}>
                           {isAdmin ? (
                             <Select
                               value={order.status}
@@ -438,6 +440,22 @@ export default function OrdersPage() {
                                     {status}
                                   </SelectItem>
                                 ))}
+                              </SelectContent>
+                            </Select>
+                          ) : isBrandAdmin && order.status === "Pending" ? (
+                            <Select
+                              value={order.status}
+                              onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
+                            >
+                              <SelectTrigger 
+                                className={`w-28 h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
+                                data-testid={`select-status-${order.id}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Pending">Pending</SelectItem>
+                                <SelectItem value="Invoiced">Invoiced</SelectItem>
                               </SelectContent>
                             </Select>
                           ) : (
@@ -459,7 +477,7 @@ export default function OrdersPage() {
                         <td className="p-3 text-right font-medium whitespace-nowrap" data-testid={`text-total-${order.id}`}>
                           {formatINR(order.total)}
                         </td>
-                        {isAdmin && (
+                        {hasAdminAccess && (
                           <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="icon"
@@ -484,9 +502,11 @@ export default function OrdersPage() {
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isAdmin ? "Edit Order" : "Order Details"}</DialogTitle>
+            <DialogTitle>
+              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Pending" ? "Update Order Status" : "Order Details"}
+            </DialogTitle>
             <DialogDescription>
-              {isAdmin ? "Update order details and tracking information." : "View your order details."}
+              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Pending" ? "Mark this order as Invoiced." : "View your order details."}
             </DialogDescription>
           </DialogHeader>
 
@@ -725,6 +745,58 @@ export default function OrdersPage() {
                     </Button>
                   </div>
                 </>
+              ) : isBrandAdmin && selectedOrder.status === "Pending" ? (
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Current Status:</span>
+                      <Badge className={statusColors[selectedOrder.status as OrderStatus]}>
+                        {selectedOrder.status}
+                      </Badge>
+                    </div>
+                    {selectedOrder.invoiceNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Invoice:</span>
+                        <span>{selectedOrder.invoiceNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-3 rounded-md bg-muted/50 border">
+                    <p className="text-sm text-muted-foreground">
+                      As a Brand Admin, you can mark this order as Invoiced.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedOrder(null)}
+                      data-testid="button-cancel-edit"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        updateMutation.mutate(
+                          { id: selectedOrder.id, updates: { status: "Invoiced" } },
+                          { onSuccess: () => setSelectedOrder(null) }
+                        );
+                      }}
+                      disabled={updateMutation.isPending}
+                      data-testid="button-mark-invoiced"
+                    >
+                      {updateMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        "Mark as Invoiced"
+                      )}
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex justify-between">

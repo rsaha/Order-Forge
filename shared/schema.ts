@@ -93,6 +93,7 @@ export const userBrandAccess = pgTable("user_brand_access", {
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  brand: varchar("brand").notNull(),
   status: varchar("status").notNull().default("Created"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
@@ -182,6 +183,7 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: t
 // Update schema for orders (all fields optional except id)
 export const updateOrderSchema = z.object({
   status: z.enum(ORDER_STATUSES).optional(),
+  brand: z.string().nullable().optional(),
   partyName: z.string().nullable().optional(),
   deliveryAddress: z.string().nullable().optional(),
   invoiceNumber: z.string().nullable().optional(),

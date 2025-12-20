@@ -115,7 +115,7 @@ export async function registerRoutes(
     }
   });
 
-  // Get user's assigned products (filtered by brand access for BrandAdmin)
+  // Get user's assigned products (filtered by brand access for all non-admin users)
   app.get('/api/products', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -127,15 +127,9 @@ export async function registerRoutes(
         return res.json(products);
       }
       
-      // BrandAdmin sees only products from their assigned brands
-      if (user?.role === "BrandAdmin") {
-        const brandProducts = await storage.getUserProductsByBrand(userId, false);
-        return res.json(brandProducts);
-      }
-      
-      // Regular users see their assigned products
-      const products = await storage.getUserProducts(userId);
-      res.json(products);
+      // Both BrandAdmin and regular users see only products from their assigned brands
+      const brandProducts = await storage.getUserProductsByBrand(userId, false);
+      res.json(brandProducts);
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ message: "Failed to fetch products" });
@@ -367,7 +361,7 @@ export async function registerRoutes(
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { items, whatsappPhone, email, total, partyName, deliveryAddress, deliveryCompany } = req.body;
+      const { items, whatsappPhone, email, total, partyName, deliveryAddress, deliveryCompany, brand } = req.body;
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: "No items in order" });
@@ -377,8 +371,25 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Party name is required" });
       }
 
+      if (!brand || typeof brand !== 'string' || brand.trim() === '') {
+        return res.status(400).json({ message: "Order brand is required" });
+      }
+
+      const productIds = items.map((item: any) => item.productId);
+      const orderedProducts = await Promise.all(productIds.map((id: string) => storage.getProduct(id)));
+      const invalidProducts = orderedProducts.some(p => !p);
+      if (invalidProducts) {
+        return res.status(400).json({ message: "One or more products not found" });
+      }
+
+      const allSameBrand = orderedProducts.every(p => p && p.brand === brand);
+      if (!allSameBrand) {
+        return res.status(400).json({ message: "All products must be from the same brand" });
+      }
+
       const order = await storage.createOrder({
         userId,
+        brand: brand.trim(),
         total: String(total),
         whatsappPhone,
         email,
@@ -416,12 +427,13 @@ export async function registerRoutes(
     }
   });
 
-  // Get all orders (Admin only)
+  // Get all orders (Admin and BrandAdmin)
   app.get('/api/admin/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      if (!user?.isAdmin) {
+      
+      if (!user?.isAdmin && user?.role !== 'BrandAdmin') {
         return res.status(403).json({ message: "Admin access required" });
       }
 
@@ -429,7 +441,15 @@ export async function registerRoutes(
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.deliveryCompany) filters.deliveryCompany = req.query.deliveryCompany as string;
       
-      const orders = await storage.getAllOrders(Object.keys(filters).length > 0 ? filters : undefined);
+      let orders;
+      if (user.isAdmin) {
+        orders = await storage.getAllOrders(Object.keys(filters).length > 0 ? filters : undefined);
+      } else {
+        const brandAccess = await storage.getUserBrandAccess(userId);
+        const brands = brandAccess.map(ba => ba.brand);
+        orders = await storage.getOrdersByBrands(brands, Object.keys(filters).length > 0 ? filters : undefined);
+      }
+      
       res.json(orders);
     } catch (error) {
       console.error("Error fetching all orders:", error);
@@ -437,18 +457,27 @@ export async function registerRoutes(
     }
   });
 
-  // Get single order with items (Admin only)
+  // Get single order with items (Admin and BrandAdmin)
   app.get('/api/admin/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      if (!user?.isAdmin) {
+      
+      if (!user?.isAdmin && user?.role !== 'BrandAdmin') {
         return res.status(403).json({ message: "Admin access required" });
       }
 
       const order = await storage.getOrderById(req.params.id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
+      }
+
+      if (!user.isAdmin && user.role === 'BrandAdmin') {
+        const brandAccess = await storage.getUserBrandAccess(userId);
+        const brands = brandAccess.map(ba => ba.brand);
+        if (!order.brand || !brands.includes(order.brand)) {
+          return res.status(403).json({ message: "Access denied to this order" });
+        }
       }
 
       const items = await storage.getOrderItems(order.id);
@@ -459,13 +488,36 @@ export async function registerRoutes(
     }
   });
 
-  // Update order (Admin only)
+  // Update order (Admin and BrandAdmin with limited permissions)
   app.patch('/api/admin/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      if (!user?.isAdmin) {
+      
+      if (!user?.isAdmin && user?.role !== 'BrandAdmin') {
         return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      if (!user.isAdmin && user.role === 'BrandAdmin') {
+        const brandAccess = await storage.getUserBrandAccess(userId);
+        const brands = brandAccess.map(ba => ba.brand);
+        if (!order.brand || !brands.includes(order.brand)) {
+          return res.status(403).json({ message: "Access denied to this order" });
+        }
+
+        if (req.body.status) {
+          if (order.status !== 'Pending' || req.body.status !== 'Invoiced') {
+            return res.status(403).json({ message: "BrandAdmin can only change status from Pending to Invoiced" });
+          }
+          req.body = { status: 'Invoiced' };
+        } else {
+          return res.status(403).json({ message: "BrandAdmin can only update order status" });
+        }
       }
 
       const parseResult = updateOrderSchema.safeParse(req.body);

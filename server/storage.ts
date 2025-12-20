@@ -55,6 +55,7 @@ export interface IStorage {
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   getUserOrders(userId: string): Promise<Order[]>;
   getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]>;
+  getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]>;
   getOrderById(id: string): Promise<Order | undefined>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
@@ -254,6 +255,20 @@ export class DatabaseStorage implements IStorage {
       return db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
     }
     return db.select().from(orders).orderBy(desc(orders.createdAt));
+  }
+
+  async getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]> {
+    if (brands.length === 0) return [];
+    
+    const conditions = [inArray(orders.brand, brands)];
+    if (filters?.status) {
+      conditions.push(eq(orders.status, filters.status));
+    }
+    if (filters?.deliveryCompany) {
+      conditions.push(eq(orders.deliveryCompany, filters.deliveryCompany));
+    }
+    
+    return db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt));
   }
 
   async getOrderById(id: string): Promise<Order | undefined> {
