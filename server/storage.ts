@@ -59,6 +59,7 @@ export interface IStorage {
   getOrderById(id: string): Promise<Order | undefined>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
+  appendItemsToOrder(orderId: string, items: InsertOrderItem[], discountPercent?: number): Promise<Order | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -315,6 +316,41 @@ export class DatabaseStorage implements IStorage {
     }
 
     const [updated] = await db.update(orders).set(updateData).where(eq(orders.id, id)).returning();
+    return updated;
+  }
+
+  async appendItemsToOrder(orderId: string, items: InsertOrderItem[], discountPercent?: number): Promise<Order | undefined> {
+    if (items.length === 0) {
+      return this.getOrderById(orderId);
+    }
+    
+    // Get existing order
+    const order = await this.getOrderById(orderId);
+    if (!order) return undefined;
+    
+    // Insert new items
+    await db.insert(orderItems).values(items);
+    
+    // Recalculate total from all items
+    const allItems = await db.select({
+      quantity: orderItems.quantity,
+      unitPrice: orderItems.unitPrice,
+    }).from(orderItems).where(eq(orderItems.orderId, orderId));
+    
+    const subtotal = allItems.reduce((sum, item) => {
+      return sum + (Number(item.unitPrice) * item.quantity);
+    }, 0);
+    
+    // Apply discount if provided
+    const discount = discountPercent ?? Number(order.discountPercent || 0);
+    const newTotal = subtotal * (1 - discount / 100);
+    
+    // Update order total
+    const [updated] = await db.update(orders)
+      .set({ total: String(newTotal) })
+      .where(eq(orders.id, orderId))
+      .returning();
+    
     return updated;
   }
 }

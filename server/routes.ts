@@ -461,8 +461,7 @@ export async function registerRoutes(
       if (user.isAdmin) {
         orders = await storage.getAllOrders(Object.keys(filters).length > 0 ? filters : undefined);
       } else {
-        const brandAccess = await storage.getUserBrandAccess(userId);
-        const brands = brandAccess.map(ba => ba.brand);
+        const brands = await storage.getUserBrandAccess(userId);
         orders = await storage.getOrdersByBrands(brands, Object.keys(filters).length > 0 ? filters : undefined);
       }
       
@@ -489,8 +488,7 @@ export async function registerRoutes(
       }
 
       if (!user.isAdmin && user.role === 'BrandAdmin') {
-        const brandAccess = await storage.getUserBrandAccess(userId);
-        const brands = brandAccess.map(ba => ba.brand);
+        const brands = await storage.getUserBrandAccess(userId);
         if (!order.brand || !brands.includes(order.brand)) {
           return res.status(403).json({ message: "Access denied to this order" });
         }
@@ -520,8 +518,7 @@ export async function registerRoutes(
       }
 
       if (!user.isAdmin && user.role === 'BrandAdmin') {
-        const brandAccess = await storage.getUserBrandAccess(userId);
-        const brands = brandAccess.map(ba => ba.brand);
+        const brands = await storage.getUserBrandAccess(userId);
         if (!order.brand || !brands.includes(order.brand)) {
           return res.status(403).json({ message: "Access denied to this order" });
         }
@@ -550,6 +547,83 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating order:", error);
       res.status(500).json({ message: "Failed to update order" });
+    }
+  });
+
+  // Add items to an existing order (only when status is Created or Pending)
+  app.post('/api/orders/:id/items', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const orderId = req.params.id;
+      
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Check if order is editable (Created or Pending status)
+      if (!['Created', 'Pending'].includes(order.status)) {
+        return res.status(400).json({ 
+          message: `Cannot modify order with status "${order.status}". Only Created or Pending orders can be modified.` 
+        });
+      }
+
+      // Check permissions: user owns the order, or is admin, or is brand admin for the brand
+      const isOwner = order.userId === userId;
+      const isAdmin = user?.isAdmin === true;
+      let isBrandAdmin = false;
+      
+      if (user?.role === 'BrandAdmin' && order.brand) {
+        const brandAccess = await storage.getUserBrandAccess(userId);
+        isBrandAdmin = brandAccess.includes(order.brand);
+      }
+
+      if (!isOwner && !isAdmin && !isBrandAdmin) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+
+      const { items } = req.body;
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "Items array is required" });
+      }
+
+      // Validate all products exist and are from the same brand as the order
+      for (const item of items) {
+        if (!item.productId || !item.quantity || item.quantity < 1) {
+          return res.status(400).json({ message: "Each item must have productId and quantity > 0" });
+        }
+        const product = await storage.getProduct(item.productId);
+        if (!product) {
+          return res.status(400).json({ message: `Product not found: ${item.productId}` });
+        }
+        if (product.brand !== order.brand) {
+          return res.status(400).json({ 
+            message: `Product "${product.name}" is from brand "${product.brand}" but order is for brand "${order.brand}". All products must match the order brand.` 
+          });
+        }
+      }
+
+      // Prepare items for insertion
+      const orderItemsData = await Promise.all(items.map(async (item: { productId: string; quantity: number }) => {
+        const product = await storage.getProduct(item.productId);
+        return {
+          orderId,
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: product ? String(product.price) : "0",
+        };
+      }));
+
+      const updatedOrder = await storage.appendItemsToOrder(orderId, orderItemsData);
+      if (!updatedOrder) {
+        return res.status(500).json({ message: "Failed to update order" });
+      }
+
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error("Error adding items to order:", error);
+      res.status(500).json({ message: "Failed to add items to order" });
     }
   });
 

@@ -36,9 +36,12 @@ import {
   ChevronLeft,
   AlertCircle,
   Download,
+  Plus,
+  Search,
+  Minus,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { Order, OrderStatus } from "@shared/schema";
+import type { Order, OrderStatus, Product } from "@shared/schema";
 
 const ORDER_STATUSES: OrderStatus[] = ["Created", "Pending", "Invoiced", "Dispatched", "Delivered", "Cancelled"];
 
@@ -117,6 +120,10 @@ export default function OrdersPage() {
   });
   const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  
+  const [showAddItems, setShowAddItems] = useState(false);
+  const [addItemsSearch, setAddItemsSearch] = useState("");
+  const [itemsToAdd, setItemsToAdd] = useState<Array<{ product: Product; quantity: number }>>([]);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -199,6 +206,37 @@ export default function OrdersPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to update order", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products/by-brand"],
+    enabled: !!user && showAddItems,
+  });
+
+  const addItemsMutation = useMutation({
+    mutationFn: async ({ orderId, items }: { orderId: string; items: Array<{ productId: string; quantity: number }> }) => {
+      return apiRequest("POST", `/api/orders/${orderId}/items`, { items });
+    },
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "Items added successfully" });
+      setShowAddItems(false);
+      setItemsToAdd([]);
+      setAddItemsSearch("");
+      
+      if (selectedOrder) {
+        const res = await fetch(`/api/admin/orders/${selectedOrder.id}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setOrderItems(data.items || []);
+          setSelectedOrder({ ...selectedOrder, total: data.total });
+        }
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to add items", description: error.message, variant: "destructive" });
     },
   });
 
@@ -297,6 +335,51 @@ export default function OrdersPage() {
     } catch (error: any) {
       toast({ title: "Download failed", description: error.message, variant: "destructive" });
     }
+  };
+
+  const isOrderEditable = (order: Order) => {
+    return order.status === "Created" || order.status === "Pending";
+  };
+
+  const filteredProducts = products.filter((p) => {
+    if (!selectedOrder?.brand) return false;
+    if (p.brand !== selectedOrder.brand) return false;
+    const search = addItemsSearch.toLowerCase();
+    return p.name.toLowerCase().includes(search) ||
+           p.sku.toLowerCase().includes(search);
+  });
+
+  const handleAddProductToList = (product: Product) => {
+    const existing = itemsToAdd.find(i => i.product.id === product.id);
+    if (existing) {
+      setItemsToAdd(itemsToAdd.map(i => 
+        i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+      ));
+    } else {
+      setItemsToAdd([...itemsToAdd, { product, quantity: 1 }]);
+    }
+  };
+
+  const handleUpdateItemQuantity = (productId: string, delta: number) => {
+    setItemsToAdd(itemsToAdd.map(i => {
+      if (i.product.id === productId) {
+        const newQty = Math.max(1, i.quantity + delta);
+        return { ...i, quantity: newQty };
+      }
+      return i;
+    }));
+  };
+
+  const handleRemoveItemFromList = (productId: string) => {
+    setItemsToAdd(itemsToAdd.filter(i => i.product.id !== productId));
+  };
+
+  const handleConfirmAddItems = () => {
+    if (!selectedOrder || itemsToAdd.length === 0) return;
+    addItemsMutation.mutate({
+      orderId: selectedOrder.id,
+      items: itemsToAdd.map(i => ({ productId: i.product.id, quantity: i.quantity })),
+    });
   };
 
   if (authLoading) {
@@ -525,8 +608,19 @@ export default function OrdersPage() {
               </div>
 
               <div className="border rounded-md">
-                <div className="p-3 border-b bg-muted/50">
+                <div className="p-3 border-b bg-muted/50 flex justify-between items-center gap-2">
                   <h4 className="font-medium text-sm">Products Ordered</h4>
+                  {isOrderEditable(selectedOrder) && hasAdminAccess && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowAddItems(true)}
+                      data-testid="button-add-items"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Items
+                    </Button>
+                  )}
                 </div>
                 <div className="max-h-40 overflow-y-auto">
                   {loadingItems ? (
@@ -842,6 +936,138 @@ export default function OrdersPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddItems} onOpenChange={(open) => {
+        if (!open) {
+          setShowAddItems(false);
+          setItemsToAdd([]);
+          setAddItemsSearch("");
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Add Items to Order</DialogTitle>
+            <DialogDescription>
+              Search and add products from {selectedOrder?.brand || "this brand"} to the order.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search products..."
+              value={addItemsSearch}
+              onChange={(e) => setAddItemsSearch(e.target.value)}
+              className="pl-10"
+              data-testid="input-add-items-search"
+            />
+          </div>
+
+          <div className="flex-1 min-h-0 space-y-3 overflow-hidden">
+            <div className="border rounded-md h-48 overflow-y-auto">
+              {filteredProducts.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                  {addItemsSearch ? "No products found" : "Type to search products"}
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredProducts.slice(0, 50).map((product) => (
+                    <div
+                      key={product.id}
+                      className="px-3 py-2 flex justify-between items-center text-sm hover-elevate cursor-pointer"
+                      onClick={() => handleAddProductToList(product)}
+                      data-testid={`product-add-${product.id}`}
+                    >
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="font-medium truncate">{product.name}</div>
+                        <div className="text-xs text-muted-foreground">{product.sku}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">{formatINR(product.price || 0)}</span>
+                        <Button size="icon" variant="ghost">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {itemsToAdd.length > 0 && (
+              <div className="border rounded-md">
+                <div className="p-2 bg-muted/50 border-b text-sm font-medium">
+                  Items to Add ({itemsToAdd.length})
+                </div>
+                <div className="max-h-32 overflow-y-auto divide-y">
+                  {itemsToAdd.map((item) => (
+                    <div key={item.product.id} className="px-3 py-2 flex justify-between items-center text-sm">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="font-medium truncate">{item.product.name}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleUpdateItemQuantity(item.product.id, -1)}
+                          data-testid={`button-decrease-${item.product.id}`}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="w-6 text-center">{item.quantity}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleUpdateItemQuantity(item.product.id, 1)}
+                          data-testid={`button-increase-${item.product.id}`}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleRemoveItemFromList(item.product.id)}
+                          data-testid={`button-remove-${item.product.id}`}
+                        >
+                          <XCircle className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddItems(false);
+                setItemsToAdd([]);
+                setAddItemsSearch("");
+              }}
+              data-testid="button-cancel-add-items"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmAddItems}
+              disabled={itemsToAdd.length === 0 || addItemsMutation.isPending}
+              data-testid="button-confirm-add-items"
+            >
+              {addItemsMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                `Add ${itemsToAdd.length} Item${itemsToAdd.length !== 1 ? "s" : ""}`
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
