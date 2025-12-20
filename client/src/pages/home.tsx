@@ -627,8 +627,6 @@ export default function Home() {
             onSearchChange={setSearchQuery}
             selectedBrand={selectedBrand}
             onBrandSelect={setSelectedBrand}
-            orderDetails={orderDetails}
-            onOrderDetailsChange={setOrderDetails}
             cart={cart}
             onAddToCart={handleAddToCart}
             onOpenCart={() => setIsCartOpen(true)}

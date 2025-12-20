@@ -2,6 +2,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CartItem, { type CartItemData } from "./CartItem";
 import OrderSummary, { type OrderDetails } from "./OrderSummary";
+import OrderDetailsForm from "./OrderDetailsForm";
 
 interface CartPanelProps {
   isOpen: boolean;
@@ -45,15 +46,22 @@ export default function CartPanel({
           ) : (
             <>
               <ScrollArea className="flex-1 p-4">
-                <div className="space-y-1">
-                  {cartItems.map((item) => (
-                    <CartItem
-                      key={item.product.id}
-                      item={item}
-                      onQuantityChange={onQuantityChange}
-                      onRemove={onRemoveItem}
-                    />
-                  ))}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    {cartItems.map((item) => (
+                      <CartItem
+                        key={item.product.id}
+                        item={item}
+                        onQuantityChange={onQuantityChange}
+                        onRemove={onRemoveItem}
+                      />
+                    ))}
+                  </div>
+                  
+                  <OrderDetailsForm
+                    orderDetails={orderDetails}
+                    onOrderDetailsChange={onOrderDetailsChange}
+                  />
                 </div>
               </ScrollArea>
               

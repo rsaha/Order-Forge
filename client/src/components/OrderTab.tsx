@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from "react";
 import SearchBar from "@/components/SearchBar";
 import BrandFilter from "@/components/BrandFilter";
 import ProductCardCompact, { groupProductsByName, type ProductVariant } from "@/components/ProductCardCompact";
-import OrderDetailsForm, { type OrderDetails } from "@/components/OrderDetailsForm";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,8 +27,6 @@ interface OrderTabProps {
   onSearchChange: (query: string) => void;
   selectedBrand: string | null;
   onBrandSelect: (brand: string | null) => void;
-  orderDetails: OrderDetails;
-  onOrderDetailsChange: (details: OrderDetails) => void;
   cart: CartItemData[];
   onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }, quantity: number) => void;
   onOpenCart: () => void;
@@ -41,8 +38,6 @@ export default function OrderTab({
   onSearchChange,
   selectedBrand,
   onBrandSelect,
-  orderDetails,
-  onOrderDetailsChange,
   cart,
   onAddToCart,
   onOpenCart,
@@ -204,11 +199,6 @@ export default function OrderTab({
 
       <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l bg-muted/30 flex flex-col">
         <div className="p-4 flex-1 overflow-auto space-y-4">
-          <OrderDetailsForm
-            orderDetails={orderDetails}
-            onOrderDetailsChange={onOrderDetailsChange}
-          />
-
           {cart.length > 0 && (
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">

@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Send, Loader2 } from "lucide-react";
 import type { CartItemData } from "./CartItem";
 import { formatINR } from "./ProductCard";
-import OrderDetailsForm, { type OrderDetails } from "./OrderDetailsForm";
+import { type OrderDetails } from "./OrderDetailsForm";
 
 export type { OrderDetails };
 
@@ -42,7 +42,6 @@ export default function OrderSummary({
     onDiscountChange(Math.min(100, Math.max(0, value)));
   };
 
-  const hasOrderDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes;
   const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
 
   return (
@@ -59,27 +58,6 @@ export default function OrderSummary({
           <p className="text-sm text-destructive">Party name is required to send order</p>
         </div>
       )}
-
-      {hasOrderDetails && (
-        <div className="pb-3 border-b">
-          <OrderDetailsForm
-            orderDetails={orderDetails}
-            onOrderDetailsChange={onOrderDetailsChange}
-            readOnly
-          />
-        </div>
-      )}
-
-      <div className="space-y-2 py-3 border-b">
-        {cartItems.map((item) => (
-          <div key={item.product.id} className="flex justify-between text-sm gap-2">
-            <span className="text-muted-foreground truncate flex-1">
-              {item.product.name} x{item.quantity}
-            </span>
-            <span className="shrink-0">{formatINR(item.product.price * item.quantity)}</span>
-          </div>
-        ))}
-      </div>
 
       <div className="space-y-2">
         <div className="flex justify-between items-center text-sm">
