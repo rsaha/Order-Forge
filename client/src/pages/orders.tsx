@@ -595,14 +595,21 @@ export default function OrdersPage() {
 
           {selectedOrder && (
             <div className="space-y-4">
-              <div className="p-3 rounded-md bg-muted">
+              <div className="p-3 rounded-md bg-muted space-y-2">
                 <div className="font-medium">{selectedOrder.partyName || "Unknown Customer"}</div>
                 <div className="text-sm text-muted-foreground">
                   Order Total: {formatINR(selectedOrder.total)}
                 </div>
                 {selectedOrder.deliveryAddress && (
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {selectedOrder.deliveryAddress}
+                  <div className="text-sm mt-1">
+                    <span className="font-medium">Delivery Notes: </span>
+                    <span className="text-muted-foreground">{selectedOrder.deliveryAddress}</span>
+                  </div>
+                )}
+                {selectedOrder.deliveryCompany && (
+                  <div className="text-sm">
+                    <span className="font-medium">Delivery Company: </span>
+                    <span className="text-muted-foreground">{selectedOrder.deliveryCompany}</span>
                   </div>
                 )}
               </div>
