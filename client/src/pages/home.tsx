@@ -59,7 +59,6 @@ export default function Home() {
   const [partyName, setPartyName] = useState("");
   const [orderDetails, setOrderDetails] = useState({
     partyName: "",
-    brand: "",
     deliveryCompany: "Guided",
     deliveryNotes: "",
     specialNotes: "",
@@ -278,11 +277,9 @@ export default function Home() {
 
     if (orderDetails.partyName) {
       lines.push(`Party: ${orderDetails.partyName}`);
+      lines.push("");
     }
-    if (orderDetails.brand) {
-      lines.push(`Brand: ${orderDetails.brand}`);
-    }
-    if (orderDetails.partyName || orderDetails.brand) {
+    if (orderDetails.partyName) {
       lines.push("─".repeat(20));
     }
     lines.push("");
@@ -604,8 +601,14 @@ export default function Home() {
               <ParsedOrderReview
                 partyName={partyName}
                 items={parsedItems}
+                products={products}
                 onPartyNameChange={setPartyName}
                 onUpdateQuantity={handleUpdateParsedQuantity}
+                onUpdateProduct={(index, product) => {
+                  setParsedItems(prev => prev.map((item, i) => 
+                    i === index ? { ...item, matchedProduct: product } : item
+                  ));
+                }}
                 onRemoveItem={handleRemoveParsedItem}
                 onAddToCart={handleAddParsedToCart}
                 onClear={handleClearParsedItems}

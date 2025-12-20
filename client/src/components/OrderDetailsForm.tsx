@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 
 export interface OrderDetails {
   partyName: string;
-  brand: string;
   deliveryCompany: string;
   deliveryNotes: string;
   specialNotes: string;
@@ -18,7 +17,6 @@ interface OrderDetailsFormProps {
   readOnly?: boolean;
 }
 
-const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"];
 const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elemric"];
 
 export default function OrderDetailsForm({
@@ -31,7 +29,7 @@ export default function OrderDetailsForm({
   };
 
   if (readOnly) {
-    const hasDetails = orderDetails.partyName || orderDetails.brand || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes;
+    const hasDetails = orderDetails.partyName || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes;
     
     if (!hasDetails) {
       return null;
@@ -43,12 +41,6 @@ export default function OrderDetailsForm({
           <div className="flex gap-2">
             <span className="text-muted-foreground">Party:</span>
             <span data-testid="text-party-name">{orderDetails.partyName}</span>
-          </div>
-        )}
-        {orderDetails.brand && (
-          <div className="flex gap-2">
-            <span className="text-muted-foreground">Brand:</span>
-            <span data-testid="text-brand">{orderDetails.brand}</span>
           </div>
         )}
         {orderDetails.deliveryCompany && (
@@ -88,25 +80,6 @@ export default function OrderDetailsForm({
             className="h-10"
             data-testid="input-party-name"
           />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="brand">Brand</Label>
-          <Select
-            value={orderDetails.brand}
-            onValueChange={(value) => updateOrderDetail("brand", value)}
-          >
-            <SelectTrigger id="brand" className="h-10" data-testid="select-brand">
-              <SelectValue placeholder="Select brand" />
-            </SelectTrigger>
-            <SelectContent>
-              {BRAND_OPTIONS.map((brand) => (
-                <SelectItem key={brand} value={brand} data-testid={`option-brand-${brand.toLowerCase()}`}>
-                  {brand}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="space-y-1.5">
