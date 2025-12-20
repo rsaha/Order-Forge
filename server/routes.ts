@@ -115,10 +115,25 @@ export async function registerRoutes(
     }
   });
 
-  // Get user's assigned products
+  // Get user's assigned products (filtered by brand access for BrandAdmin)
   app.get('/api/products', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Admin sees all products
+      if (user?.isAdmin) {
+        const products = await storage.getAllProducts();
+        return res.json(products);
+      }
+      
+      // BrandAdmin sees only products from their assigned brands
+      if (user?.role === "BrandAdmin") {
+        const brandProducts = await storage.getUserProductsByBrand(userId, false);
+        return res.json(brandProducts);
+      }
+      
+      // Regular users see their assigned products
       const products = await storage.getUserProducts(userId);
       res.json(products);
     } catch (error) {
@@ -601,6 +616,34 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating user role:", error);
       res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  // Delete a user (Admin only)
+  app.delete('/api/admin/users/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.id;
+      
+      // Prevent self-deletion
+      if (targetUserId === userId) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      const deleted = await storage.deleteUser(targetUserId);
+      if (!deleted) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
     }
   });
 

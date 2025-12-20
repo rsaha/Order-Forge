@@ -13,7 +13,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { User, UserRole, Brand } from "@shared/schema";
 import { BRAND_OPTIONS, USER_ROLES } from "@shared/schema";
 
@@ -27,6 +37,7 @@ export default function UsersPage() {
   const [, navigate] = useLocation();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingBrands, setEditingBrands] = useState<string[]>([]);
+  const [userToDelete, setUserToDelete] = useState<UserWithBrands | null>(null);
 
   const isAdmin = user?.isAdmin === true;
 
@@ -70,6 +81,27 @@ export default function UsersPage() {
     onError: (error: Error) => {
       toast({
         title: "Failed to update brand access",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setUserToDelete(null);
+      toast({
+        title: "User deleted",
+        description: "The user has been removed",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete user",
         description: error.message,
         variant: "destructive",
       });
@@ -191,6 +223,17 @@ export default function UsersPage() {
                         {getRoleIcon(u.role)}
                         {u.role || "User"}
                       </Badge>
+                      {u.id !== user?.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setUserToDelete(u)}
+                          className="text-destructive hover:text-destructive"
+                          data-testid={`button-delete-user-${u.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -295,6 +338,33 @@ export default function UsersPage() {
           </div>
         </ScrollArea>
       </div>
+
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{userToDelete?.firstName || userToDelete?.email || 'this user'}"? 
+              This will remove their account and all associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteUserMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
