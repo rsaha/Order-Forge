@@ -5,7 +5,7 @@ import ProductCardCompact, { groupProductsByName, type ProductVariant } from "@/
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CartItemData } from "@/components/CartItem";
 
@@ -232,23 +232,6 @@ export default function OrderTab({
           )}
         </div>
 
-        <div className="p-4 border-t">
-          <Button 
-            className="w-full" 
-            size="lg"
-            onClick={onOpenCart}
-            disabled={cart.length === 0}
-            data-testid="button-view-cart"
-          >
-            <ShoppingCart className="w-5 h-5 mr-2" />
-            View Cart & Send Order
-            {cartItemCount > 0 && (
-              <Badge className="ml-2" variant="secondary">
-                {cartItemCount}
-              </Badge>
-            )}
-          </Button>
-        </div>
       </div>
     </div>
   );
