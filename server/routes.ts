@@ -510,9 +510,13 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
+      // BrandAdmin can access orders if they own it OR if the order's brand is in their brand access
       if (!user.isAdmin && user.role === 'BrandAdmin') {
+        const isOwner = order.userId === userId;
         const brands = await storage.getUserBrandAccess(userId);
-        if (!order.brand || !brands.includes(order.brand)) {
+        const hasBrandAccess = order.brand && brands.includes(order.brand);
+        
+        if (!isOwner && !hasBrandAccess) {
           return res.status(403).json({ message: "Access denied to this order" });
         }
       }
