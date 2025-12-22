@@ -425,7 +425,14 @@ export async function registerRoutes(
 
       await storage.createOrderItems(orderItemsData);
 
-      res.json(order);
+      const orderItems = await storage.getOrderItems(order.id);
+      const user = await storage.getUser(userId);
+      
+      res.json({
+        ...order,
+        items: orderItems,
+        user: user ? { firstName: user.firstName, lastName: user.lastName } : null,
+      });
     } catch (error) {
       console.error("Error creating order:", error);
       res.status(500).json({ message: "Failed to create order" });

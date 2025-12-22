@@ -50,7 +50,9 @@ import {
   Search,
   Minus,
   Trash2,
+  MessageCircle,
 } from "lucide-react";
+import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
 
@@ -136,6 +138,7 @@ export default function OrdersPage() {
   const [addItemsSearch, setAddItemsSearch] = useState("");
   const [itemsToAdd, setItemsToAdd] = useState<Array<{ product: Product; quantity: number }>>([]);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [orderToShare, setOrderToShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -328,6 +331,10 @@ export default function OrdersPage() {
       await apiRequest("PATCH", `/api/admin/orders/${order.id}`, { status: newStatus });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       toast({ title: `Order status updated to ${newStatus}` });
+      
+      if (newStatus === "Dispatched" || newStatus === "Delivered") {
+        setOrderToShare({ order: { ...order, status: newStatus }, status: newStatus });
+      }
     } catch (error: any) {
       toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
     }
@@ -380,6 +387,45 @@ export default function OrdersPage() {
       toast({ title: "CSV downloaded" });
     } catch (error: any) {
       toast({ title: "Download failed", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleWhatsAppShare = async (order: Order, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      const endpoint = hasAdminAccess 
+        ? `/api/admin/orders/${order.id}`
+        : `/api/orders/${order.id}`;
+      const res = await fetch(endpoint, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch order details");
+      
+      const data = await res.json();
+      
+      const orderWithItems = {
+        ...order,
+        items: (data.items || []).map((item: any) => ({
+          ...item,
+          price: item.unitPrice || "0",
+          product: {
+            name: item.productName || "Unknown Product",
+            price: item.unitPrice || "0",
+          },
+        })),
+        user: data.user || null,
+      };
+      
+      let messageType: WhatsAppMessageType = "created";
+      if (order.status === "Dispatched") {
+        messageType = "dispatched";
+      } else if (order.status === "Delivered") {
+        messageType = "delivered";
+      }
+      
+      const message = generateWhatsAppMessage(orderWithItems, messageType);
+      openWhatsApp(message, order.whatsappPhone || undefined);
+    } catch (error: any) {
+      toast({ title: "Failed to share", description: error.message, variant: "destructive" });
     }
   };
 
@@ -618,6 +664,15 @@ export default function OrdersPage() {
                         </td>
                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => handleWhatsAppShare(order, e)}
+                              data-testid={`button-whatsapp-${order.id}`}
+                              title="Share on WhatsApp"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </Button>
                             {hasAdminAccess && (
                               <Button
                                 size="icon"
@@ -1178,6 +1233,50 @@ export default function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!orderToShare} onOpenChange={(open) => !open && setOrderToShare(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              Order {orderToShare?.status}
+            </DialogTitle>
+            <DialogDescription>
+              Would you like to share this update via WhatsApp?
+            </DialogDescription>
+          </DialogHeader>
+          {orderToShare && (
+            <div className="bg-muted/50 rounded-md p-3 text-sm space-y-1">
+              <p><span className="font-medium">Party:</span> {orderToShare.order.partyName}</p>
+              <p><span className="font-medium">Total:</span> {formatINR(orderToShare.order.total)}</p>
+              <p><span className="font-medium">Status:</span> {orderToShare.status}</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setOrderToShare(null)}
+              data-testid="button-skip-whatsapp"
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={async () => {
+                if (orderToShare) {
+                  const e = { stopPropagation: () => {} } as React.MouseEvent;
+                  await handleWhatsAppShare(orderToShare.order, e);
+                  setOrderToShare(null);
+                }
+              }}
+              className="gap-2"
+              data-testid="button-share-status-whatsapp"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Share on WhatsApp
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

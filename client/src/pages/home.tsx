@@ -18,11 +18,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import type { CartItemData } from "@/components/CartItem";
-import type { Product } from "@shared/schema";
+import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2 } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,8 @@ export default function Home() {
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<any>(null);
+  const [showOrderSuccessDialog, setShowOrderSuccessDialog] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: "",
     brand: "",
@@ -389,11 +392,20 @@ export default function Home() {
         throw new Error(error.message || "Failed to create order");
       }
 
-      toast({
-        title: "Order sent!",
-        description: "Your order has been submitted successfully.",
-        duration: 10000,
-      });
+      const orderData = await response.json();
+      
+      const orderWithProducts = {
+        ...orderData,
+        items: orderData.items.map((item: any) => ({
+          ...item,
+          price: item.unitPrice || String(cart.find(c => c.product.id === item.productId)?.product.price || 0),
+          product: cart.find(c => c.product.id === item.productId)?.product,
+        })),
+        user: user ? { firstName: user.firstName, lastName: user.lastName } : orderData.user,
+      };
+      
+      setCreatedOrder(orderWithProducts);
+      setShowOrderSuccessDialog(true);
       
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
@@ -924,6 +936,53 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showOrderSuccessDialog} onOpenChange={setShowOrderSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              Order Sent Successfully
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Your order has been submitted. Would you like to share it via WhatsApp?
+            </p>
+            {createdOrder && (
+              <div className="bg-muted/50 rounded-md p-3 text-sm space-y-1">
+                <p><span className="font-medium">Party:</span> {createdOrder.partyName}</p>
+                <p><span className="font-medium">Brand:</span> {createdOrder.brand}</p>
+                <p><span className="font-medium">Items:</span> {createdOrder.items?.length || 0}</p>
+                <p><span className="font-medium">Total:</span> ₹{parseFloat(createdOrder.total).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setShowOrderSuccessDialog(false)}
+              data-testid="button-close-success"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                if (createdOrder) {
+                  const message = generateWhatsAppMessage(createdOrder, "created");
+                  openWhatsApp(message, createdOrder.whatsappPhone);
+                }
+                setShowOrderSuccessDialog(false);
+              }}
+              className="gap-2"
+              data-testid="button-share-whatsapp"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Share on WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
