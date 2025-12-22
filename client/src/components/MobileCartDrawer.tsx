@@ -6,7 +6,6 @@ import {
   DrawerTitle,
   DrawerFooter,
 } from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { type OrderDetails } from "./OrderSummary";
@@ -179,10 +178,11 @@ export default function MobileCartDrawer({
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DrawerContent className="flex flex-col max-h-[90vh]">
+      <DrawerContent className="max-h-[85vh]">
+        <div className="flex flex-col h-full max-h-[85vh]">
         {step === "cart" ? (
           <>
-            <DrawerHeader className="shrink-0 border-b pb-3">
+            <DrawerHeader className="flex-none border-b pb-3">
               <div className="flex items-center justify-between gap-2">
                 <DrawerTitle>Cart ({itemCount} items)</DrawerTitle>
                 {cartItems.length > 0 && (
@@ -206,7 +206,7 @@ export default function MobileCartDrawer({
               </div>
             ) : (
               <>
-                <ScrollArea className="flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto min-h-0">
                   <div className="p-4 space-y-3">
                     {cartItems.map((item) => (
                       <MobileCartItem
@@ -218,9 +218,9 @@ export default function MobileCartDrawer({
                       />
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
                 
-                <DrawerFooter className="shrink-0 border-t pt-3 pb-6 space-y-3">
+                <DrawerFooter className="flex-none border-t pt-3 pb-6 space-y-3">
                   <div className="flex justify-between items-center text-lg font-semibold">
                     <span>Total</span>
                     <span data-testid="mobile-text-total">{formatINR(subtotal)}</span>
@@ -242,7 +242,7 @@ export default function MobileCartDrawer({
           </>
         ) : (
           <>
-            <DrawerHeader className="shrink-0 border-b pb-3">
+            <DrawerHeader className="flex-none border-b pb-3">
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -256,7 +256,7 @@ export default function MobileCartDrawer({
               </div>
             </DrawerHeader>
             
-            <ScrollArea className="flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <div className="p-4">
                 <OrderDetailsForm
                   orderDetails={orderDetails}
@@ -264,9 +264,9 @@ export default function MobileCartDrawer({
                   cartBrand={cartBrand}
                 />
               </div>
-            </ScrollArea>
+            </div>
             
-            <DrawerFooter className="shrink-0 border-t pt-3 pb-6 space-y-3">
+            <DrawerFooter className="flex-none border-t pt-3 pb-6 space-y-3">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground">{itemCount} items</span>
                 <span data-testid="mobile-text-subtotal">{formatINR(subtotal)}</span>
@@ -308,6 +308,7 @@ export default function MobileCartDrawer({
             </DrawerFooter>
           </>
         )}
+        </div>
       </DrawerContent>
     </Drawer>
   );
