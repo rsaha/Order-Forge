@@ -7,9 +7,9 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Trash2, Minus, Plus, X } from "lucide-react";
+import { Trash2, Minus, Plus, X, Send, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import OrderSummary, { type OrderDetails } from "./OrderSummary";
+import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
 
@@ -151,12 +151,23 @@ export default function MobileCartDrawer({
 }: MobileCartDrawerProps) {
   const cartBrand = cartItems.length > 0 ? cartItems[0].product.brand : null;
   
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + item.product.price * item.quantity,
+    0
+  );
+  const discountPercent = orderDetails.proposedDiscount || 0;
+  const safeDiscount = Math.min(100, Math.max(0, discountPercent));
+  const discountAmount = subtotal * (safeDiscount / 100);
+  const finalTotal = subtotal - discountAmount;
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
+
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="max-h-[85vh]">
-        <DrawerHeader className="border-b pb-4">
+      <DrawerContent className="flex flex-col max-h-[90vh]">
+        <DrawerHeader className="shrink-0 border-b pb-3">
           <div className="flex items-center justify-between gap-2">
-            <DrawerTitle>Shopping Cart ({cartItems.length})</DrawerTitle>
+            <DrawerTitle>Cart ({itemCount} items)</DrawerTitle>
             {cartItems.length > 0 && (
               <Button
                 variant="ghost"
@@ -178,7 +189,7 @@ export default function MobileCartDrawer({
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1 max-h-[40vh]">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="p-4 space-y-3">
                 {cartItems.map((item) => (
                   <MobileCartItem
@@ -189,24 +200,56 @@ export default function MobileCartDrawer({
                     onRemove={onRemoveItem}
                   />
                 ))}
+                
+                <div className="pt-3 border-t">
+                  <OrderDetailsForm
+                    orderDetails={orderDetails}
+                    onOrderDetailsChange={onOrderDetailsChange}
+                    cartBrand={cartBrand}
+                  />
+                </div>
               </div>
             </ScrollArea>
             
-            <div className="px-4 pb-2 border-t pt-4">
-              <OrderDetailsForm
-                orderDetails={orderDetails}
-                onOrderDetailsChange={onOrderDetailsChange}
-                cartBrand={cartBrand}
-              />
-            </div>
-            
-            <DrawerFooter className="border-t bg-muted/30">
-              <OrderSummary
-                cartItems={cartItems}
-                orderDetails={orderDetails}
-                onSendOrder={onSendOrder}
-                isSending={isSending}
-              />
+            <DrawerFooter className="shrink-0 border-t pt-3 pb-6 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span data-testid="mobile-text-subtotal">{formatINR(subtotal)}</span>
+              </div>
+              {discountPercent > 0 && (
+                <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400">
+                  <span>Discount ({discountPercent}%)</span>
+                  <span>-{formatINR(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-lg font-semibold border-t pt-2">
+                <span>Total</span>
+                <span data-testid="mobile-text-total">{formatINR(finalTotal)}</span>
+              </div>
+              
+              {!orderDetails.partyName.trim() && (
+                <p className="text-sm text-destructive">Party name required</p>
+              )}
+              
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={onSendOrder}
+                disabled={!canSendOrder || isSending}
+                data-testid="mobile-button-send-order"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5 mr-2" />
+                    Send Order
+                  </>
+                )}
+              </Button>
             </DrawerFooter>
           </>
         )}
