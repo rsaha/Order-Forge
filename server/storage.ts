@@ -60,6 +60,7 @@ export interface IStorage {
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
   appendItemsToOrder(orderId: string, items: InsertOrderItem[], discountPercent?: number): Promise<Order | undefined>;
+  deleteOrder(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -480,6 +481,14 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updated;
+  }
+
+  async deleteOrder(id: string): Promise<boolean> {
+    // Delete order items first (foreign key constraint)
+    await db.delete(orderItems).where(eq(orderItems.orderId, id));
+    // Delete the order
+    const result = await db.delete(orders).where(eq(orders.id, id)).returning();
+    return result.length > 0;
   }
 }
 
