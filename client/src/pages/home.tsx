@@ -392,6 +392,7 @@ export default function Home() {
       toast({
         title: "Order sent!",
         description: "Your order has been submitted successfully.",
+        duration: 10000,
       });
       
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
