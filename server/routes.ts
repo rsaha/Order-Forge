@@ -656,6 +656,45 @@ export async function registerRoutes(
     }
   });
 
+  // Delete an order (only creator or admin, only when status is Created or Approved)
+  app.delete('/api/orders/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const orderId = req.params.id;
+      
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Check if order can be deleted (Created or Approved status only)
+      if (!['Created', 'Approved'].includes(order.status)) {
+        return res.status(400).json({ 
+          message: `Cannot delete order with status "${order.status}". Only Created or Approved orders can be deleted.` 
+        });
+      }
+
+      // Check permissions: only creator or admin can delete
+      const isOwner = order.userId === userId;
+      const isAdmin = user?.isAdmin === true;
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ message: "Only the order creator or admin can delete this order" });
+      }
+
+      const deleted = await storage.deleteOrder(orderId);
+      if (!deleted) {
+        return res.status(500).json({ message: "Failed to delete order" });
+      }
+
+      res.json({ message: "Order deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      res.status(500).json({ message: "Failed to delete order" });
+    }
+  });
+
   // Parse order from text - simple pattern matching
   app.post('/api/orders/parse-text', isAuthenticated, async (req: any, res) => {
     try {
