@@ -38,7 +38,7 @@ Key tables:
 - `users` - User accounts linked to Replit Auth
 - `products` - Product catalog with SKU, name, brand, price, stock
 - `userProducts` - Junction table for user-product assignments (each user has their own catalog)
-- `orders` and `orderItems` - Order tracking
+- `orders` and `orderItems` - Order tracking (orderItems includes freeQuantity for complimentary items)
 - `sessions` - Session storage for authentication
 
 ### Authentication Flow
