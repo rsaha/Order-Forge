@@ -26,7 +26,7 @@ function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] 
     return ["Guided"];
   }
   if (brand === "Elmeric") {
-    return ["Elemric"];
+    return ["Elemric", "Guided"];
   }
   return DELIVERY_COMPANY_OPTIONS;
 }
