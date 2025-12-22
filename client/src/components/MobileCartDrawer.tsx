@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -7,8 +8,7 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Trash2, Minus, Plus, X, Send, Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
@@ -32,6 +32,8 @@ interface MobileCartDrawerProps {
   onSendOrder: () => void;
   isSending?: boolean;
 }
+
+type DrawerStep = "cart" | "details";
 
 function MobileCartItem({ 
   item, 
@@ -149,6 +151,14 @@ export default function MobileCartDrawer({
   onSendOrder,
   isSending = false
 }: MobileCartDrawerProps) {
+  const [step, setStep] = useState<DrawerStep>("cart");
+  
+  useEffect(() => {
+    if (!isOpen) {
+      setStep("cart");
+    }
+  }, [isOpen]);
+
   const cartBrand = cartItems.length > 0 ? cartItems[0].product.brand : null;
   
   const subtotal = cartItems.reduce(
@@ -162,58 +172,103 @@ export default function MobileCartDrawer({
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
 
+  const handleClose = () => {
+    setStep("cart");
+    onClose();
+  };
+
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Drawer open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DrawerContent className="flex flex-col max-h-[90vh]">
-        <DrawerHeader className="shrink-0 border-b pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <DrawerTitle>Cart ({itemCount} items)</DrawerTitle>
-            {cartItems.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClearCart}
-                className="text-destructive"
-                data-testid="mobile-button-clear-cart"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear
-              </Button>
+        {step === "cart" ? (
+          <>
+            <DrawerHeader className="shrink-0 border-b pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <DrawerTitle>Cart ({itemCount} items)</DrawerTitle>
+                {cartItems.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClearCart}
+                    className="text-destructive"
+                    data-testid="mobile-button-clear-cart"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </DrawerHeader>
+            
+            {cartItems.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground p-8">
+                <p>Your cart is empty</p>
+              </div>
+            ) : (
+              <>
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="p-4 space-y-3">
+                    {cartItems.map((item) => (
+                      <MobileCartItem
+                        key={item.product.id}
+                        item={item}
+                        onQuantityChange={onQuantityChange}
+                        onFreeQuantityChange={onFreeQuantityChange}
+                        onRemove={onRemoveItem}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+                
+                <DrawerFooter className="shrink-0 border-t pt-3 pb-6 space-y-3">
+                  <div className="flex justify-between items-center text-lg font-semibold">
+                    <span>Total</span>
+                    <span data-testid="mobile-text-total">{formatINR(subtotal)}</span>
+                  </div>
+                  
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={() => setStep("details")}
+                    disabled={cartItems.length === 0}
+                    data-testid="mobile-button-add-order-details"
+                  >
+                    Add Order Details
+                    <ChevronRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </DrawerFooter>
+              </>
             )}
-          </div>
-        </DrawerHeader>
-        
-        {cartItems.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground p-8">
-            <p>Your cart is empty</p>
-          </div>
+          </>
         ) : (
           <>
+            <DrawerHeader className="shrink-0 border-b pb-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setStep("cart")}
+                  data-testid="mobile-button-back-to-cart"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <DrawerTitle>Order Details</DrawerTitle>
+              </div>
+            </DrawerHeader>
+            
             <ScrollArea className="flex-1 min-h-0">
-              <div className="p-4 space-y-3">
-                {cartItems.map((item) => (
-                  <MobileCartItem
-                    key={item.product.id}
-                    item={item}
-                    onQuantityChange={onQuantityChange}
-                    onFreeQuantityChange={onFreeQuantityChange}
-                    onRemove={onRemoveItem}
-                  />
-                ))}
-                
-                <div className="pt-3 border-t">
-                  <OrderDetailsForm
-                    orderDetails={orderDetails}
-                    onOrderDetailsChange={onOrderDetailsChange}
-                    cartBrand={cartBrand}
-                  />
-                </div>
+              <div className="p-4">
+                <OrderDetailsForm
+                  orderDetails={orderDetails}
+                  onOrderDetailsChange={onOrderDetailsChange}
+                  cartBrand={cartBrand}
+                />
               </div>
             </ScrollArea>
             
             <DrawerFooter className="shrink-0 border-t pt-3 pb-6 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Subtotal</span>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">{itemCount} items</span>
                 <span data-testid="mobile-text-subtotal">{formatINR(subtotal)}</span>
               </div>
               {discountPercent > 0 && (
@@ -224,7 +279,7 @@ export default function MobileCartDrawer({
               )}
               <div className="flex justify-between items-center text-lg font-semibold border-t pt-2">
                 <span>Total</span>
-                <span data-testid="mobile-text-total">{formatINR(finalTotal)}</span>
+                <span data-testid="mobile-text-final-total">{formatINR(finalTotal)}</span>
               </div>
               
               {!orderDetails.partyName.trim() && (
