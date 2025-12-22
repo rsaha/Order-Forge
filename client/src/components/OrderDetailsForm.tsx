@@ -16,18 +16,39 @@ interface OrderDetailsFormProps {
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
   readOnly?: boolean;
+  cartBrand?: string | null;
 }
 
 const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elemric"];
+
+function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] {
+  if (brand === "Biostige") {
+    return ["Guided"];
+  }
+  if (brand === "Elmeric") {
+    return ["Elemric"];
+  }
+  return DELIVERY_COMPANY_OPTIONS;
+}
 
 export default function OrderDetailsForm({
   orderDetails,
   onOrderDetailsChange,
   readOnly = false,
+  cartBrand,
 }: OrderDetailsFormProps) {
+  const deliveryOptions = getDeliveryOptionsForBrand(cartBrand);
+  
   const updateOrderDetail = (field: keyof OrderDetails, value: string) => {
     onOrderDetailsChange({ ...orderDetails, [field]: value });
   };
+  
+  // Auto-set delivery company when brand changes and current selection is not valid
+  if (cartBrand && deliveryOptions.length === 1 && orderDetails.deliveryCompany !== deliveryOptions[0]) {
+    onOrderDetailsChange({ ...orderDetails, deliveryCompany: deliveryOptions[0] });
+  } else if (cartBrand && !deliveryOptions.includes(orderDetails.deliveryCompany) && orderDetails.deliveryCompany) {
+    onOrderDetailsChange({ ...orderDetails, deliveryCompany: deliveryOptions[0] });
+  }
 
   if (readOnly) {
     const hasDetails = orderDetails.partyName || orderDetails.deliveryCompany || orderDetails.deliveryNotes || orderDetails.specialNotes || orderDetails.proposedDiscount > 0;
@@ -99,7 +120,7 @@ export default function OrderDetailsForm({
               <SelectValue placeholder="Select delivery company" />
             </SelectTrigger>
             <SelectContent>
-              {DELIVERY_COMPANY_OPTIONS.map((company) => (
+              {deliveryOptions.map((company) => (
                 <SelectItem key={company} value={company} data-testid={`option-delivery-${company.toLowerCase()}`}>
                   {company}
                 </SelectItem>

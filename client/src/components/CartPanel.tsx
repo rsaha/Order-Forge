@@ -31,6 +31,9 @@ export default function CartPanel({
   onSendOrder,
   isSending = false
 }: CartPanelProps) {
+  // Get the brand from cart items (all items should be same brand due to single-brand constraint)
+  const cartBrand = cartItems.length > 0 ? cartItems[0].product.brand : null;
+  
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col p-0">
@@ -75,6 +78,7 @@ export default function CartPanel({
                   <OrderDetailsForm
                     orderDetails={orderDetails}
                     onOrderDetailsChange={onOrderDetailsChange}
+                    cartBrand={cartBrand}
                   />
                 </div>
               </ScrollArea>
