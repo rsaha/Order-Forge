@@ -425,11 +425,9 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       toast({ title: `Order status updated to ${newStatus}` });
       
-      if (newStatus === "Dispatched") {
+      if (newStatus === "Dispatched" || newStatus === "Delivered") {
         setPendingWhatsAppShare({ order: { ...order, status: newStatus }, status: newStatus });
         handleOrderClick({ ...order, status: newStatus });
-      } else if (newStatus === "Delivered") {
-        setOrderToShare({ order: { ...order, status: newStatus }, status: newStatus });
       }
     } catch (error: any) {
       toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
