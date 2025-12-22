@@ -410,6 +410,7 @@ export class DatabaseStorage implements IStorage {
       orderId: orderItems.orderId,
       productId: orderItems.productId,
       quantity: orderItems.quantity,
+      freeQuantity: orderItems.freeQuantity,
       unitPrice: orderItems.unitPrice,
       productName: products.name,
       size: products.size,

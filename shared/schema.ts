@@ -122,6 +122,7 @@ export const orderItems = pgTable("order_items", {
   orderId: varchar("order_id").notNull().references(() => orders.id),
   productId: varchar("product_id").notNull().references(() => products.id),
   quantity: integer("quantity").notNull(),
+  freeQuantity: integer("free_quantity").notNull().default(0),
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
 });
 
