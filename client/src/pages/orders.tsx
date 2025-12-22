@@ -43,11 +43,11 @@ import {
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
 
-const ORDER_STATUSES: OrderStatus[] = ["Created", "Pending", "Invoiced", "Dispatched", "Delivered", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  Approved: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   Dispatched: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   Delivered: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -56,7 +56,7 @@ const statusColors: Record<OrderStatus, string> = {
 
 const statusIcons: Record<OrderStatus, typeof Package> = {
   Created: FileText,
-  Pending: Clock,
+  Approved: Clock,
   Invoiced: FileText,
   Dispatched: Truck,
   Delivered: CheckCircle,
@@ -338,7 +338,7 @@ export default function OrdersPage() {
   };
 
   const isOrderEditable = (order: Order) => {
-    return order.status === "Created" || order.status === "Pending";
+    return order.status === "Created" || order.status === "Approved";
   };
 
   const filteredProducts = products.filter((p) => {
@@ -515,7 +515,7 @@ export default function OrdersPage() {
                         <td className="p-3" data-testid={`text-delivery-${order.id}`}>
                           {order.deliveryCompany || "-"}
                         </td>
-                        <td className="p-3" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Pending")) && e.stopPropagation()}>
+                        <td className="p-3" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Approved")) && e.stopPropagation()}>
                           {isAdmin ? (
                             <Select
                               value={order.status}
@@ -535,7 +535,7 @@ export default function OrdersPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          ) : isBrandAdmin && order.status === "Pending" ? (
+                          ) : isBrandAdmin && order.status === "Approved" ? (
                             <Select
                               value={order.status}
                               onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
@@ -547,7 +547,7 @@ export default function OrdersPage() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Pending">Pending</SelectItem>
+                                <SelectItem value="Approved">Approved</SelectItem>
                                 <SelectItem value="Invoiced">Invoiced</SelectItem>
                               </SelectContent>
                             </Select>
@@ -596,10 +596,10 @@ export default function OrdersPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Pending" ? "Update Order Status" : "Order Details"}
+              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Approved" ? "Update Order Status" : "Order Details"}
             </DialogTitle>
             <DialogDescription>
-              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Pending" ? "Mark this order as Invoiced." : "View your order details."}
+              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Approved" ? "Mark this order as Invoiced." : "View your order details."}
             </DialogDescription>
           </DialogHeader>
 
@@ -862,7 +862,7 @@ export default function OrdersPage() {
                     </Button>
                   </div>
                 </>
-              ) : isBrandAdmin && selectedOrder.status === "Pending" ? (
+              ) : isBrandAdmin && selectedOrder.status === "Approved" ? (
                 <div className="space-y-4">
                   <div className="space-y-3">
                     <div className="flex justify-between">

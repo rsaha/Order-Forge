@@ -69,7 +69,7 @@ export const userProducts = pgTable("user_products", {
 ]);
 
 // Order status values
-export const ORDER_STATUSES = ["Created", "Pending", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
+export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
 // Brand options

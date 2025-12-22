@@ -551,8 +551,8 @@ export async function registerRoutes(
         }
 
         if (req.body.status) {
-          if (order.status !== 'Pending' || req.body.status !== 'Invoiced') {
-            return res.status(403).json({ message: "BrandAdmin can only change status from Pending to Invoiced" });
+          if (order.status !== 'Approved' || req.body.status !== 'Invoiced') {
+            return res.status(403).json({ message: "BrandAdmin can only change status from Approved to Invoiced" });
           }
           req.body = { status: 'Invoiced' };
         } else {
@@ -577,7 +577,7 @@ export async function registerRoutes(
     }
   });
 
-  // Add items to an existing order (only when status is Created or Pending)
+  // Add items to an existing order (only when status is Created or Approved)
   app.post('/api/orders/:id/items', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -589,10 +589,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created or Pending status)
-      if (!['Created', 'Pending'].includes(order.status)) {
+      // Check if order is editable (Created or Approved status)
+      if (!['Created', 'Approved'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created or Pending orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only Created or Approved orders can be modified.` 
         });
       }
 
