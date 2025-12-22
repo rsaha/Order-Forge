@@ -25,6 +25,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Package,
   Calendar,
   Truck,
@@ -39,6 +49,7 @@ import {
   Plus,
   Search,
   Minus,
+  Trash2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
@@ -124,6 +135,7 @@ export default function OrdersPage() {
   const [showAddItems, setShowAddItems] = useState(false);
   const [addItemsSearch, setAddItemsSearch] = useState("");
   const [itemsToAdd, setItemsToAdd] = useState<Array<{ product: Product; quantity: number }>>([]);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -239,6 +251,39 @@ export default function OrdersPage() {
       toast({ title: "Failed to add items", description: error.message, variant: "destructive" });
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return apiRequest("DELETE", `/api/orders/${orderId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "Order deleted successfully" });
+      setOrderToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete order", description: error.message, variant: "destructive" });
+      setOrderToDelete(null);
+    },
+  });
+
+  const canDeleteOrder = (order: Order): boolean => {
+    if (!['Created', 'Approved'].includes(order.status)) return false;
+    if (isAdmin) return true;
+    return order.userId === user?.id;
+  };
+
+  const handleDeleteClick = (order: Order, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOrderToDelete(order);
+  };
+
+  const confirmDelete = () => {
+    if (orderToDelete) {
+      deleteMutation.mutate(orderToDelete.id);
+    }
+  };
 
   const handleOrderClick = async (order: Order) => {
     setSelectedOrder(order);
@@ -478,7 +523,7 @@ export default function OrdersPage() {
                       <th className="text-left p-3 font-medium">Status</th>
                       <th className="text-left p-3 font-medium">Delivery Date</th>
                       <th className="text-right p-3 font-medium">Total</th>
-                      {hasAdminAccess && <th className="text-center p-3 font-medium">Actions</th>}
+                      <th className="text-center p-3 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -571,18 +616,31 @@ export default function OrdersPage() {
                         <td className="p-3 text-right font-medium whitespace-nowrap" data-testid={`text-total-${order.id}`}>
                           {formatINR(order.total)}
                         </td>
-                        {hasAdminAccess && (
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={(e) => handleDownloadCSV(order, e)}
-                              data-testid={`button-download-${order.id}`}
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        )}
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {hasAdminAccess && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={(e) => handleDownloadCSV(order, e)}
+                                data-testid={`button-download-${order.id}`}
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {canDeleteOrder(order) && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={(e) => handleDeleteClick(order, e)}
+                                data-testid={`button-delete-${order.id}`}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1097,6 +1155,29 @@ export default function OrdersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!orderToDelete} onOpenChange={(open) => !open && setOrderToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this order for "{orderToDelete?.partyName || 'Unknown'}"? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
