@@ -118,7 +118,7 @@ export default function OrdersPage() {
     deliveryCost: "",
     deliveryNote: "",
   });
-  const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; unitPrice: string }>>([]);
+  const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; freeQuantity?: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   
   const [showAddItems, setShowAddItems] = useState(false);
@@ -304,12 +304,13 @@ export default function OrdersPage() {
       const items = data.items || [];
       
       const csvRows = [
-        ["Product", "MRP", "Qty"].join(","),
-        ...items.map((item: { productName?: string; unitPrice?: string; quantity: number }) => 
+        ["Product", "MRP", "Qty", "Free Qty"].join(","),
+        ...items.map((item: { productName?: string; unitPrice?: string; quantity: number; freeQuantity?: number }) => 
           [
             `"${(item.productName || "Unknown").replace(/"/g, '""')}"`,
             item.unitPrice || "0",
-            item.quantity
+            item.quantity,
+            item.freeQuantity || 0
           ].join(",")
         )
       ];
@@ -666,6 +667,9 @@ export default function OrdersPage() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-muted-foreground">x{item.quantity}</span>
+                            {item.freeQuantity && item.freeQuantity > 0 && (
+                              <span className="text-xs text-green-600 dark:text-green-400">+{item.freeQuantity} free</span>
+                            )}
                             <span>{formatINR(Number(item.unitPrice) * item.quantity)}</span>
                           </div>
                         </div>

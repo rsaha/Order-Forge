@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { X } from "lucide-react";
 import QuantitySelector from "./QuantitySelector";
 import { formatINR, type Product } from "./ProductCard";
@@ -6,19 +7,21 @@ import { formatINR, type Product } from "./ProductCard";
 export interface CartItemData {
   product: Product;
   quantity: number;
+  freeQuantity: number;
 }
 
 interface CartItemProps {
   item: CartItemData;
   onQuantityChange: (productId: string, quantity: number) => void;
+  onFreeQuantityChange: (productId: string, freeQuantity: number) => void;
   onRemove: (productId: string) => void;
 }
 
-export default function CartItem({ item, onQuantityChange, onRemove }: CartItemProps) {
+export default function CartItem({ item, onQuantityChange, onFreeQuantityChange, onRemove }: CartItemProps) {
   const subtotal = item.product.price * item.quantity;
 
   return (
-    <div className="flex items-center gap-4 py-3 border-b last:border-b-0">
+    <div className="flex items-center gap-3 py-3 border-b last:border-b-0">
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate" data-testid={`cart-name-${item.product.id}`}>
           {item.product.name}
@@ -30,11 +33,24 @@ export default function CartItem({ item, onQuantityChange, onRemove }: CartItemP
           {formatINR(item.product.price)} each
         </p>
       </div>
-      <QuantitySelector
-        quantity={item.quantity}
-        onQuantityChange={(qty) => onQuantityChange(item.product.id, qty)}
-      />
-      <div className="text-right min-w-[80px]">
+      <div className="flex flex-col gap-1">
+        <QuantitySelector
+          quantity={item.quantity}
+          onQuantityChange={(qty) => onQuantityChange(item.product.id, qty)}
+        />
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Free:</span>
+          <Input
+            type="number"
+            min={0}
+            value={item.freeQuantity}
+            onChange={(e) => onFreeQuantityChange(item.product.id, Math.max(0, parseInt(e.target.value) || 0))}
+            className="w-14 h-7 text-center text-sm"
+            data-testid={`input-free-qty-${item.product.id}`}
+          />
+        </div>
+      </div>
+      <div className="text-right min-w-[70px]">
         <p className="font-semibold" data-testid={`cart-subtotal-${item.product.id}`}>
           {formatINR(subtotal)}
         </p>

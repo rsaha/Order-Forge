@@ -419,6 +419,7 @@ export async function registerRoutes(
         orderId: order.id,
         productId: item.productId,
         quantity: item.quantity,
+        freeQuantity: item.freeQuantity || 0,
         unitPrice: String(item.price || item.unitPrice || "0"),
       }));
 
@@ -632,12 +633,13 @@ export async function registerRoutes(
       }
 
       // Prepare items for insertion
-      const orderItemsData = await Promise.all(items.map(async (item: { productId: string; quantity: number }) => {
+      const orderItemsData = await Promise.all(items.map(async (item: { productId: string; quantity: number; freeQuantity?: number }) => {
         const product = await storage.getProduct(item.productId);
         return {
           orderId,
           productId: item.productId,
           quantity: item.quantity,
+          freeQuantity: item.freeQuantity || 0,
           unitPrice: product ? String(product.price) : "0",
         };
       }));

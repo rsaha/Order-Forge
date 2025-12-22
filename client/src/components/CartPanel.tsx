@@ -13,6 +13,7 @@ interface CartPanelProps {
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
   onQuantityChange: (productId: string, quantity: number) => void;
+  onFreeQuantityChange: (productId: string, freeQuantity: number) => void;
   onRemoveItem: (productId: string) => void;
   onClearCart: () => void;
   onSendOrder: () => void;
@@ -26,6 +27,7 @@ export default function CartPanel({
   orderDetails,
   onOrderDetailsChange,
   onQuantityChange,
+  onFreeQuantityChange,
   onRemoveItem,
   onClearCart,
   onSendOrder,
@@ -70,6 +72,7 @@ export default function CartPanel({
                         key={item.product.id}
                         item={item}
                         onQuantityChange={onQuantityChange}
+                        onFreeQuantityChange={onFreeQuantityChange}
                         onRemove={onRemoveItem}
                       />
                     ))}

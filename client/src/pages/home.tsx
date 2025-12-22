@@ -255,7 +255,7 @@ export default function Home() {
             : item
         );
       }
-      return [...prevCart, { product: productForCart, quantity: Math.min(quantity, product.stock || 999) }];
+      return [...prevCart, { product: productForCart, quantity: Math.min(quantity, product.stock || 999), freeQuantity: 0 }];
     });
     toast({
       title: "Added to cart",
@@ -267,6 +267,14 @@ export default function Home() {
     setCart(prevCart =>
       prevCart.map(item =>
         item.product.id === productId ? { ...item, quantity } : item
+      )
+    );
+  }, []);
+
+  const handleFreeQuantityChange = useCallback((productId: string, freeQuantity: number) => {
+    setCart(prevCart =>
+      prevCart.map(item =>
+        item.product.id === productId ? { ...item, freeQuantity } : item
       )
     );
   }, []);
@@ -359,6 +367,7 @@ export default function Home() {
           items: cart.map(item => ({
             productId: item.product.id,
             quantity: item.quantity,
+            freeQuantity: item.freeQuantity || 0,
             price: String(item.product.price),
           })),
           total: String(finalTotal),
@@ -473,7 +482,8 @@ export default function Home() {
                 price: Number(product.price),
                 stock: product.stock,
               }, 
-              quantity: item.quantity 
+              quantity: item.quantity,
+              freeQuantity: 0
             }];
           });
         }
@@ -761,6 +771,7 @@ export default function Home() {
         orderDetails={orderDetails}
         onOrderDetailsChange={setOrderDetails}
         onQuantityChange={handleQuantityChange}
+        onFreeQuantityChange={handleFreeQuantityChange}
         onRemoveItem={handleRemoveItem}
         onClearCart={() => {
           setCart([]);
