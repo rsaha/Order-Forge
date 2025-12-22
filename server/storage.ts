@@ -21,7 +21,7 @@ import {
   type UpdateProduct,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - required for Replit Auth
@@ -54,13 +54,39 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   getUserOrders(userId: string): Promise<Order[]>;
-  getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]>;
-  getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<Order[]>;
+  getAllOrders(filters?: OrderFilters): Promise<Order[]>;
+  getOrdersByBrands(brands: string[], filters?: OrderFilters): Promise<Order[]>;
   getOrderById(id: string): Promise<Order | undefined>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
   appendItemsToOrder(orderId: string, items: InsertOrderItem[], discountPercent?: number): Promise<Order | undefined>;
   deleteOrder(id: string): Promise<boolean>;
+  getBulkOrderSummary(filters: OrderFilters): Promise<BulkOrderSummary[]>;
+}
+
+export interface OrderFilters {
+  status?: string;
+  deliveryCompany?: string;
+  brand?: string;
+  fromDate?: Date;
+  toDate?: Date;
+  includeActive?: boolean;
+}
+
+export interface BulkOrderSummary {
+  brand: string;
+  deliveryCompany: string;
+  status: string;
+  orderCount: number;
+  totalValue: number;
+  totalCases: number;
+  orders: Array<{
+    id: string;
+    partyName: string | null;
+    total: string;
+    cases: number | null;
+    deliveryAddress: string | null;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -312,14 +338,52 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
   }
 
-  async getAllOrders(filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
-    const conditions = [];
+  private buildOrderConditions(filters?: OrderFilters, additionalConditions: any[] = []): any[] {
+    const conditions = [...additionalConditions];
+    
     if (filters?.status) {
       conditions.push(eq(orders.status, filters.status));
     }
     if (filters?.deliveryCompany) {
       conditions.push(eq(orders.deliveryCompany, filters.deliveryCompany));
     }
+    if (filters?.brand) {
+      conditions.push(eq(orders.brand, filters.brand));
+    }
+    
+    if (filters?.includeActive && !filters?.status && (filters.fromDate || filters.toDate)) {
+      const activeStatuses = ['Created', 'Approved', 'Invoiced', 'Dispatched'];
+      const dateConditions: any[] = [];
+      
+      if (filters.fromDate) {
+        dateConditions.push(gte(orders.createdAt, filters.fromDate));
+      }
+      if (filters.toDate) {
+        const endOfDay = new Date(filters.toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateConditions.push(lte(orders.createdAt, endOfDay));
+      }
+      
+      const dateRangeCondition = dateConditions.length > 1 ? and(...dateConditions) : dateConditions[0];
+      const activeCondition = inArray(orders.status, activeStatuses);
+      
+      conditions.push(or(dateRangeCondition, activeCondition));
+    } else {
+      if (filters?.fromDate) {
+        conditions.push(gte(orders.createdAt, filters.fromDate));
+      }
+      if (filters?.toDate) {
+        const endOfDay = new Date(filters.toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        conditions.push(lte(orders.createdAt, endOfDay));
+      }
+    }
+    
+    return conditions;
+  }
+
+  async getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
+    const conditions = this.buildOrderConditions(filters);
     
     const baseQuery = db.select({
       id: orders.id,
@@ -357,16 +421,10 @@ export class DatabaseStorage implements IStorage {
     return baseQuery;
   }
 
-  async getOrdersByBrands(brands: string[], filters?: { status?: string; deliveryCompany?: string }): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
+  async getOrdersByBrands(brands: string[], filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
     if (brands.length === 0) return [];
     
-    const conditions = [inArray(orders.brand, brands)];
-    if (filters?.status) {
-      conditions.push(eq(orders.status, filters.status));
-    }
-    if (filters?.deliveryCompany) {
-      conditions.push(eq(orders.deliveryCompany, filters.deliveryCompany));
-    }
+    const conditions = this.buildOrderConditions(filters, [inArray(orders.brand, brands)]);
     
     return db.select({
       id: orders.id,
@@ -398,6 +456,72 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(users, eq(orders.userId, users.id))
     .where(and(...conditions))
     .orderBy(desc(orders.createdAt));
+  }
+
+  async getBulkOrderSummary(filters: OrderFilters): Promise<BulkOrderSummary[]> {
+    const conditions = this.buildOrderConditions(filters);
+    
+    let allOrders;
+    if (conditions.length > 0) {
+      allOrders = await db.select({
+        id: orders.id,
+        brand: orders.brand,
+        status: orders.status,
+        total: orders.total,
+        cases: orders.cases,
+        partyName: orders.partyName,
+        deliveryAddress: orders.deliveryAddress,
+        deliveryCompany: orders.deliveryCompany,
+      })
+      .from(orders)
+      .where(and(...conditions))
+      .orderBy(orders.brand, orders.deliveryCompany);
+    } else {
+      allOrders = await db.select({
+        id: orders.id,
+        brand: orders.brand,
+        status: orders.status,
+        total: orders.total,
+        cases: orders.cases,
+        partyName: orders.partyName,
+        deliveryAddress: orders.deliveryAddress,
+        deliveryCompany: orders.deliveryCompany,
+      })
+      .from(orders)
+      .orderBy(orders.brand, orders.deliveryCompany);
+    }
+    
+    const grouped = new Map<string, BulkOrderSummary>();
+    
+    for (const order of allOrders) {
+      const key = `${order.brand || 'Unknown'}-${order.deliveryCompany || 'Unknown'}-${order.status}`;
+      
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          brand: order.brand || 'Unknown',
+          deliveryCompany: order.deliveryCompany || 'Unknown',
+          status: order.status,
+          orderCount: 0,
+          totalValue: 0,
+          totalCases: 0,
+          orders: [],
+        });
+      }
+      
+      const summary = grouped.get(key)!;
+      summary.orderCount++;
+      summary.totalValue += parseFloat(order.total || '0');
+      summary.totalCases += order.cases || 0;
+      summary.orders.push({
+        id: order.id,
+        partyName: order.partyName,
+        total: order.total,
+        cases: order.cases,
+        deliveryAddress: order.deliveryAddress,
+      });
+    }
+    
+    return Array.from(grouped.values());
   }
 
   async getOrderById(id: string): Promise<Order | undefined> {

@@ -484,9 +484,13 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const filters: { status?: string; deliveryCompany?: string } = {};
+      const filters: { status?: string; deliveryCompany?: string; brand?: string; fromDate?: Date; toDate?: Date; includeActive?: boolean } = {};
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.deliveryCompany) filters.deliveryCompany = req.query.deliveryCompany as string;
+      if (req.query.brand) filters.brand = req.query.brand as string;
+      if (req.query.fromDate) filters.fromDate = new Date(req.query.fromDate as string);
+      if (req.query.toDate) filters.toDate = new Date(req.query.toDate as string);
+      if (req.query.includeActive === 'true') filters.includeActive = true;
       
       let orders;
       if (user.isAdmin) {
@@ -500,6 +504,37 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching all orders:", error);
       res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  app.get('/api/admin/orders/bulk-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.isAdmin && user?.role !== 'BrandAdmin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const filters: { status?: string; deliveryCompany?: string; brand?: string; fromDate?: Date; toDate?: Date } = {};
+      if (req.query.status) filters.status = req.query.status as string;
+      if (req.query.deliveryCompany) filters.deliveryCompany = req.query.deliveryCompany as string;
+      if (req.query.brand) filters.brand = req.query.brand as string;
+      if (req.query.fromDate) filters.fromDate = new Date(req.query.fromDate as string);
+      if (req.query.toDate) filters.toDate = new Date(req.query.toDate as string);
+      
+      const summary = await storage.getBulkOrderSummary(filters);
+      
+      if (!user.isAdmin) {
+        const brands = await storage.getUserBrandAccess(userId);
+        const filtered = summary.filter(s => brands.includes(s.brand));
+        return res.json(filtered);
+      }
+      
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching bulk summary:", error);
+      res.status(500).json({ message: "Failed to fetch bulk summary" });
     }
   });
 

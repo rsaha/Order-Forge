@@ -51,6 +51,8 @@ import {
   Minus,
   Trash2,
   MessageCircle,
+  Filter,
+  Send,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -109,12 +111,49 @@ interface OrderEditFormData {
   deliveryNote: string;
 }
 
+const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"];
+const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elemric"];
+
+function getDateRange(days: number): { fromDate: string; toDate: string } {
+  const today = new Date();
+  const fromDate = new Date(today);
+  fromDate.setDate(today.getDate() - days);
+  return {
+    fromDate: fromDate.toISOString().split('T')[0],
+    toDate: today.toISOString().split('T')[0],
+  };
+}
+
+function getTodayDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+interface BulkOrderSummary {
+  brand: string;
+  deliveryCompany: string;
+  status: string;
+  orderCount: number;
+  totalValue: number;
+  totalCases: number;
+  orders: Array<{
+    id: string;
+    partyName: string | null;
+    total: string;
+    cases: number | null;
+    deliveryAddress: string | null;
+  }>;
+}
+
 export default function OrdersPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("7days");
+  const [showBulkWhatsApp, setShowBulkWhatsApp] = useState(false);
+  const [bulkType, setBulkType] = useState<"dispatched" | "delivered">("dispatched");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editFormData, setEditFormData] = useState<OrderEditFormData>({
     status: "Created",
@@ -145,7 +184,7 @@ export default function OrdersPage() {
   const hasAdminAccess = isAdmin || isBrandAdmin;
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", statusFilter, deliveryCompanyFilter],
+    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", statusFilter, deliveryCompanyFilter, brandFilter, dateRange],
     queryFn: async () => {
       if (hasAdminAccess) {
         const params = new URLSearchParams();
@@ -154,6 +193,20 @@ export default function OrdersPage() {
         }
         if (deliveryCompanyFilter !== "all") {
           params.append("deliveryCompany", deliveryCompanyFilter);
+        }
+        if (brandFilter !== "all") {
+          params.append("brand", brandFilter);
+        }
+        if (dateRange === "7days") {
+          const range = getDateRange(7);
+          params.append("fromDate", range.fromDate);
+          params.append("toDate", range.toDate);
+          params.append("includeActive", "true");
+        } else if (dateRange === "today") {
+          const today = getTodayDate();
+          params.append("fromDate", today);
+          params.append("toDate", today);
+          params.append("includeActive", "true");
         }
         const queryString = params.toString();
         const url = queryString ? `/api/admin/orders?${queryString}` : "/api/admin/orders";
@@ -189,10 +242,49 @@ export default function OrdersPage() {
           sorted = sorted.filter(o => o.deliveryCompany === deliveryCompanyFilter);
         }
         
+        if (brandFilter !== "all") {
+          sorted = sorted.filter(o => o.brand === brandFilter);
+        }
+        
+        if (dateRange === "7days") {
+          const range = getDateRange(7);
+          const fromDate = new Date(range.fromDate);
+          sorted = sorted.filter(o => {
+            const orderDate = new Date(o.createdAt || 0);
+            const isWithinRange = orderDate >= fromDate;
+            const isActive = o.status !== "Cancelled" && o.status !== "Delivered";
+            return isWithinRange || isActive;
+          });
+        } else if (dateRange === "today") {
+          const today = getTodayDate();
+          sorted = sorted.filter(o => {
+            const orderDate = (o.createdAt || '').toString().split('T')[0];
+            const isToday = orderDate === today;
+            const isActive = o.status !== "Cancelled" && o.status !== "Delivered";
+            return isToday || isActive;
+          });
+        }
+        
         return sorted;
       }
     },
     enabled: !!user,
+  });
+
+  const { data: bulkSummary = [] } = useQuery<BulkOrderSummary[]>({
+    queryKey: ["/api/admin/orders/bulk-summary", bulkType],
+    queryFn: async () => {
+      const today = getTodayDate();
+      const params = new URLSearchParams();
+      params.append("status", bulkType === "dispatched" ? "Dispatched" : "Delivered");
+      params.append("fromDate", today);
+      params.append("toDate", today);
+      
+      const res = await fetch(`/api/admin/orders/bulk-summary?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch bulk summary");
+      return res.json();
+    },
+    enabled: !!user && hasAdminAccess && showBulkWhatsApp,
   });
 
   const updateMutation = useMutation({
@@ -500,22 +592,51 @@ export default function OrdersPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="flex items-center justify-between gap-4 p-4 border-b bg-background">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ChevronLeft className="w-5 h-5" />
+      <header className="flex flex-col gap-3 p-4 border-b bg-background">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <Button variant="ghost" size="icon" data-testid="button-back">
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <h1 className="text-xl font-semibold">Orders</h1>
+            <Badge variant="secondary" data-testid="badge-order-count">
+              {orders.length} orders
+            </Badge>
+          </div>
+
+          {hasAdminAccess && (
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkWhatsApp(true)}
+              className="gap-2"
+              data-testid="button-bulk-whatsapp"
+            >
+              <Send className="w-4 h-4" />
+              Bulk WhatsApp
             </Button>
-          </Link>
-          <h1 className="text-xl font-semibold">Orders</h1>
-          <Badge variant="secondary" data-testid="badge-order-count">
-            {orders.length} orders
-          </Badge>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Filter className="w-4 h-4" />
+          </div>
+          
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "today" | "all")}>
+            <SelectTrigger className="w-32" data-testid="select-date-filter">
+              <SelectValue placeholder="Date Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 Days</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40" data-testid="select-status-filter">
+            <SelectTrigger className="w-36" data-testid="select-status-filter">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -529,15 +650,31 @@ export default function OrdersPage() {
             </SelectContent>
           </Select>
           
+          <Select value={brandFilter} onValueChange={setBrandFilter}>
+            <SelectTrigger className="w-32" data-testid="select-brand-filter">
+              <SelectValue placeholder="Brand" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Brands</SelectItem>
+              {BRANDS.map((brand) => (
+                <SelectItem key={brand} value={brand}>
+                  {brand}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
           <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
-            <SelectTrigger className="w-36" data-testid="select-delivery-filter">
+            <SelectTrigger className="w-32" data-testid="select-delivery-filter">
               <SelectValue placeholder="Delivery Co." />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Delivery</SelectItem>
-              <SelectItem value="Guided">Guided</SelectItem>
-              <SelectItem value="Xmaple">Xmaple</SelectItem>
-              <SelectItem value="Elemric">Elemric</SelectItem>
+              {DELIVERY_COMPANIES.map((company) => (
+                <SelectItem key={company} value={company}>
+                  {company}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -1273,6 +1410,103 @@ export default function OrdersPage() {
             >
               <MessageCircle className="w-4 h-4" />
               Share on WhatsApp
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBulkWhatsApp} onOpenChange={setShowBulkWhatsApp}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" />
+              Bulk WhatsApp Messages
+            </DialogTitle>
+            <DialogDescription>
+              Send WhatsApp messages for all orders {bulkType === "dispatched" ? "dispatched" : "delivered"} today, grouped by brand and delivery company.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex gap-2 pb-4">
+            <Button
+              variant={bulkType === "dispatched" ? "default" : "outline"}
+              onClick={() => setBulkType("dispatched")}
+              size="sm"
+              data-testid="button-bulk-dispatched"
+            >
+              <Truck className="w-4 h-4 mr-2" />
+              Dispatched Today
+            </Button>
+            <Button
+              variant={bulkType === "delivered" ? "default" : "outline"}
+              onClick={() => setBulkType("delivered")}
+              size="sm"
+              data-testid="button-bulk-delivered"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Delivered Today
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            {bulkSummary.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No orders {bulkType === "dispatched" ? "dispatched" : "delivered"} today</p>
+              </div>
+            ) : (
+              bulkSummary.map((group, idx) => (
+                <Card key={idx} className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold">{group.brand} - {group.deliveryCompany}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {group.orderCount} orders | {formatINR(group.totalValue)} | {group.totalCases || 0} cases
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                        const orderLines = group.orders.map(o => 
+                          `- ${o.partyName || "Unknown"}: ${formatINR(o.total)} (${o.cases || 0} cases)`
+                        ).join("\n");
+                        
+                        const message = bulkType === "dispatched"
+                          ? `*${group.brand} - Orders Dispatched Today*\n\nTransport: ${group.deliveryCompany}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`
+                          : `*${group.brand} - Orders Delivered Today*\n\nTransport: ${group.deliveryCompany}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`;
+                        
+                        const encoded = encodeURIComponent(message);
+                        window.open(`https://wa.me/?text=${encoded}`, "_blank");
+                      }}
+                      data-testid={`button-send-bulk-${group.brand}-${group.deliveryCompany}`}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Send
+                    </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {group.orders.slice(0, 5).map((o, i) => (
+                      <div key={i} className="flex justify-between">
+                        <span className="truncate max-w-[200px]">{o.partyName || "Unknown"}</span>
+                        <span>{formatINR(o.total)}</span>
+                      </div>
+                    ))}
+                    {group.orders.length > 5 && (
+                      <div className="text-muted-foreground italic">
+                        +{group.orders.length - 5} more orders...
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowBulkWhatsApp(false)} data-testid="button-close-bulk">
+              Close
             </Button>
           </div>
         </DialogContent>
