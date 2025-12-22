@@ -178,6 +178,7 @@ export default function OrdersPage() {
   const [itemsToAdd, setItemsToAdd] = useState<Array<{ product: Product; quantity: number }>>([]);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [orderToShare, setOrderToShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
+  const [pendingWhatsAppShare, setPendingWhatsAppShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -424,7 +425,10 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       toast({ title: `Order status updated to ${newStatus}` });
       
-      if (newStatus === "Dispatched" || newStatus === "Delivered") {
+      if (newStatus === "Dispatched") {
+        setPendingWhatsAppShare({ order: { ...order, status: newStatus }, status: newStatus });
+        handleOrderClick({ ...order, status: newStatus });
+      } else if (newStatus === "Delivered") {
         setOrderToShare({ order: { ...order, status: newStatus }, status: newStatus });
       }
     } catch (error: any) {
@@ -843,7 +847,28 @@ export default function OrdersPage() {
         </div>
       </ScrollArea>
 
-      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+      <Dialog open={!!selectedOrder} onOpenChange={async (open) => {
+        if (!open) {
+          const pendingShare = pendingWhatsAppShare;
+          const orderId = selectedOrder?.id;
+          setSelectedOrder(null);
+          setPendingWhatsAppShare(null);
+          
+          if (pendingShare && orderId) {
+            try {
+              const res = await fetch(`/api/admin/orders/${orderId}`, { credentials: "include" });
+              if (res.ok) {
+                const freshOrder = await res.json();
+                setOrderToShare({ order: freshOrder, status: freshOrder.status });
+              } else {
+                setOrderToShare(pendingShare);
+              }
+            } catch {
+              setOrderToShare(pendingShare);
+            }
+          }
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
