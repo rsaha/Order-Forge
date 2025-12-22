@@ -63,7 +63,7 @@ function MobileCartItem({
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8 shrink-0"
+          className="shrink-0"
           onClick={() => onRemove(item.product.id)}
           data-testid={`mobile-button-remove-${item.product.id}`}
         >
@@ -78,19 +78,19 @@ function MobileCartItem({
             <Button
               size="icon"
               variant="ghost"
-              className="h-10 w-10 rounded-r-none"
+              className="rounded-r-none"
               onClick={() => onQuantityChange(item.product.id, Math.max(1, item.quantity - 1))}
               data-testid={`mobile-button-decrease-${item.product.id}`}
             >
               <Minus className="w-4 h-4" />
             </Button>
-            <div className="w-12 h-10 flex items-center justify-center text-sm font-medium border-x">
+            <div className="w-12 h-9 flex items-center justify-center text-sm font-medium border-x">
               {item.quantity}
             </div>
             <Button
               size="icon"
               variant="ghost"
-              className="h-10 w-10 rounded-l-none"
+              className="rounded-l-none"
               onClick={() => onQuantityChange(item.product.id, item.quantity + 1)}
               data-testid={`mobile-button-increase-${item.product.id}`}
             >
@@ -105,19 +105,19 @@ function MobileCartItem({
             <Button
               size="icon"
               variant="ghost"
-              className="h-10 w-10 rounded-r-none"
+              className="rounded-r-none"
               onClick={() => onFreeQuantityChange(item.product.id, Math.max(0, item.freeQuantity - 1))}
               data-testid={`mobile-button-decrease-free-${item.product.id}`}
             >
               <Minus className="w-4 h-4" />
             </Button>
-            <div className="w-10 h-10 flex items-center justify-center text-sm font-medium border-x">
+            <div className="w-10 h-9 flex items-center justify-center text-sm font-medium border-x">
               {item.freeQuantity}
             </div>
             <Button
               size="icon"
               variant="ghost"
-              className="h-10 w-10 rounded-l-none"
+              className="rounded-l-none"
               onClick={() => onFreeQuantityChange(item.product.id, item.freeQuantity + 1)}
               data-testid={`mobile-button-increase-free-${item.product.id}`}
             >
