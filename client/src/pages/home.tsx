@@ -6,6 +6,8 @@ import BrandFilter from "@/components/BrandFilter";
 import ProductCard from "@/components/ProductCard";
 import UploadDropzone from "@/components/UploadDropzone";
 import CartPanel from "@/components/CartPanel";
+import MobileCartDrawer from "@/components/MobileCartDrawer";
+import FloatingCartButton from "@/components/FloatingCartButton";
 import EmptyState from "@/components/EmptyState";
 import ImportOrder from "@/components/ImportOrder";
 import ParsedOrderReview from "@/components/ParsedOrderReview";
@@ -13,6 +15,7 @@ import OrderTab from "@/components/OrderTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { CartItemData } from "@/components/CartItem";
@@ -48,6 +51,7 @@ interface UploadedFile {
 export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<"products" | "order" | "import" | "upload">("order");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -764,28 +768,62 @@ export default function Home() {
         )}
       </main>
 
-      <CartPanel
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cartItems={cart}
-        orderDetails={orderDetails}
-        onOrderDetailsChange={setOrderDetails}
-        onQuantityChange={handleQuantityChange}
-        onFreeQuantityChange={handleFreeQuantityChange}
-        onRemoveItem={handleRemoveItem}
-        onClearCart={() => {
-          setCart([]);
-          setOrderDetails({
-            partyName: "",
-            deliveryCompany: "Guided",
-            deliveryNotes: "",
-            specialNotes: "",
-            proposedDiscount: 0,
-          });
-        }}
-        onSendOrder={handleSendOrder}
-        isSending={isSendingOrder}
-      />
+      {/* Cart - Desktop uses Sheet, Mobile uses Drawer */}
+      {isMobile ? (
+        <MobileCartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          cartItems={cart}
+          orderDetails={orderDetails}
+          onOrderDetailsChange={setOrderDetails}
+          onQuantityChange={handleQuantityChange}
+          onFreeQuantityChange={handleFreeQuantityChange}
+          onRemoveItem={handleRemoveItem}
+          onClearCart={() => {
+            setCart([]);
+            setOrderDetails({
+              partyName: "",
+              deliveryCompany: "Guided",
+              deliveryNotes: "",
+              specialNotes: "",
+              proposedDiscount: 0,
+            });
+          }}
+          onSendOrder={handleSendOrder}
+          isSending={isSendingOrder}
+        />
+      ) : (
+        <CartPanel
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          cartItems={cart}
+          orderDetails={orderDetails}
+          onOrderDetailsChange={setOrderDetails}
+          onQuantityChange={handleQuantityChange}
+          onFreeQuantityChange={handleFreeQuantityChange}
+          onRemoveItem={handleRemoveItem}
+          onClearCart={() => {
+            setCart([]);
+            setOrderDetails({
+              partyName: "",
+              deliveryCompany: "Guided",
+              deliveryNotes: "",
+              specialNotes: "",
+              proposedDiscount: 0,
+            });
+          }}
+          onSendOrder={handleSendOrder}
+          isSending={isSendingOrder}
+        />
+      )}
+
+      {/* Floating Cart Button for Mobile */}
+      {isMobile && (
+        <FloatingCartButton
+          itemCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+          onClick={() => setIsCartOpen(true)}
+        />
+      )}
 
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
         <DialogContent className="max-w-md">
