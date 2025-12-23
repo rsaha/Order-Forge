@@ -239,10 +239,6 @@ export async function registerRoutes(
       }
 
       const createdProducts = await storage.createProducts(productsToCreate);
-      
-      // Assign products to user
-      const productIds = createdProducts.map(p => p.id);
-      await storage.assignProductsToUser(userId, productIds);
 
       const uploadedBrands = Array.from(new Set(createdProducts.map(p => p.brand)));
       res.json({
