@@ -13,7 +13,7 @@ export default function QuantitySelector({
   quantity, 
   onQuantityChange, 
   min = 1, 
-  max = 999 
+  max = 99999 
 }: QuantitySelectorProps) {
   const handleDecrement = () => {
     if (quantity > min) {

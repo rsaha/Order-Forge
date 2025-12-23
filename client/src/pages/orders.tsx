@@ -652,64 +652,66 @@ export default function OrdersPage() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Filter className="w-4 h-4" />
-          </div>
-          
-          <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "today" | "all")}>
-            <SelectTrigger className="w-32" data-testid="select-date-filter">
-              <SelectValue placeholder="Date Range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7days">Last 7 Days</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="all">All Time</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="overflow-x-auto -mx-4 px-4 pb-2">
+          <div className="flex items-center gap-2 min-w-max">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Filter className="w-4 h-4" />
+            </div>
+            
+            <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "today" | "all")}>
+              <SelectTrigger className="w-28" data-testid="select-date-filter">
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7days">7 Days</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36" data-testid="select-status-filter">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Active Orders</SelectItem>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {ORDER_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={brandFilter} onValueChange={setBrandFilter}>
-            <SelectTrigger className="w-32" data-testid="select-brand-filter">
-              <SelectValue placeholder="Brand" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Brands</SelectItem>
-              {BRANDS.map((brand) => (
-                <SelectItem key={brand} value={brand}>
-                  {brand}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
-            <SelectTrigger className="w-32" data-testid="select-delivery-filter">
-              <SelectValue placeholder="Delivery Co." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Delivery</SelectItem>
-              {DELIVERY_COMPANIES.map((company) => (
-                <SelectItem key={company} value={company}>
-                  {company}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-28" data-testid="select-status-filter">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+                {ORDER_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <SelectTrigger className="w-28" data-testid="select-brand-filter">
+                <SelectValue placeholder="Brand" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Brands</SelectItem>
+                {BRANDS.map((brand) => (
+                  <SelectItem key={brand} value={brand}>
+                    {brand}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
+              <SelectTrigger className="w-28" data-testid="select-delivery-filter">
+                <SelectValue placeholder="Delivery" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {DELIVERY_COMPANIES.map((company) => (
+                  <SelectItem key={company} value={company}>
+                    {company}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </header>
 
