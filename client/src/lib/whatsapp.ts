@@ -79,7 +79,7 @@ export function generateDispatchedMessage(order: OrderWithItems): string {
   
   message += `*Party:* ${order.partyName || "N/A"}\n`;
   message += `*Brand:* ${order.brand}\n`;
-  message += `*Order Value:* ${formatCurrency(order.total)}\n\n`;
+  message += `*Actual Order Value:* ${formatCurrency(order.actualOrderValue || order.total)}\n\n`;
   
   if (order.deliveryAddress) {
     message += `*Delivery Address:*\n${order.deliveryAddress}\n\n`;
@@ -109,7 +109,7 @@ export function generateDeliveredMessage(order: OrderWithItems): string {
   message += `━━━━━━━━━━━━━━━━━━\n\n`;
   
   message += `*Party:* ${order.partyName || "N/A"}\n`;
-  message += `*Order Value:* ${formatCurrency(order.total)}\n`;
+  message += `*Actual Order Value:* ${formatCurrency(order.actualOrderValue || order.total)}\n`;
   
   if (order.cases) {
     message += `*No. of Cases:* ${order.cases}\n`;

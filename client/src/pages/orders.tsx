@@ -430,12 +430,12 @@ export default function OrdersPage() {
   const handleInlineStatusUpdate = async (order: Order, newStatus: OrderStatus, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // For Invoiced status, open the flyout to require mandatory fields
-    if (newStatus === "Invoiced") {
+    // For Invoiced or Dispatched status, open the flyout to require mandatory fields
+    if (newStatus === "Invoiced" || newStatus === "Dispatched") {
       handleOrderClick(order);
-      // Set status to Invoiced so validation shows required fields
+      // Set status so validation shows required fields
       setTimeout(() => {
-        setEditFormData(prev => ({ ...prev, status: "Invoiced" }));
+        setEditFormData(prev => ({ ...prev, status: newStatus }));
       }, 100);
       toast({ title: "Please fill in invoice details", description: "Invoice Number, Invoice Date, and Actual Order Value are required." });
       return;
@@ -458,8 +458,8 @@ export default function OrdersPage() {
   const handleSave = () => {
     if (!selectedOrder) return;
     
-    // Validate mandatory fields when status is Invoiced
-    if (editFormData.status === "Invoiced") {
+    // Validate mandatory fields when status is Invoiced or Dispatched
+    if (editFormData.status === "Invoiced" || editFormData.status === "Dispatched") {
       const missingFields: string[] = [];
       if (!editFormData.invoiceNumber?.trim()) missingFields.push("Invoice Number");
       if (!editFormData.invoiceDate?.trim()) missingFields.push("Invoice Date");
@@ -1032,7 +1032,7 @@ export default function OrdersPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label htmlFor="invoiceNumber">Invoice No {editFormData.status === "Invoiced" && <span className="text-destructive">*</span>}</Label>
+                        <Label htmlFor="invoiceNumber">Invoice No {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="invoiceNumber"
                           value={editFormData.invoiceNumber}
@@ -1042,7 +1042,7 @@ export default function OrdersPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="invoiceDate">Invoice Date {editFormData.status === "Invoiced" && <span className="text-destructive">*</span>}</Label>
+                        <Label htmlFor="invoiceDate">Invoice Date {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="invoiceDate"
                           type="date"
@@ -1052,7 +1052,7 @@ export default function OrdersPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="actualOrderValue">Actual Value {editFormData.status === "Invoiced" && <span className="text-destructive">*</span>}</Label>
+                        <Label htmlFor="actualOrderValue">Actual Value {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="actualOrderValue"
                           type="number"
