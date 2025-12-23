@@ -85,6 +85,14 @@ export default function OrderTab({
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  
+  const cartQuantityMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    cart.forEach(item => {
+      map[item.product.id] = item.quantity;
+    });
+    return map;
+  }, [cart]);
 
   const formatINR = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -151,6 +159,7 @@ export default function OrderTab({
                     <ProductCardCompact
                       key={group.baseKey}
                       group={group}
+                      cartQuantityMap={cartQuantityMap}
                       onAddToCart={(variant, qty) => onAddToCart({
                         id: variant.id,
                         sku: variant.sku,

@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Check } from "lucide-react";
 
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -24,21 +24,34 @@ export interface Product {
 
 interface ProductCardProps {
   product: Product;
+  cartQuantity?: number;
   onAddToCart: (product: Product, quantity: number) => void;
 }
 
-export default function ProductCard({ product, onAddToCart }: ProductCardProps) {
-  const [quantity, setQuantity] = useState(1);
+export default function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardProps) {
+  const isInCart = cartQuantity !== undefined && cartQuantity > 0;
+  const [quantity, setQuantity] = useState(isInCart ? cartQuantity : 1);
+
+  useEffect(() => {
+    if (cartQuantity !== undefined && cartQuantity > 0) {
+      setQuantity(cartQuantity);
+    }
+  }, [cartQuantity]);
 
   const handleQuantityChange = (value: number) => {
     const newQty = Math.max(1, Math.min(value, product.stock || 999));
     setQuantity(newQty);
   };
 
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
+
   const handleAdd = () => {
     onAddToCart(product, quantity);
-    setQuantity(1);
   };
+
+  const hasChanges = !isInCart || quantity !== cartQuantity;
 
   return (
     <Card className="p-4 flex flex-col gap-2">
@@ -73,7 +86,8 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
             max={product.stock || 999}
             value={quantity}
             onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
-            className="w-14 h-9 text-center"
+            onFocus={handleFocus}
+            className="w-14 h-9 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             data-testid={`input-qty-${product.id}`}
           />
           <Button
@@ -87,10 +101,26 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
           <Button
             size="sm"
             onClick={handleAdd}
+            disabled={!hasChanges}
+            variant={isInCart && !hasChanges ? "secondary" : "default"}
             data-testid={`button-add-${product.id}`}
           >
-            <Plus className="w-4 h-4 mr-1" />
-            Add
+            {isInCart && !hasChanges ? (
+              <>
+                <Check className="w-4 h-4 mr-1" />
+                In Cart
+              </>
+            ) : isInCart ? (
+              <>
+                <Check className="w-4 h-4 mr-1" />
+                Update
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </>
+            )}
           </Button>
         </div>
       </div>

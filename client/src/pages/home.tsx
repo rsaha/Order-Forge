@@ -234,6 +234,14 @@ export default function Home() {
     return cart[0].product.brand;
   }, [cart]);
 
+  const cartQuantityMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    cart.forEach(item => {
+      map[item.product.id] = item.quantity;
+    });
+    return map;
+  }, [cart]);
+
   const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }, quantity: number = 1) => {
     if (cart.length > 0 && cart[0].product.brand !== product.brand) {
       toast({
@@ -253,20 +261,26 @@ export default function Home() {
       stock: product.stock,
     };
     
+    const clampedQuantity = Math.min(quantity, product.stock || 999);
+    
     setCart(prevCart => {
       const existingItem = prevCart.find(item => item.product.id === product.id);
       if (existingItem) {
         return prevCart.map(item =>
           item.product.id === product.id
-            ? { ...item, quantity: Math.min(item.quantity + quantity, product.stock || 999) }
+            ? { ...item, quantity: clampedQuantity }
             : item
         );
       }
-      return [...prevCart, { product: productForCart, quantity: Math.min(quantity, product.stock || 999), freeQuantity: 0 }];
+      return [...prevCart, { product: productForCart, quantity: clampedQuantity, freeQuantity: 0 }];
     });
+    
+    const existingCartItem = cart.find(item => item.product.id === product.id);
     toast({
-      title: "Added to cart",
-      description: `${product.name} x${quantity} has been added to your cart.`,
+      title: existingCartItem ? "Updated cart" : "Added to cart",
+      description: existingCartItem 
+        ? `${product.name} quantity updated to ${clampedQuantity}.`
+        : `${product.name} x${clampedQuantity} added to cart.`,
     });
   }, [toast, cart]);
 
