@@ -731,16 +731,16 @@ export default function OrdersPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 border-b">
                     <tr>
-                      <th className="text-left p-3 font-medium">Date</th>
-                      <th className="text-left p-3 font-medium">Party</th>
-                      <th className="text-left p-3 font-medium hidden lg:table-cell">Created By</th>
-                      <th className="text-left p-3 font-medium hidden lg:table-cell">Notes</th>
-                      <th className="text-left p-3 font-medium">Invoice</th>
-                      <th className="text-left p-3 font-medium hidden lg:table-cell">Delivery Co.</th>
-                      <th className="text-left p-3 font-medium">Status</th>
-                      <th className="text-left p-3 font-medium">Del. Date</th>
-                      <th className="text-right p-3 font-medium hidden lg:table-cell">Total</th>
-                      <th className="text-center p-3 font-medium">Actions</th>
+                      <th className="text-left p-2 font-medium text-xs">Date</th>
+                      <th className="text-left p-2 font-medium">Party</th>
+                      <th className="text-left p-2 font-medium hidden lg:table-cell">Created By</th>
+                      <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
+                      <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
+                      <th className="text-left p-2 font-medium">Status</th>
+                      <th className="text-left p-2 font-medium">Invoice</th>
+                      <th className="text-left p-2 font-medium">Del.</th>
+                      <th className="text-right p-2 font-medium hidden lg:table-cell">Total</th>
+                      <th className="text-center p-2 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -751,34 +751,24 @@ export default function OrdersPage() {
                         onClick={() => handleOrderClick(order)}
                         data-testid={`row-order-${order.id}`}
                       >
-                        <td className="p-3 whitespace-nowrap" data-testid={`text-date-${order.id}`}>
-                          {formatDate(order.createdAt)}
+                        <td className="p-2 text-xs text-muted-foreground whitespace-nowrap" data-testid={`text-date-${order.id}`}>
+                          {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
                         </td>
-                        <td className="p-3" data-testid={`text-party-${order.id}`}>
-                          <div className="font-medium">{order.partyName || "Unknown"}</div>
+                        <td className="p-2" data-testid={`text-party-${order.id}`}>
+                          <div className="font-medium text-sm">{order.partyName || "Unknown"}</div>
                         </td>
-                        <td className="p-3 hidden lg:table-cell" data-testid={`text-created-by-${order.id}`}>
+                        <td className="p-2 hidden lg:table-cell" data-testid={`text-created-by-${order.id}`}>
                           {(order as any).createdByName || (order as any).createdByEmail || "-"}
                         </td>
-                        <td className="p-3 max-w-[200px] hidden lg:table-cell" data-testid={`text-delivery-notes-${order.id}`}>
+                        <td className="p-2 max-w-[200px] hidden lg:table-cell" data-testid={`text-delivery-notes-${order.id}`}>
                           <div className="truncate" title={order.deliveryNote || ""}>
                             {order.deliveryNote || "-"}
                           </div>
                         </td>
-                        <td className="p-3" data-testid={`text-invoice-${order.id}`}>
-                          {order.invoiceNumber ? (
-                            <div>
-                              <div className="font-medium">{order.invoiceNumber}</div>
-                              {order.invoiceDate && (
-                                <div className="text-xs text-muted-foreground">{formatDate(order.invoiceDate)}</div>
-                              )}
-                            </div>
-                          ) : "-"}
-                        </td>
-                        <td className="p-3 hidden lg:table-cell" data-testid={`text-delivery-${order.id}`}>
+                        <td className="p-2 hidden lg:table-cell" data-testid={`text-delivery-${order.id}`}>
                           {order.deliveryCompany || "-"}
                         </td>
-                        <td className="p-3" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Approved")) && e.stopPropagation()}>
+                        <td className="p-2" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Approved")) && e.stopPropagation()}>
                           {isAdmin ? (
                             <Select
                               value={order.status}
@@ -820,21 +810,25 @@ export default function OrdersPage() {
                             </Badge>
                           )}
                         </td>
-                        <td className="p-3 whitespace-nowrap" data-testid={`text-delivery-date-${order.id}`}>
-                          {order.status === "Dispatched" && order.estimatedDeliveryDate ? (
+                        <td className="p-2 text-xs" data-testid={`text-invoice-${order.id}`}>
+                          {order.invoiceNumber ? (
                             <div>
-                              <div className="text-xs text-muted-foreground">Est:</div>
-                              <div>{formatDate(order.estimatedDeliveryDate)}</div>
+                              <div className="font-medium">{order.invoiceNumber}</div>
                             </div>
-                          ) : order.status === "Delivered" && order.actualDeliveryDate ? (
-                            <div>{formatDate(order.actualDeliveryDate)}</div>
                           ) : "-"}
                         </td>
-                        <td className="p-3 text-right font-medium whitespace-nowrap hidden lg:table-cell" data-testid={`text-total-${order.id}`}>
+                        <td className="p-2 text-xs whitespace-nowrap" data-testid={`text-delivery-date-${order.id}`}>
+                          {order.status === "Dispatched" && order.estimatedDeliveryDate ? (
+                            <div>{new Date(order.estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</div>
+                          ) : order.status === "Delivered" && order.actualDeliveryDate ? (
+                            <div>{new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</div>
+                          ) : "-"}
+                        </td>
+                        <td className="p-2 text-right font-medium whitespace-nowrap hidden lg:table-cell" data-testid={`text-total-${order.id}`}>
                           {formatINR(order.actualOrderValue || order.total)}
                         </td>
-                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1">
+                        <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-0">
                             <Button
                               size="icon"
                               variant="ghost"
