@@ -1568,6 +1568,9 @@ export default function OrdersPage() {
                         
                         const orderLines = group.orders.map(o => {
                           let line = `- ${o.partyName || "Unknown"}: ${formatINR(o.actualOrderValue || o.total)}`;
+                          if (o.dispatchBy || o.deliveryCompany) {
+                            line += `\n  Transport: ${o.dispatchBy || o.deliveryCompany}`;
+                          }
                           if (o.invoiceNumber) {
                             line += `\n  Inv: ${o.invoiceNumber}`;
                             if (o.invoiceDate) line += ` (${formatDate(o.invoiceDate)})`;
@@ -1576,16 +1579,11 @@ export default function OrdersPage() {
                             line += `\n  ETA: ${formatDate(o.estimatedDeliveryDate)}`;
                           }
                           return line;
-                        }).join("\n");
-                        
-                        const dispatchByInfo = group.orders.find(o => o.dispatchBy)?.dispatchBy;
-                        const transportLine = dispatchByInfo 
-                          ? `Transport/Dispatch By: ${dispatchByInfo}` 
-                          : `Transport: ${group.deliveryCompany}`;
+                        }).join("\n\n");
                         
                         const message = bulkType === "dispatched"
-                          ? `*${group.brand} - Orders Dispatched Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}`
-                          : `*${group.brand} - Orders Delivered Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}`;
+                          ? `*${group.brand} - Orders Dispatched*\n\n*Orders:*\n${orderLines}`
+                          : `*${group.brand} - Orders Delivered*\n\n*Orders:*\n${orderLines}`;
                         
                         const encoded = encodeURIComponent(message);
                         window.open(`https://wa.me/?text=${encoded}`, "_blank");
