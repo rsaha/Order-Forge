@@ -1,7 +1,6 @@
 import {
   users,
   products,
-  userProducts,
   userBrandAccess,
   orders,
   orderItems,
@@ -9,8 +8,6 @@ import {
   type UpsertUser,
   type Product,
   type InsertProduct,
-  type UserProduct,
-  type InsertUserProduct,
   type UserBrandAccess,
   type InsertUserBrandAccess,
   type Order,
@@ -39,12 +36,6 @@ export interface IStorage {
   createProducts(productList: InsertProduct[]): Promise<Product[]>;
   updateProduct(id: string, updates: UpdateProduct): Promise<Product | undefined>;
   deleteProduct(id: string): Promise<boolean>;
-  
-  // User-Product assignment operations
-  getUserProducts(userId: string): Promise<Product[]>;
-  assignProductToUser(assignment: InsertUserProduct): Promise<UserProduct>;
-  assignProductsToUser(userId: string, productIds: string[]): Promise<void>;
-  removeProductFromUser(userId: string, productId: string): Promise<void>;
   
   // User-Brand access operations
   getUserBrandAccess(userId: string): Promise<string[]>;
@@ -132,13 +123,11 @@ export class DatabaseStorage implements IStorage {
         // Use raw SQL to update the user ID since Drizzle doesn't support updating primary keys easily
         // First delete old FK references, then update user, then recreate FK references
         
-        // Get existing brand access and products for this user
+        // Get existing brand access for this user
         const existingBrandAccess = await db.select().from(userBrandAccess).where(eq(userBrandAccess.userId, oldId));
-        const existingUserProducts = await db.select().from(userProducts).where(eq(userProducts.userId, oldId));
         
         // Delete old FK references
         await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, oldId));
-        await db.delete(userProducts).where(eq(userProducts.userId, oldId));
         
         // Update orders to point to new ID (orders don't have unique constraint issues)
         await db.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
@@ -158,9 +147,6 @@ export class DatabaseStorage implements IStorage {
         // Recreate FK references with new user ID
         for (const access of existingBrandAccess) {
           await db.insert(userBrandAccess).values({ userId: newId, brand: access.brand }).onConflictDoNothing();
-        }
-        for (const product of existingUserProducts) {
-          await db.insert(userProducts).values({ userId: newId, productId: product.productId }).onConflictDoNothing();
         }
         
         return newUser;
@@ -209,8 +195,6 @@ export class DatabaseStorage implements IStorage {
   async deleteUser(userId: string): Promise<boolean> {
     // Delete user's brand access
     await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, userId));
-    // Delete user's product assignments
-    await db.delete(userProducts).where(eq(userProducts.userId, userId));
     // Delete the user
     const result = await db.delete(users).where(eq(users.id, userId));
     return result.rowCount !== null && result.rowCount > 0;
@@ -261,47 +245,8 @@ export class DatabaseStorage implements IStorage {
     if (!existing) {
       return false;
     }
-    await db.delete(userProducts).where(eq(userProducts.productId, id));
     await db.delete(products).where(eq(products.id, id));
     return true;
-  }
-
-  // User-Product assignment operations
-  async getUserProducts(userId: string): Promise<Product[]> {
-    const assignments = await db
-      .select({ productId: userProducts.productId })
-      .from(userProducts)
-      .where(eq(userProducts.userId, userId));
-    
-    if (assignments.length === 0) return [];
-    
-    const productIds = assignments.map(a => a.productId);
-    return db.select().from(products).where(inArray(products.id, productIds));
-  }
-
-  async assignProductToUser(assignment: InsertUserProduct): Promise<UserProduct> {
-    const [userProduct] = await db.insert(userProducts).values(assignment).returning();
-    return userProduct;
-  }
-
-  async assignProductsToUser(userId: string, productIds: string[]): Promise<void> {
-    if (productIds.length === 0) return;
-    
-    const assignments = productIds.map(productId => ({
-      userId,
-      productId,
-    }));
-    
-    await db.insert(userProducts).values(assignments).onConflictDoNothing();
-  }
-
-  async removeProductFromUser(userId: string, productId: string): Promise<void> {
-    await db.delete(userProducts).where(
-      and(
-        eq(userProducts.userId, userId),
-        eq(userProducts.productId, productId)
-      )
-    );
   }
 
   // User-Brand access operations

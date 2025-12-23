@@ -117,7 +117,6 @@ export const orderItems = pgTable("order_items", {
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
-  userProducts: many(userProducts),
   userBrandAccess: many(userBrandAccess),
   orders: many(orders),
 }));
@@ -130,19 +129,7 @@ export const userBrandAccessRelations = relations(userBrandAccess, ({ one }) => 
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({
-  userProducts: many(userProducts),
   orderItems: many(orderItems),
-}));
-
-export const userProductsRelations = relations(userProducts, ({ one }) => ({
-  user: one(users, {
-    fields: [userProducts.userId],
-    references: [users.id],
-  }),
-  product: one(products, {
-    fields: [userProducts.productId],
-    references: [products.id],
-  }),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -166,7 +153,6 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
-export const insertUserProductSchema = createInsertSchema(userProducts).omit({ id: true, createdAt: true });
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
@@ -209,8 +195,6 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
-export type UserProduct = typeof userProducts.$inferSelect;
-export type InsertUserProduct = z.infer<typeof insertUserProductSchema>;
 export type UserBrandAccess = typeof userBrandAccess.$inferSelect;
 export type InsertUserBrandAccess = z.infer<typeof insertUserBrandAccessSchema>;
 export type Order = typeof orders.$inferSelect;
