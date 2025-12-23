@@ -110,6 +110,7 @@ interface OrderEditFormData {
   actualDeliveryDate: string;
   deliveryCost: string;
   deliveryNote: string;
+  actualOrderValue: string;
 }
 
 const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"];
@@ -174,6 +175,7 @@ export default function OrdersPage() {
     actualDeliveryDate: "",
     deliveryCost: "",
     deliveryNote: "",
+    actualOrderValue: "",
   });
   const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; freeQuantity?: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -309,6 +311,7 @@ export default function OrdersPage() {
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
       if (updates.deliveryCost !== undefined) payload.deliveryCost = updates.deliveryCost || null;
       if (updates.deliveryNote !== undefined) payload.deliveryNote = updates.deliveryNote || null;
+      if (updates.actualOrderValue !== undefined) payload.actualOrderValue = updates.actualOrderValue || null;
 
       return apiRequest("PATCH", `/api/admin/orders/${id}`, payload);
     },
@@ -403,6 +406,7 @@ export default function OrdersPage() {
       actualDeliveryDate: order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toISOString().split("T")[0] : "",
       deliveryCost: order.deliveryCost || "",
       deliveryNote: order.deliveryNote || "",
+      actualOrderValue: order.actualOrderValue || "",
     });
     
     setLoadingItems(true);
@@ -425,6 +429,18 @@ export default function OrdersPage() {
 
   const handleInlineStatusUpdate = async (order: Order, newStatus: OrderStatus, e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // For Invoiced status, open the flyout to require mandatory fields
+    if (newStatus === "Invoiced") {
+      handleOrderClick(order);
+      // Set status to Invoiced so validation shows required fields
+      setTimeout(() => {
+        setEditFormData(prev => ({ ...prev, status: "Invoiced" }));
+      }, 100);
+      toast({ title: "Please fill in invoice details", description: "Invoice Number, Invoice Date, and Actual Order Value are required." });
+      return;
+    }
+    
     try {
       await apiRequest("PATCH", `/api/admin/orders/${order.id}`, { status: newStatus });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
@@ -441,6 +457,24 @@ export default function OrdersPage() {
 
   const handleSave = () => {
     if (!selectedOrder) return;
+    
+    // Validate mandatory fields when status is Invoiced
+    if (editFormData.status === "Invoiced") {
+      const missingFields: string[] = [];
+      if (!editFormData.invoiceNumber?.trim()) missingFields.push("Invoice Number");
+      if (!editFormData.invoiceDate?.trim()) missingFields.push("Invoice Date");
+      if (!editFormData.actualOrderValue?.trim()) missingFields.push("Actual Order Value");
+      
+      if (missingFields.length > 0) {
+        toast({
+          title: "Required fields missing",
+          description: `Please fill in: ${missingFields.join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     updateMutation.mutate({ id: selectedOrder.id, updates: editFormData });
   };
 
@@ -994,9 +1028,9 @@ export default function OrdersPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label htmlFor="invoiceNumber">Invoice No</Label>
+                        <Label htmlFor="invoiceNumber">Invoice No {editFormData.status === "Invoiced" && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="invoiceNumber"
                           value={editFormData.invoiceNumber}
@@ -1006,13 +1040,24 @@ export default function OrdersPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="invoiceDate">Invoice Date</Label>
+                        <Label htmlFor="invoiceDate">Invoice Date {editFormData.status === "Invoiced" && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="invoiceDate"
                           type="date"
                           value={editFormData.invoiceDate}
                           onChange={(e) => setEditFormData({ ...editFormData, invoiceDate: e.target.value })}
                           data-testid="input-invoice-date"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="actualOrderValue">Actual Value {editFormData.status === "Invoiced" && <span className="text-destructive">*</span>}</Label>
+                        <Input
+                          id="actualOrderValue"
+                          type="number"
+                          value={editFormData.actualOrderValue}
+                          onChange={(e) => setEditFormData({ ...editFormData, actualOrderValue: e.target.value })}
+                          placeholder="0.00"
+                          data-testid="input-actual-order-value"
                         />
                       </div>
                     </div>
@@ -1138,25 +1183,44 @@ export default function OrdersPage() {
                 </>
               ) : isBrandAdmin && selectedOrder.status === "Approved" ? (
                 <div className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Current Status:</span>
-                      <Badge className={statusColors[selectedOrder.status as OrderStatus]}>
-                        {selectedOrder.status}
-                      </Badge>
-                    </div>
-                    {selectedOrder.invoiceNumber && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Invoice:</span>
-                        <span>{selectedOrder.invoiceNumber}</span>
-                      </div>
-                    )}
-                  </div>
-                  
                   <div className="p-3 rounded-md bg-muted/50 border">
                     <p className="text-sm text-muted-foreground">
-                      As a Brand Admin, you can mark this order as Invoiced.
+                      Fill in the required invoice details to mark this order as Invoiced.
                     </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="brandAdminInvoiceNumber">Invoice No <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="brandAdminInvoiceNumber"
+                        value={editFormData.invoiceNumber}
+                        onChange={(e) => setEditFormData({ ...editFormData, invoiceNumber: e.target.value })}
+                        placeholder="INV-001"
+                        data-testid="input-brand-admin-invoice-number"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="brandAdminInvoiceDate">Invoice Date <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="brandAdminInvoiceDate"
+                        type="date"
+                        value={editFormData.invoiceDate}
+                        onChange={(e) => setEditFormData({ ...editFormData, invoiceDate: e.target.value })}
+                        data-testid="input-brand-admin-invoice-date"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="brandAdminActualValue">Actual Value <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="brandAdminActualValue"
+                        type="number"
+                        value={editFormData.actualOrderValue}
+                        onChange={(e) => setEditFormData({ ...editFormData, actualOrderValue: e.target.value })}
+                        placeholder="0.00"
+                        data-testid="input-brand-admin-actual-value"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-4">
@@ -1169,8 +1233,27 @@ export default function OrdersPage() {
                     </Button>
                     <Button
                       onClick={() => {
+                        const missingFields: string[] = [];
+                        if (!editFormData.invoiceNumber?.trim()) missingFields.push("Invoice Number");
+                        if (!editFormData.invoiceDate?.trim()) missingFields.push("Invoice Date");
+                        if (!editFormData.actualOrderValue?.trim()) missingFields.push("Actual Order Value");
+                        
+                        if (missingFields.length > 0) {
+                          toast({
+                            title: "Required fields missing",
+                            description: `Please fill in: ${missingFields.join(", ")}`,
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        
                         updateMutation.mutate(
-                          { id: selectedOrder.id, updates: { status: "Invoiced" } },
+                          { id: selectedOrder.id, updates: { 
+                            status: "Invoiced",
+                            invoiceNumber: editFormData.invoiceNumber,
+                            invoiceDate: editFormData.invoiceDate,
+                            actualOrderValue: editFormData.actualOrderValue
+                          } },
                           { onSuccess: () => setSelectedOrder(null) }
                         );
                       }}
