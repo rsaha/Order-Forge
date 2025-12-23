@@ -726,20 +726,20 @@ export default function OrdersPage() {
               <p>No orders found</p>
             </div>
           ) : (
-            <div className="border rounded-md">
-              <div className="overflow-x-scroll -webkit-overflow-scrolling-touch">
-                <table className="w-full text-sm" style={{ minWidth: '1000px' }}>
+            <div className="border rounded-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="text-left p-3 font-medium">Date</th>
-                      <th className="text-left p-3 font-medium">Party Name</th>
-                      <th className="text-left p-3 font-medium">Created By</th>
-                      <th className="text-left p-3 font-medium">Delivery Notes</th>
+                      <th className="text-left p-3 font-medium">Party</th>
+                      <th className="text-left p-3 font-medium hidden lg:table-cell">Created By</th>
+                      <th className="text-left p-3 font-medium hidden lg:table-cell">Notes</th>
                       <th className="text-left p-3 font-medium">Invoice</th>
-                      <th className="text-left p-3 font-medium">Delivery Co.</th>
+                      <th className="text-left p-3 font-medium hidden lg:table-cell">Delivery Co.</th>
                       <th className="text-left p-3 font-medium">Status</th>
-                      <th className="text-left p-3 font-medium">Delivery Date</th>
-                      <th className="text-right p-3 font-medium">Total</th>
+                      <th className="text-left p-3 font-medium">Del. Date</th>
+                      <th className="text-right p-3 font-medium hidden lg:table-cell">Total</th>
                       <th className="text-center p-3 font-medium">Actions</th>
                     </tr>
                   </thead>
@@ -757,10 +757,10 @@ export default function OrdersPage() {
                         <td className="p-3" data-testid={`text-party-${order.id}`}>
                           <div className="font-medium">{order.partyName || "Unknown"}</div>
                         </td>
-                        <td className="p-3" data-testid={`text-created-by-${order.id}`}>
+                        <td className="p-3 hidden lg:table-cell" data-testid={`text-created-by-${order.id}`}>
                           {(order as any).createdByName || (order as any).createdByEmail || "-"}
                         </td>
-                        <td className="p-3 max-w-[200px]" data-testid={`text-delivery-notes-${order.id}`}>
+                        <td className="p-3 max-w-[200px] hidden lg:table-cell" data-testid={`text-delivery-notes-${order.id}`}>
                           <div className="truncate" title={order.deliveryNote || ""}>
                             {order.deliveryNote || "-"}
                           </div>
@@ -775,7 +775,7 @@ export default function OrdersPage() {
                             </div>
                           ) : "-"}
                         </td>
-                        <td className="p-3" data-testid={`text-delivery-${order.id}`}>
+                        <td className="p-3 hidden lg:table-cell" data-testid={`text-delivery-${order.id}`}>
                           {order.deliveryCompany || "-"}
                         </td>
                         <td className="p-3" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Approved")) && e.stopPropagation()}>
@@ -830,7 +830,7 @@ export default function OrdersPage() {
                             <div>{formatDate(order.actualDeliveryDate)}</div>
                           ) : "-"}
                         </td>
-                        <td className="p-3 text-right font-medium whitespace-nowrap" data-testid={`text-total-${order.id}`}>
+                        <td className="p-3 text-right font-medium whitespace-nowrap hidden lg:table-cell" data-testid={`text-total-${order.id}`}>
                           {formatINR(order.actualOrderValue || order.total)}
                         </td>
                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
