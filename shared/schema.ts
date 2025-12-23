@@ -175,6 +175,7 @@ export const updateOrderSchema = z.object({
   deliveryCost: z.string().nullable().optional(),
   deliveryNote: z.string().nullable().optional(),
   deliveryCompany: z.enum(DELIVERY_COMPANY_OPTIONS).nullable().optional(),
+  actualOrderValue: z.string().nullable().optional(),
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
