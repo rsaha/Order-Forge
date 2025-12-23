@@ -86,6 +86,10 @@ export interface BulkOrderSummary {
     total: string;
     cases: number | null;
     deliveryAddress: string | null;
+    dispatchBy: string | null;
+    invoiceNumber: string | null;
+    invoiceDate: Date | null;
+    estimatedDeliveryDate: Date | null;
   }>;
 }
 
@@ -472,6 +476,10 @@ export class DatabaseStorage implements IStorage {
         partyName: orders.partyName,
         deliveryAddress: orders.deliveryAddress,
         deliveryCompany: orders.deliveryCompany,
+        dispatchBy: orders.dispatchBy,
+        invoiceNumber: orders.invoiceNumber,
+        invoiceDate: orders.invoiceDate,
+        estimatedDeliveryDate: orders.estimatedDeliveryDate,
       })
       .from(orders)
       .where(and(...conditions))
@@ -486,6 +494,10 @@ export class DatabaseStorage implements IStorage {
         partyName: orders.partyName,
         deliveryAddress: orders.deliveryAddress,
         deliveryCompany: orders.deliveryCompany,
+        dispatchBy: orders.dispatchBy,
+        invoiceNumber: orders.invoiceNumber,
+        invoiceDate: orders.invoiceDate,
+        estimatedDeliveryDate: orders.estimatedDeliveryDate,
       })
       .from(orders)
       .orderBy(orders.brand, orders.deliveryCompany);
@@ -518,6 +530,10 @@ export class DatabaseStorage implements IStorage {
         total: order.total,
         cases: order.cases,
         deliveryAddress: order.deliveryAddress,
+        dispatchBy: order.dispatchBy,
+        invoiceNumber: order.invoiceNumber,
+        invoiceDate: order.invoiceDate,
+        estimatedDeliveryDate: order.estimatedDeliveryDate,
       });
     }
     
