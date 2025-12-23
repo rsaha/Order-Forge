@@ -7,6 +7,7 @@ import {
   DrawerFooter,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm from "./OrderDetailsForm";
@@ -85,9 +86,20 @@ function MobileCartItem({
             >
               <Minus className="w-4 h-4" />
             </Button>
-            <div className="w-12 h-9 flex items-center justify-center text-sm font-medium border-x">
-              {item.quantity}
-            </div>
+            <Input
+              type="number"
+              value={item.quantity}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val >= 1) {
+                  onQuantityChange(item.product.id, val);
+                }
+              }}
+              onFocus={(e) => e.target.select()}
+              className="w-14 h-9 text-center text-sm font-medium border-0 border-x rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              min={1}
+              data-testid={`mobile-input-quantity-${item.product.id}`}
+            />
             <Button
               size="icon"
               variant="ghost"
@@ -112,9 +124,20 @@ function MobileCartItem({
             >
               <Minus className="w-4 h-4" />
             </Button>
-            <div className="w-10 h-9 flex items-center justify-center text-sm font-medium border-x">
-              {item.freeQuantity}
-            </div>
+            <Input
+              type="number"
+              value={item.freeQuantity}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val >= 0) {
+                  onFreeQuantityChange(item.product.id, val);
+                }
+              }}
+              onFocus={(e) => e.target.select()}
+              className="w-12 h-9 text-center text-sm font-medium border-0 border-x rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              min={0}
+              data-testid={`mobile-input-free-${item.product.id}`}
+            />
             <Button
               size="icon"
               variant="ghost"

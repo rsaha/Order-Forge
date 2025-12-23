@@ -34,6 +34,10 @@ export default function QuantitySelector({
     }
   };
 
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
+
   return (
     <div className="flex items-center gap-1">
       <Button
@@ -49,6 +53,7 @@ export default function QuantitySelector({
         type="number"
         value={quantity}
         onChange={handleInputChange}
+        onFocus={handleFocus}
         className="w-16 text-center h-9"
         min={min}
         max={max}
