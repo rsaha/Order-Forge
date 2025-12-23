@@ -1584,8 +1584,8 @@ export default function OrdersPage() {
                           : `Transport: ${group.deliveryCompany}`;
                         
                         const message = bulkType === "dispatched"
-                          ? `*${group.brand} - Orders Dispatched Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}`
-                          : `*${group.brand} - Orders Delivered Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}`;
+                          ? `*${group.brand} - Orders Dispatched Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}`
+                          : `*${group.brand} - Orders Delivered Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}`;
                         
                         const encoded = encodeURIComponent(message);
                         window.open(`https://wa.me/?text=${encoded}`, "_blank");
