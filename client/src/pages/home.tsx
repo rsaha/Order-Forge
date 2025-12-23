@@ -23,7 +23,8 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -200,6 +201,35 @@ export default function Home() {
     if (!productToDelete) return;
     deleteProductMutation.mutate(productToDelete.id);
   }, [productToDelete, deleteProductMutation]);
+
+  const handleExportMorisonsProducts = useCallback(() => {
+    const morisonsProducts = products.filter(p => p.brand === "Morisons");
+    if (morisonsProducts.length === 0) {
+      toast({ title: "No Morisons products found", variant: "destructive" });
+      return;
+    }
+
+    const worksheetData = [
+      ["SKU", "Name", "Brand", "Size", "MRP", "Aliases"],
+      ...morisonsProducts.map(p => [
+        p.sku,
+        p.name,
+        p.brand,
+        p.size || "",
+        p.price,
+        (p as any).aliases || "",
+      ]),
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Morisons Products");
+
+    const date = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(workbook, `Morisons_Products_${date}.xlsx`);
+
+    toast({ title: `Exported ${morisonsProducts.length} Morisons products` });
+  }, [products, toast]);
 
   const formatINR = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -624,7 +654,19 @@ export default function Home() {
             ) : (
               <>
                 <div className="p-4 space-y-4 border-b bg-background sticky top-16 z-40">
-                  <SearchBar value={searchQuery} onChange={setSearchQuery} />
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={handleExportMorisonsProducts}
+                      data-testid="button-export-morisons"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Morisons
+                    </Button>
+                  </div>
                   <BrandFilter
                     brands={brands}
                     selectedBrand={selectedBrand}
