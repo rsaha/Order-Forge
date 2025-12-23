@@ -57,6 +57,7 @@ import {
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
+import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"];
 
@@ -443,7 +444,7 @@ export default function OrdersPage() {
     updateMutation.mutate({ id: selectedOrder.id, updates: editFormData });
   };
 
-  const handleDownloadCSV = async (order: Order, e: React.MouseEvent) => {
+  const handleDownloadXLS = async (order: Order, e: React.MouseEvent) => {
     e.stopPropagation();
     
     try {
@@ -453,36 +454,28 @@ export default function OrdersPage() {
       const data = await res.json();
       const items = data.items || [];
       
-      const csvRows = [
-        ["Product", "MRP", "Qty", "Free Qty"].join(","),
-        ...items.map((item: { productName?: string; unitPrice?: string; quantity: number; freeQuantity?: number }) => 
-          [
-            `"${(item.productName || "Unknown").replace(/"/g, '""')}"`,
-            item.unitPrice || "0",
-            item.quantity,
-            item.freeQuantity || 0
-          ].join(",")
-        )
+      const worksheetData = [
+        ["Product", "MRP", "Qty", "Free Qty"],
+        ...items.map((item: { productName?: string; unitPrice?: string; quantity: number; freeQuantity?: number }) => [
+          item.productName || "Unknown",
+          item.unitPrice || "0",
+          item.quantity,
+          item.freeQuantity || 0,
+        ]),
       ];
       
-      const csvContent = csvRows.join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Order");
       
       const brand = order.partyName ? order.partyName.split(" ")[0] : "Order";
       const partyName = order.partyName || "Unknown";
       const date = order.createdAt ? new Date(order.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
-      const filename = `${brand}_${partyName}_${date}.csv`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+      const filename = `${brand}_${partyName}_${date}.xlsx`.replace(/[^a-zA-Z0-9_.-]/g, "_");
       
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      XLSX.writeFile(workbook, filename);
       
-      toast({ title: "CSV downloaded" });
+      toast({ title: "Excel file downloaded" });
     } catch (error: any) {
       toast({ title: "Download failed", description: error.message, variant: "destructive" });
     }
@@ -820,7 +813,7 @@ export default function OrdersPage() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                onClick={(e) => handleDownloadCSV(order, e)}
+                                onClick={(e) => handleDownloadXLS(order, e)}
                                 data-testid={`button-download-${order.id}`}
                               >
                                 <Download className="w-4 h-4" />
