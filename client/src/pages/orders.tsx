@@ -1553,7 +1553,7 @@ export default function OrdersPage() {
                     <div>
                       <h3 className="font-semibold">{group.brand} - {group.deliveryCompany}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {group.orderCount} orders | {formatINR(group.totalValue)} | {group.totalCases || 0} cases
+                        {formatINR(group.totalValue)}
                       </p>
                     </div>
                     <Button
@@ -1567,7 +1567,7 @@ export default function OrdersPage() {
                         };
                         
                         const orderLines = group.orders.map(o => {
-                          let line = `- ${o.partyName || "Unknown"}: ${formatINR(o.total)} (${o.cases || 0} cases)`;
+                          let line = `- ${o.partyName || "Unknown"}: ${formatINR(o.actualOrderValue || o.total)}`;
                           if (o.invoiceNumber) {
                             line += `\n  Inv: ${o.invoiceNumber}`;
                             if (o.invoiceDate) line += ` (${formatDate(o.invoiceDate)})`;
@@ -1584,8 +1584,8 @@ export default function OrdersPage() {
                           : `Transport: ${group.deliveryCompany}`;
                         
                         const message = bulkType === "dispatched"
-                          ? `*${group.brand} - Orders Dispatched Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`
-                          : `*${group.brand} - Orders Delivered Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`;
+                          ? `*${group.brand} - Orders Dispatched Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}`
+                          : `*${group.brand} - Orders Delivered Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders:*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}`;
                         
                         const encoded = encodeURIComponent(message);
                         window.open(`https://wa.me/?text=${encoded}`, "_blank");
