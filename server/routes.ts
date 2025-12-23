@@ -790,13 +790,8 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
-      // Admins get all products for matching, regular users only get their assigned brands
-      let userProducts;
-      if (user?.isAdmin) {
-        userProducts = await storage.getAllProducts();
-      } else {
-        userProducts = await storage.getUserProducts(userId);
-      }
+      // Get products based on user role - admins get all, others get brand-based access
+      const userProducts = await storage.getUserProductsByBrand(userId, user?.isAdmin ?? false);
 
       const matchedItems = parsedItems.map(item => {
         const productRef = item.productRef.trim();
