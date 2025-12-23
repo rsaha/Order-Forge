@@ -57,17 +57,6 @@ export const products = pgTable("products", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// User-Product assignments - which products each user can access
-export const userProducts = pgTable("user_products", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  productId: varchar("product_id").notNull().references(() => products.id),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_user_products_user").on(table.userId),
-  index("idx_user_products_product").on(table.productId),
-]);
-
 // Order status values
 export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
