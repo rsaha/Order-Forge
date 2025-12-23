@@ -202,16 +202,16 @@ export default function Home() {
     deleteProductMutation.mutate(productToDelete.id);
   }, [productToDelete, deleteProductMutation]);
 
-  const handleExportMorisonsProducts = useCallback(() => {
-    const morisonsProducts = products.filter(p => p.brand === "Morisons");
-    if (morisonsProducts.length === 0) {
-      toast({ title: "No Morisons products found", variant: "destructive" });
+  const handleExportMorisonProducts = useCallback(() => {
+    const morisonProducts = products.filter(p => p.brand === "Morison");
+    if (morisonProducts.length === 0) {
+      toast({ title: "No Morison products found", variant: "destructive" });
       return;
     }
 
     const worksheetData = [
       ["SKU", "Name", "Brand", "Size", "MRP", "Aliases"],
-      ...morisonsProducts.map(p => [
+      ...morisonProducts.map(p => [
         p.sku,
         p.name,
         p.brand,
@@ -223,12 +223,12 @@ export default function Home() {
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Morisons Products");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Morison Products");
 
     const date = new Date().toISOString().split("T")[0];
-    XLSX.writeFile(workbook, `Morisons_Products_${date}.xlsx`);
+    XLSX.writeFile(workbook, `Morison_Products_${date}.xlsx`);
 
-    toast({ title: `Exported ${morisonsProducts.length} Morisons products` });
+    toast({ title: `Exported ${morisonProducts.length} Morison products` });
   }, [products, toast]);
 
   const formatINR = (amount: number) => {
@@ -660,11 +660,11 @@ export default function Home() {
                     </div>
                     <Button
                       variant="outline"
-                      onClick={handleExportMorisonsProducts}
-                      data-testid="button-export-morisons"
+                      onClick={handleExportMorisonProducts}
+                      data-testid="button-export-morison"
                     >
                       <Download className="w-4 h-4 mr-2" />
-                      Export Morisons
+                      Export Morison
                     </Button>
                   </div>
                   <BrandFilter
