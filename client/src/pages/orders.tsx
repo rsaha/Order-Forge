@@ -468,7 +468,7 @@ export default function OrdersPage() {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Order");
       
-      const brand = order.partyName ? order.partyName.split(" ")[0] : "Order";
+      const brand = order.brand || "Order";
       const partyName = order.partyName || "Unknown";
       const date = order.createdAt ? new Date(order.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
       const filename = `${brand}_${partyName}_${date}.xlsx`.replace(/[^a-zA-Z0-9_.-]/g, "_");
