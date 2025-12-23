@@ -729,7 +729,7 @@ export default function OrdersPage() {
           ) : (
             <div className="border rounded-md overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[900px]">
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="text-left p-3 font-medium">Date</th>
@@ -832,7 +832,7 @@ export default function OrdersPage() {
                           ) : "-"}
                         </td>
                         <td className="p-3 text-right font-medium whitespace-nowrap" data-testid={`text-total-${order.id}`}>
-                          {formatINR(order.total)}
+                          {formatINR(order.actualOrderValue || order.total)}
                         </td>
                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
