@@ -727,9 +727,9 @@ export default function OrdersPage() {
               <p>No orders found</p>
             </div>
           ) : (
-            <div className="border rounded-md overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[900px]">
+            <div className="border rounded-md">
+              <div className="overflow-x-scroll -webkit-overflow-scrolling-touch">
+                <table className="w-full text-sm" style={{ minWidth: '1000px' }}>
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="text-left p-3 font-medium">Date</th>
