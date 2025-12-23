@@ -98,10 +98,13 @@ export class DatabaseStorage implements IStorage {
     const existingByEmail = userData.email ? 
       await db.select().from(users).where(eq(users.email, userData.email)).then(r => r[0]) : null;
     
+    const existingUser = existingById || existingByEmail;
+    
+    // Only update names if new values are provided, otherwise preserve existing
     const updateData = {
       email: userData.email,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
+      firstName: userData.firstName || existingUser?.firstName || null,
+      lastName: userData.lastName || existingUser?.lastName || null,
       profileImageUrl: userData.profileImageUrl,
       updatedAt: new Date(),
     };
@@ -139,6 +142,8 @@ export class DatabaseStorage implements IStorage {
           .insert(users)
           .values({
             ...userData,
+            firstName: userData.firstName || existingByEmail.firstName || null,
+            lastName: userData.lastName || existingByEmail.lastName || null,
             isAdmin: existingByEmail.isAdmin,
             role: existingByEmail.role,
           })
