@@ -141,6 +141,10 @@ interface BulkOrderSummary {
     total: string;
     cases: number | null;
     deliveryAddress: string | null;
+    dispatchBy: string | null;
+    invoiceNumber: string | null;
+    invoiceDate: string | null;
+    estimatedDeliveryDate: string | null;
   }>;
 }
 
@@ -1492,13 +1496,31 @@ export default function OrdersPage() {
                       className="gap-2"
                       onClick={() => {
                         const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-                        const orderLines = group.orders.map(o => 
-                          `- ${o.partyName || "Unknown"}: ${formatINR(o.total)} (${o.cases || 0} cases)`
-                        ).join("\n");
+                        const formatDate = (dateStr: string | null) => {
+                          if (!dateStr) return null;
+                          return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                        };
+                        
+                        const orderLines = group.orders.map(o => {
+                          let line = `- ${o.partyName || "Unknown"}: ${formatINR(o.total)} (${o.cases || 0} cases)`;
+                          if (o.invoiceNumber) {
+                            line += `\n  Inv: ${o.invoiceNumber}`;
+                            if (o.invoiceDate) line += ` (${formatDate(o.invoiceDate)})`;
+                          }
+                          if (bulkType === "dispatched" && o.estimatedDeliveryDate) {
+                            line += `\n  ETA: ${formatDate(o.estimatedDeliveryDate)}`;
+                          }
+                          return line;
+                        }).join("\n");
+                        
+                        const dispatchByInfo = group.orders.find(o => o.dispatchBy)?.dispatchBy;
+                        const transportLine = dispatchByInfo 
+                          ? `Transport/Dispatch By: ${dispatchByInfo}` 
+                          : `Transport: ${group.deliveryCompany}`;
                         
                         const message = bulkType === "dispatched"
-                          ? `*${group.brand} - Orders Dispatched Today*\n\nTransport: ${group.deliveryCompany}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`
-                          : `*${group.brand} - Orders Delivered Today*\n\nTransport: ${group.deliveryCompany}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`;
+                          ? `*${group.brand} - Orders Dispatched Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`
+                          : `*${group.brand} - Orders Delivered Today*\n\n${transportLine}\nDate: ${today}\n\n*Orders (${group.orderCount}):*\n${orderLines}\n\n*Total Value:* ${formatINR(group.totalValue)}\n*Total Cases:* ${group.totalCases || 0}`;
                         
                         const encoded = encodeURIComponent(message);
                         window.open(`https://wa.me/?text=${encoded}`, "_blank");
