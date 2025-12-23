@@ -715,7 +715,7 @@ export default function OrdersPage() {
         </div>
       </header>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <div className="p-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -876,7 +876,7 @@ export default function OrdersPage() {
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       <Dialog open={!!selectedOrder} onOpenChange={async (open) => {
         if (!open) {
