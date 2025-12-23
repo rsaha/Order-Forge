@@ -624,8 +624,8 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      <header className="flex flex-col gap-3 p-4 border-b bg-background">
+    <div className="flex flex-col h-screen min-h-0">
+      <header className="flex-shrink-0 flex flex-col gap-3 p-4 border-b bg-background">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/">
@@ -715,8 +715,7 @@ export default function OrdersPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
+      <div className="flex-1 min-h-0 overflow-auto p-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -875,7 +874,6 @@ export default function OrdersPage() {
               </div>
             </div>
           )}
-        </div>
       </div>
 
       <Dialog open={!!selectedOrder} onOpenChange={async (open) => {
