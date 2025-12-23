@@ -788,7 +788,15 @@ export async function registerRoutes(
 
       // Try to match parsed items with user's products using fuzzy matching
       const userId = req.user.claims.sub;
-      const userProducts = await storage.getUserProducts(userId);
+      const user = await storage.getUser(userId);
+      
+      // Admins get all products for matching, regular users only get their assigned brands
+      let userProducts;
+      if (user?.isAdmin) {
+        userProducts = await storage.getAllProducts();
+      } else {
+        userProducts = await storage.getUserProducts(userId);
+      }
 
       const matchedItems = parsedItems.map(item => {
         const productRef = item.productRef.trim();
