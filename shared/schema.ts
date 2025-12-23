@@ -102,6 +102,7 @@ export const orders = pgTable("orders", {
   deliveryCost: numeric("delivery_cost", { precision: 10, scale: 2 }),
   deliveryNote: text("delivery_note"),
   deliveryCompany: varchar("delivery_company"),
+  actualOrderValue: numeric("actual_order_value", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
