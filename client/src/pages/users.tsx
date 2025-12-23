@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Header from "@/components/Header";
@@ -13,7 +13,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { 
+  ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2, 
+  ChevronDown, ChevronRight, Pencil, X, Check
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +28,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { User, UserRole, Brand } from "@shared/schema";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import type { User, UserRole } from "@shared/schema";
 import { BRAND_OPTIONS, USER_ROLES } from "@shared/schema";
 
 interface UserWithBrands extends User {
@@ -35,9 +44,17 @@ export default function UsersPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editingBrandsUserId, setEditingBrandsUserId] = useState<string | null>(null);
   const [editingBrands, setEditingBrands] = useState<string[]>([]);
+  const [editingNameUserId, setEditingNameUserId] = useState<string | null>(null);
+  const [editingFirstName, setEditingFirstName] = useState("");
+  const [editingLastName, setEditingLastName] = useState("");
   const [userToDelete, setUserToDelete] = useState<UserWithBrands | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    Admin: true,
+    BrandAdmin: true,
+    User: true,
+  });
 
   const isAdmin = user?.isAdmin === true;
 
@@ -46,23 +63,49 @@ export default function UsersPage() {
     enabled: isAdmin,
   });
 
+  const usersByRole = useMemo(() => {
+    const grouped: Record<string, UserWithBrands[]> = {
+      Admin: [],
+      BrandAdmin: [],
+      User: [],
+    };
+    
+    users.forEach((u) => {
+      const role = u.role || "User";
+      if (grouped[role]) {
+        grouped[role].push(u);
+      } else {
+        grouped["User"].push(u);
+      }
+    });
+    
+    return grouped;
+  }, [users]);
+
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       return apiRequest("PATCH", `/api/admin/users/${userId}/role`, { role });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({
-        title: "Role updated",
-        description: "User role has been changed successfully",
-      });
+      toast({ title: "Role updated" });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to update role",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to update role", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateNameMutation = useMutation({
+    mutationFn: async ({ userId, firstName, lastName }: { userId: string; firstName: string; lastName: string }) => {
+      return apiRequest("PATCH", `/api/admin/users/${userId}/name`, { firstName, lastName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingNameUserId(null);
+      toast({ title: "Name updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update name", description: error.message, variant: "destructive" });
     },
   });
 
@@ -72,18 +115,11 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingUserId(null);
-      toast({
-        title: "Brand access updated",
-        description: "User brand access has been saved",
-      });
+      setEditingBrandsUserId(null);
+      toast({ title: "Brand access updated" });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to update brand access",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to update brand access", description: error.message, variant: "destructive" });
     },
   });
 
@@ -94,17 +130,10 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setUserToDelete(null);
-      toast({
-        title: "User deleted",
-        description: "The user has been removed",
-      });
+      toast({ title: "User deleted" });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to delete user",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to delete user", description: error.message, variant: "destructive" });
     },
   });
 
@@ -112,8 +141,30 @@ export default function UsersPage() {
     updateRoleMutation.mutate({ userId, role });
   };
 
+  const handleEditName = (u: UserWithBrands) => {
+    setEditingNameUserId(u.id);
+    setEditingFirstName(u.firstName || "");
+    setEditingLastName(u.lastName || "");
+  };
+
+  const handleSaveName = () => {
+    if (editingNameUserId) {
+      updateNameMutation.mutate({ 
+        userId: editingNameUserId, 
+        firstName: editingFirstName.trim(), 
+        lastName: editingLastName.trim() 
+      });
+    }
+  };
+
+  const handleCancelNameEdit = () => {
+    setEditingNameUserId(null);
+    setEditingFirstName("");
+    setEditingLastName("");
+  };
+
   const handleEditBrands = (userId: string, currentBrands: string[]) => {
-    setEditingUserId(userId);
+    setEditingBrandsUserId(userId);
     setEditingBrands([...currentBrands]);
   };
 
@@ -124,14 +175,18 @@ export default function UsersPage() {
   };
 
   const handleSaveBrands = () => {
-    if (editingUserId) {
-      updateBrandsMutation.mutate({ userId: editingUserId, brands: editingBrands });
+    if (editingBrandsUserId) {
+      updateBrandsMutation.mutate({ userId: editingBrandsUserId, brands: editingBrands });
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingUserId(null);
+  const handleCancelBrandsEdit = () => {
+    setEditingBrandsUserId(null);
     setEditingBrands([]);
+  };
+
+  const toggleSection = (role: string) => {
+    setExpandedSections(prev => ({ ...prev, [role]: !prev[role] }));
   };
 
   const getRoleIcon = (role: string | null) => {
@@ -147,13 +202,17 @@ export default function UsersPage() {
 
   const getRoleBadgeVariant = (role: string | null) => {
     switch (role) {
-      case "Admin":
-        return "destructive";
-      case "BrandAdmin":
-        return "secondary";
-      default:
-        return "outline";
+      case "Admin": return "destructive";
+      case "BrandAdmin": return "secondary";
+      default: return "outline";
     }
+  };
+
+  const getDisplayName = (u: UserWithBrands) => {
+    if (u.firstName || u.lastName) {
+      return `${u.firstName || ""} ${u.lastName || ""}`.trim();
+    }
+    return u.email?.split("@")[0] || "Unnamed";
   };
 
   if (!isAdmin) {
@@ -172,26 +231,219 @@ export default function UsersPage() {
     );
   }
 
+  const renderUserRow = (u: UserWithBrands) => {
+    const isEditingName = editingNameUserId === u.id;
+    const isEditingBrands = editingBrandsUserId === u.id;
+
+    return (
+      <div 
+        key={u.id} 
+        className="flex flex-col gap-2 py-2 px-3 border-b last:border-b-0 hover-elevate"
+        data-testid={`row-user-${u.id}`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Avatar className="w-7 h-7 flex-shrink-0">
+            <AvatarImage src={u.profileImageUrl || undefined} alt={u.firstName || "User"} />
+            <AvatarFallback className="text-xs">
+              {(u.firstName?.[0] || u.email?.[0] || "U").toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+
+          {isEditingName ? (
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <Input
+                value={editingFirstName}
+                onChange={(e) => setEditingFirstName(e.target.value)}
+                placeholder="First"
+                className="text-sm w-24"
+                data-testid={`input-firstname-${u.id}`}
+              />
+              <Input
+                value={editingLastName}
+                onChange={(e) => setEditingLastName(e.target.value)}
+                placeholder="Last"
+                className="text-sm w-24"
+                data-testid={`input-lastname-${u.id}`}
+              />
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={handleSaveName}
+                disabled={updateNameMutation.isPending}
+                data-testid={`button-save-name-${u.id}`}
+              >
+                {updateNameMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </Button>
+              <Button size="icon" variant="ghost" onClick={handleCancelNameEdit} data-testid={`button-cancel-name-${u.id}`}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <span className="font-medium text-sm truncate" data-testid={`text-user-name-${u.id}`}>
+                {getDisplayName(u)}
+              </span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => handleEditName(u)}
+                className="opacity-60"
+                data-testid={`button-edit-name-${u.id}`}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          <span className="text-xs text-muted-foreground truncate max-w-[150px] hidden sm:block" data-testid={`text-user-email-${u.id}`}>
+            {u.email}
+          </span>
+
+          <Select
+            value={u.role || "User"}
+            onValueChange={(value) => handleRoleChange(u.id, value)}
+            disabled={updateRoleMutation.isPending}
+          >
+            <SelectTrigger className="w-28 text-xs" data-testid={`select-role-${u.id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {USER_ROLES.map((role) => (
+                <SelectItem key={role} value={role}>
+                  <div className="flex items-center gap-1">
+                    {getRoleIcon(role)}
+                    <span className="text-xs">{role}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {u.id !== user?.id && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setUserToDelete(u)}
+              className="text-destructive"
+              data-testid={`button-delete-user-${u.id}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 ml-9">
+          <span className="text-xs text-muted-foreground">Brands:</span>
+          {isEditingBrands ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {BRAND_OPTIONS.map((brand) => (
+                <Badge
+                  key={brand}
+                  variant={editingBrands.includes(brand) ? "default" : "outline"}
+                  className="text-xs cursor-pointer"
+                  onClick={() => handleBrandToggle(brand)}
+                  data-testid={`badge-brand-${u.id}-${brand}`}
+                >
+                  {brand}
+                </Badge>
+              ))}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={handleSaveBrands}
+                disabled={updateBrandsMutation.isPending}
+                data-testid={`button-save-brands-${u.id}`}
+              >
+                {updateBrandsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancelBrandsEdit} data-testid={`button-cancel-brands-${u.id}`}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1">
+              {u.brandAccess.length > 0 ? (
+                u.brandAccess.map((brand) => (
+                  <Badge key={brand} variant="secondary" className="text-xs">
+                    {brand}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">None</span>
+              )}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => handleEditBrands(u.id, u.brandAccess)}
+                className="opacity-60"
+                data-testid={`button-edit-brands-${u.id}`}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRoleSection = (role: string, usersInRole: UserWithBrands[]) => {
+    const isExpanded = expandedSections[role];
+    const count = usersInRole.length;
+
+    return (
+      <Collapsible key={role} open={isExpanded} onOpenChange={() => toggleSection(role)}>
+        <CollapsibleTrigger asChild>
+          <div 
+            className="flex items-center gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover-elevate rounded-t-md"
+            data-testid={`button-toggle-${role.toLowerCase()}-section`}
+          >
+            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {getRoleIcon(role)}
+            <span className="font-medium text-sm">{role}s</span>
+            <Badge variant={getRoleBadgeVariant(role) as any} className="text-xs">
+              {count}
+            </Badge>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Card className="rounded-t-none border-t-0">
+            {usersInRole.length > 0 ? (
+              usersInRole.map(renderUserRow)
+            ) : (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                No {role.toLowerCase()}s
+              </div>
+            )}
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-50 bg-background border-b">
-        <div className="flex items-center justify-between gap-4 px-4 h-16">
+        <div className="flex items-center justify-between gap-4 px-4 h-14">
           <Header onCartClick={() => {}} cartItemCount={0} isAdmin={isAdmin} showTabs={false} />
         </div>
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="border-b bg-card">
-          <div className="flex items-center gap-4 px-4 py-3">
+          <div className="flex items-center gap-2 px-4 py-2">
             <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <h1 className="text-lg font-semibold" data-testid="text-page-title">User Management</h1>
+            <Badge variant="outline" className="ml-auto">
+              {users.length} users
+            </Badge>
           </div>
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-3 max-w-4xl mx-auto">
             {isLoading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -201,139 +453,11 @@ export default function UsersPage() {
                 <p className="text-muted-foreground">No users found</p>
               </Card>
             ) : (
-              users.map((u) => (
-                <Card key={u.id} className="p-4" data-testid={`card-user-${u.id}`}>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={u.profileImageUrl || undefined} alt={u.firstName || "User"} />
-                        <AvatarFallback>
-                          {(u.firstName?.[0] || u.email?.[0] || "U").toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate" data-testid={`text-user-name-${u.id}`}>
-                          {u.firstName || u.lastName ? `${u.firstName || ""} ${u.lastName || ""}`.trim() : "Unnamed User"}
-                        </p>
-                        <p className="text-sm text-muted-foreground truncate" data-testid={`text-user-email-${u.id}`}>
-                          {u.email || "No email"}
-                        </p>
-                      </div>
-                      <Badge variant={getRoleBadgeVariant(u.role) as any} className="flex items-center gap-1">
-                        {getRoleIcon(u.role)}
-                        {u.role || "User"}
-                      </Badge>
-                      {u.id !== user?.id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setUserToDelete(u)}
-                          className="text-destructive hover:text-destructive"
-                          data-testid={`button-delete-user-${u.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm text-muted-foreground min-w-16">Role:</Label>
-                      <Select
-                        value={u.role || "User"}
-                        onValueChange={(value) => handleRoleChange(u.id, value)}
-                        disabled={updateRoleMutation.isPending}
-                      >
-                        <SelectTrigger className="w-40" data-testid={`select-role-${u.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {USER_ROLES.map((role) => (
-                            <SelectItem key={role} value={role}>
-                              <div className="flex items-center gap-2">
-                                {getRoleIcon(role)}
-                                {role}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-sm text-muted-foreground">Brand Access:</Label>
-                        {editingUserId === u.id ? (
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleCancelEdit}
-                              disabled={updateBrandsMutation.isPending}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={handleSaveBrands}
-                              disabled={updateBrandsMutation.isPending}
-                              data-testid={`button-save-brands-${u.id}`}
-                            >
-                              {updateBrandsMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Save className="w-4 h-4 mr-1" />
-                              )}
-                              Save
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditBrands(u.id, u.brandAccess)}
-                            data-testid={`button-edit-brands-${u.id}`}
-                          >
-                            Edit
-                          </Button>
-                        )}
-                      </div>
-
-                      {editingUserId === u.id ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                          {BRAND_OPTIONS.map((brand) => (
-                            <div key={brand} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`brand-${u.id}-${brand}`}
-                                checked={editingBrands.includes(brand)}
-                                onCheckedChange={() => handleBrandToggle(brand)}
-                                data-testid={`checkbox-brand-${u.id}-${brand}`}
-                              />
-                              <Label
-                                htmlFor={`brand-${u.id}-${brand}`}
-                                className="text-sm cursor-pointer"
-                              >
-                                {brand}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {u.brandAccess.length > 0 ? (
-                            u.brandAccess.map((brand) => (
-                              <Badge key={brand} variant="secondary" className="text-xs">
-                                {brand}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">No brands assigned</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              ))
+              <>
+                {renderRoleSection("Admin", usersByRole.Admin)}
+                {renderRoleSection("BrandAdmin", usersByRole.BrandAdmin)}
+                {renderRoleSection("User", usersByRole.User)}
+              </>
             )}
           </div>
         </ScrollArea>

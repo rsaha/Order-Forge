@@ -879,6 +879,30 @@ export async function registerRoutes(
     }
   });
 
+  // Update user name (Admin only)
+  app.patch('/api/admin/users/:id/name', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.id;
+      const { firstName, lastName } = req.body;
+
+      const updatedUser = await storage.updateUserName(targetUserId, firstName ?? null, lastName ?? null);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user name:", error);
+      res.status(500).json({ message: "Failed to update user name" });
+    }
+  });
+
   // Delete a user (Admin only)
   app.delete('/api/admin/users/:id', isAuthenticated, async (req: any, res) => {
     try {

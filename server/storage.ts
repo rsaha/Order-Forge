@@ -29,6 +29,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
+  updateUserName(userId: string, firstName: string | null, lastName: string | null): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
   
   // Product operations
@@ -191,6 +192,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(users)
       .set({ role, isAdmin, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserName(userId: string, firstName: string | null, lastName: string | null): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ firstName, lastName, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return updated;
