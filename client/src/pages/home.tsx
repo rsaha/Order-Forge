@@ -202,16 +202,21 @@ export default function Home() {
     deleteProductMutation.mutate(productToDelete.id);
   }, [productToDelete, deleteProductMutation]);
 
-  const handleExportMorisonProducts = useCallback(() => {
-    const morisonProducts = products.filter(p => p.brand === "Morison");
-    if (morisonProducts.length === 0) {
-      toast({ title: "No Morison products found", variant: "destructive" });
+  const handleExportProducts = useCallback(() => {
+    if (!selectedBrand) {
+      toast({ title: "Please select a brand to export", variant: "destructive" });
+      return;
+    }
+
+    const brandProducts = products.filter(p => p.brand === selectedBrand);
+    if (brandProducts.length === 0) {
+      toast({ title: `No ${selectedBrand} products found`, variant: "destructive" });
       return;
     }
 
     const worksheetData = [
       ["SKU", "Name", "Brand", "Size", "MRP", "Aliases"],
-      ...morisonProducts.map(p => [
+      ...brandProducts.map(p => [
         p.sku,
         p.name,
         p.brand,
@@ -223,13 +228,13 @@ export default function Home() {
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Morison Products");
+    XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedBrand} Products`);
 
     const date = new Date().toISOString().split("T")[0];
-    XLSX.writeFile(workbook, `Morison_Products_${date}.xlsx`);
+    XLSX.writeFile(workbook, `${selectedBrand}_Products_${date}.xlsx`);
 
-    toast({ title: `Exported ${morisonProducts.length} Morison products` });
-  }, [products, toast]);
+    toast({ title: `Exported ${brandProducts.length} ${selectedBrand} products` });
+  }, [products, selectedBrand, toast]);
 
   const formatINR = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -660,11 +665,12 @@ export default function Home() {
                     </div>
                     <Button
                       variant="outline"
-                      onClick={handleExportMorisonProducts}
-                      data-testid="button-export-morison"
+                      onClick={handleExportProducts}
+                      disabled={!selectedBrand}
+                      data-testid="button-export-products"
                     >
                       <Download className="w-4 h-4 mr-2" />
-                      Export Morison
+                      {selectedBrand ? `Export ${selectedBrand}` : "Export"}
                     </Button>
                   </div>
                   <BrandFilter
