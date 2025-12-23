@@ -227,7 +227,7 @@ export default function Home() {
       .sort((a, b) => a.id.localeCompare(b.id));
   }, [products, searchQuery, selectedBrand]);
 
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemCount = cart.length;
 
   const cartBrand = useMemo(() => {
     if (cart.length === 0) return null;
