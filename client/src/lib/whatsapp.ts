@@ -33,26 +33,26 @@ export function generateOrderCreatedMessage(order: OrderWithItems): string {
     : "Unknown";
 
   let message = `*New Order Created*\n`;
-  message += `━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `━━━━━━━━━━━━━━━━━━\n`;
   
   if (order.partyName) {
     message += `*Party:* ${order.partyName}\n`;
   }
-  message += `*Brand:* ${order.brand}\n`;
   message += `*Created by:* ${creatorName}\n\n`;
   
   message += `*Order Items:*\n`;
-  message += `─────────────────\n`;
+  message += `*Brand:* ${order.brand}\n`;
+  message += `─────────────────\n\n`;
   
-  order.items.forEach((item, index) => {
+  order.items.forEach((item) => {
     const productName = item.product?.name || `Product ${item.productId}`;
     const qty = item.quantity;
     const freeQty = item.freeQuantity || 0;
     const price = parseFloat(item.price);
     const lineTotal = qty * price;
     
-    message += `${index + 1}. ${productName}\n`;
-    message += `   Qty: ${qty}`;
+    message += `${productName}\n`;
+    message += `Qty: ${qty}`;
     if (freeQty > 0) {
       message += ` (+${freeQty} free)`;
     }
@@ -60,14 +60,17 @@ export function generateOrderCreatedMessage(order: OrderWithItems): string {
   });
   
   message += `─────────────────\n`;
-  message += `*Total:* ${formatCurrency(order.total)}\n`;
   
   if (order.deliveryCompany) {
-    message += `*Delivery:* ${order.deliveryCompany}\n`;
+    message += `*Deliver By:* ${order.deliveryCompany}\n`;
+  }
+  
+  if (order.specialNotes) {
+    message += `*Special Notes:* ${order.specialNotes}\n`;
   }
   
   if (order.deliveryNote) {
-    message += `*Notes:* ${order.deliveryNote}\n`;
+    message += `*Delivery Notes:* ${order.deliveryNote}\n`;
   }
 
   return message;
