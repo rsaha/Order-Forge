@@ -365,7 +365,7 @@ export class DatabaseStorage implements IStorage {
       dispatchDate: orders.dispatchDate,
       dispatchBy: orders.dispatchBy,
       cases: orders.cases,
-      remarks: orders.remarks,
+      specialNotes: orders.specialNotes,
       estimatedDeliveryDate: orders.estimatedDeliveryDate,
       actualDeliveryDate: orders.actualDeliveryDate,
       deliveryCost: orders.deliveryCost,
@@ -407,7 +407,7 @@ export class DatabaseStorage implements IStorage {
       dispatchDate: orders.dispatchDate,
       dispatchBy: orders.dispatchBy,
       cases: orders.cases,
-      remarks: orders.remarks,
+      specialNotes: orders.specialNotes,
       estimatedDeliveryDate: orders.estimatedDeliveryDate,
       actualDeliveryDate: orders.actualDeliveryDate,
       deliveryCost: orders.deliveryCost,
@@ -536,7 +536,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.dispatchDate !== undefined) updateData.dispatchDate = updates.dispatchDate ? new Date(updates.dispatchDate) : null;
     if (updates.dispatchBy !== undefined) updateData.dispatchBy = updates.dispatchBy;
     if (updates.cases !== undefined) updateData.cases = updates.cases;
-    if (updates.remarks !== undefined) updateData.remarks = updates.remarks;
+    if (updates.specialNotes !== undefined) updateData.specialNotes = updates.specialNotes;
     if (updates.estimatedDeliveryDate !== undefined) updateData.estimatedDeliveryDate = updates.estimatedDeliveryDate ? new Date(updates.estimatedDeliveryDate) : null;
     if (updates.actualDeliveryDate !== undefined) updateData.actualDeliveryDate = updates.actualDeliveryDate ? new Date(updates.actualDeliveryDate) : null;
     if (updates.deliveryCost !== undefined) updateData.deliveryCost = updates.deliveryCost;

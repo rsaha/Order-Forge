@@ -431,7 +431,7 @@ export default function Home() {
           partyName: orderDetails.partyName || null,
           deliveryNote: orderDetails.deliveryNotes || null,
           deliveryCompany: orderDetails.deliveryCompany || "Guided",
-          remarks: orderDetails.specialNotes || null,
+          specialNotes: orderDetails.specialNotes || null,
         }),
         credentials: "include",
       });

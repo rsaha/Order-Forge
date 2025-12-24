@@ -123,8 +123,8 @@ export function generateDeliveredMessage(order: OrderWithItems): string {
     message += `*Delivery Date:* ${formatDate(order.actualDeliveryDate)}\n`;
   }
   
-  if (order.remarks) {
-    message += `*Remarks:* ${order.remarks}\n`;
+  if (order.specialNotes) {
+    message += `*Special Notes:* ${order.specialNotes}\n`;
   }
 
   return message;

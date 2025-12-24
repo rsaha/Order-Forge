@@ -105,7 +105,7 @@ interface OrderEditFormData {
   dispatchDate: string;
   dispatchBy: string;
   cases: string;
-  remarks: string;
+  specialNotes: string;
   estimatedDeliveryDate: string;
   actualDeliveryDate: string;
   deliveryCost: string;
@@ -144,9 +144,11 @@ interface BulkOrderSummary {
     cases: number | null;
     deliveryAddress: string | null;
     dispatchBy: string | null;
+    deliveryCompany: string | null;
     invoiceNumber: string | null;
     invoiceDate: string | null;
     estimatedDeliveryDate: string | null;
+    actualOrderValue: string | null;
   }>;
 }
 
@@ -170,7 +172,7 @@ export default function OrdersPage() {
     dispatchDate: "",
     dispatchBy: "",
     cases: "",
-    remarks: "",
+    specialNotes: "",
     estimatedDeliveryDate: "",
     actualDeliveryDate: "",
     deliveryCost: "",
@@ -306,7 +308,7 @@ export default function OrdersPage() {
       if (updates.dispatchDate !== undefined) payload.dispatchDate = updates.dispatchDate || null;
       if (updates.dispatchBy !== undefined) payload.dispatchBy = updates.dispatchBy || null;
       if (updates.cases !== undefined) payload.cases = updates.cases ? parseInt(updates.cases) : null;
-      if (updates.remarks !== undefined) payload.remarks = updates.remarks || null;
+      if (updates.specialNotes !== undefined) payload.specialNotes = updates.specialNotes || null;
       if (updates.estimatedDeliveryDate !== undefined) payload.estimatedDeliveryDate = updates.estimatedDeliveryDate || null;
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
       if (updates.deliveryCost !== undefined) payload.deliveryCost = updates.deliveryCost || null;
@@ -401,7 +403,7 @@ export default function OrdersPage() {
       dispatchDate: order.dispatchDate ? new Date(order.dispatchDate).toISOString().split("T")[0] : "",
       dispatchBy: order.dispatchBy || "",
       cases: order.cases?.toString() || "",
-      remarks: order.remarks || "",
+      specialNotes: order.specialNotes || "",
       estimatedDeliveryDate: order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toISOString().split("T")[0] : "",
       actualDeliveryDate: order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toISOString().split("T")[0] : "",
       deliveryCost: order.deliveryCost || "",
@@ -1122,14 +1124,14 @@ export default function OrdersPage() {
                     </div>
 
                     <div>
-                      <Label htmlFor="remarks">Remarks</Label>
+                      <Label htmlFor="specialNotes">Special Notes</Label>
                       <Textarea
-                        id="remarks"
-                        value={editFormData.remarks}
-                        onChange={(e) => setEditFormData({ ...editFormData, remarks: e.target.value })}
+                        id="specialNotes"
+                        value={editFormData.specialNotes}
+                        onChange={(e) => setEditFormData({ ...editFormData, specialNotes: e.target.value })}
                         placeholder="Additional notes..."
                         rows={3}
-                        data-testid="input-remarks"
+                        data-testid="input-special-notes"
                       />
                     </div>
 
@@ -1286,10 +1288,10 @@ export default function OrdersPage() {
                       <span>{formatDate(selectedOrder.actualDeliveryDate)}</span>
                     </div>
                   )}
-                  {selectedOrder.remarks && (
+                  {selectedOrder.specialNotes && (
                     <div>
-                      <span className="text-muted-foreground">Remarks:</span>
-                      <p className="mt-1 text-sm">{selectedOrder.remarks}</p>
+                      <span className="text-muted-foreground">Special Notes:</span>
+                      <p className="mt-1 text-sm">{selectedOrder.specialNotes}</p>
                     </div>
                   )}
                   <div className="flex justify-end pt-4">
