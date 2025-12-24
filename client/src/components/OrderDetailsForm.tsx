@@ -19,14 +19,14 @@ interface OrderDetailsFormProps {
   cartBrand?: string | null;
 }
 
-const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elemric"];
+const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"];
 
 function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] {
   if (brand === "Biostige") {
     return ["Guided"];
   }
   if (brand === "Elmeric") {
-    return ["Elemric", "Guided"];
+    return ["Elmeric", "Guided"];
   }
   return DELIVERY_COMPANY_OPTIONS;
 }

@@ -66,7 +66,7 @@ export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "
 export type Brand = typeof BRAND_OPTIONS[number];
 
 // Delivery company options
-export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elemric"] as const;
+export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"] as const;
 export type DeliveryCompany = typeof DELIVERY_COMPANY_OPTIONS[number];
 
 // User-Brand access - which brands each user can see

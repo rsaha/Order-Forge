@@ -114,7 +114,7 @@ interface OrderEditFormData {
 }
 
 const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"];
-const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elemric"];
+const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
 
 function getDateRange(days: number): { fromDate: string; toDate: string } {
   const today = new Date();
