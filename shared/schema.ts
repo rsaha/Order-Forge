@@ -62,7 +62,7 @@ export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Dispatched", 
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
 // Brand options
-export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"] as const;
+export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric", "Blefit"] as const;
 export type Brand = typeof BRAND_OPTIONS[number];
 
 // Delivery company options

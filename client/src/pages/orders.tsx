@@ -113,7 +113,7 @@ interface OrderEditFormData {
   actualOrderValue: string;
 }
 
-const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric"];
+const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric", "Blefit"];
 const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
 
 function getDateRange(days: number): { fromDate: string; toDate: string } {
