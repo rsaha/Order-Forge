@@ -668,7 +668,7 @@ export default function OrdersPage() {
           </Select>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-28 hidden lg:flex" data-testid="select-status-filter">
+            <SelectTrigger className="w-28" data-testid="select-status-filter">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
