@@ -531,6 +531,14 @@ export default function OrdersPage() {
       
       const orderWithItems = {
         ...order,
+        estimatedDeliveryDate: data.estimatedDeliveryDate,
+        actualDeliveryDate: data.actualDeliveryDate,
+        specialNotes: data.specialNotes,
+        deliveryNote: data.deliveryNote,
+        deliveryAddress: data.deliveryAddress,
+        deliveryCompany: data.deliveryCompany,
+        actualOrderValue: data.actualOrderValue,
+        cases: data.cases,
         items: (data.items || []).map((item: any) => ({
           ...item,
           price: item.unitPrice || "0",
