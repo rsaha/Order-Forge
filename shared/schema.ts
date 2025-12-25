@@ -103,6 +103,7 @@ export const orders = pgTable("orders", {
   deliveryNote: text("delivery_note"),
   deliveryCompany: varchar("delivery_company"),
   actualOrderValue: numeric("actual_order_value", { precision: 10, scale: 2 }),
+  deliveredOnTime: boolean("delivered_on_time"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -176,6 +177,7 @@ export const updateOrderSchema = z.object({
   deliveryNote: z.string().nullable().optional(),
   deliveryCompany: z.enum(DELIVERY_COMPANY_OPTIONS).nullable().optional(),
   actualOrderValue: z.string().nullable().optional(),
+  deliveredOnTime: z.boolean().nullable().optional(),
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 

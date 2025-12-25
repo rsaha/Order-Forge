@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered, Users } from "lucide-react";
+import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
@@ -91,6 +91,18 @@ export default function Header({
             >
               <Users className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Users</span>
+            </Button>
+          </Link>
+        )}
+        {isAdmin && (
+          <Link href="/analytics">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="tab-analytics"
+            >
+              <BarChart3 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Analytics</span>
             </Button>
           </Link>
         )}

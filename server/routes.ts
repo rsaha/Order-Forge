@@ -535,6 +535,29 @@ export async function registerRoutes(
     }
   });
 
+  // Get order analytics (Admin only)
+  app.get('/api/admin/analytics/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const filters: { brand?: string; fromDate?: Date; toDate?: Date } = {};
+      if (req.query.brand) filters.brand = req.query.brand as string;
+      if (req.query.fromDate) filters.fromDate = new Date(req.query.fromDate as string);
+      if (req.query.toDate) filters.toDate = new Date(req.query.toDate as string);
+      
+      const analytics = await storage.getOrderAnalytics(Object.keys(filters).length > 0 ? filters : undefined);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching order analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
   // Get single order with items (Admin and BrandAdmin)
   app.get('/api/admin/orders/:id', isAuthenticated, async (req: any, res) => {
     try {

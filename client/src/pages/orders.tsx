@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -111,6 +112,7 @@ interface OrderEditFormData {
   deliveryCost: string;
   deliveryNote: string;
   actualOrderValue: string;
+  deliveredOnTime: boolean;
 }
 
 const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric", "Blefit"];
@@ -178,6 +180,7 @@ export default function OrdersPage() {
     deliveryCost: "",
     deliveryNote: "",
     actualOrderValue: "",
+    deliveredOnTime: false,
   });
   const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; freeQuantity?: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -409,6 +412,7 @@ export default function OrdersPage() {
       deliveryCost: order.deliveryCost || "",
       deliveryNote: order.deliveryNote || "",
       actualOrderValue: order.actualOrderValue || "",
+      deliveredOnTime: order.deliveredOnTime ?? false,
     });
     
     setLoadingItems(true);
@@ -1130,6 +1134,20 @@ export default function OrdersPage() {
                         />
                       </div>
                     </div>
+
+                    {editFormData.status === "Delivered" && (
+                      <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border">
+                        <Checkbox
+                          id="deliveredOnTime"
+                          checked={editFormData.deliveredOnTime}
+                          onCheckedChange={(checked) => setEditFormData({ ...editFormData, deliveredOnTime: checked === true })}
+                          data-testid="checkbox-delivered-on-time"
+                        />
+                        <Label htmlFor="deliveredOnTime" className="cursor-pointer">
+                          Delivered On Time
+                        </Label>
+                      </div>
+                    )}
 
                     <div>
                       <Label htmlFor="specialNotes">Special Notes</Label>

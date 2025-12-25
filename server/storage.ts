@@ -54,6 +54,14 @@ export interface IStorage {
   appendItemsToOrder(orderId: string, items: InsertOrderItem[], discountPercent?: number): Promise<Order | undefined>;
   deleteOrder(id: string): Promise<boolean>;
   getBulkOrderSummary(filters: OrderFilters): Promise<BulkOrderSummary[]>;
+  getOrderAnalytics(filters?: OrderFilters): Promise<OrderAnalytics>;
+}
+
+export interface OrderAnalytics {
+  statusCounts: Record<string, number>;
+  totalInvoiceValue: number;
+  deliveredOnTimeCount: number;
+  deliveredCount: number;
 }
 
 export interface OrderFilters {
@@ -372,6 +380,7 @@ export class DatabaseStorage implements IStorage {
       deliveryNote: orders.deliveryNote,
       deliveryCompany: orders.deliveryCompany,
       actualOrderValue: orders.actualOrderValue,
+      deliveredOnTime: orders.deliveredOnTime,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
       createdByEmail: users.email,
@@ -414,6 +423,7 @@ export class DatabaseStorage implements IStorage {
       deliveryNote: orders.deliveryNote,
       deliveryCompany: orders.deliveryCompany,
       actualOrderValue: orders.actualOrderValue,
+      deliveredOnTime: orders.deliveredOnTime,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
       createdByEmail: users.email,
@@ -542,6 +552,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.deliveryCost !== undefined) updateData.deliveryCost = updates.deliveryCost;
     if (updates.deliveryNote !== undefined) updateData.deliveryNote = updates.deliveryNote;
     if (updates.actualOrderValue !== undefined) updateData.actualOrderValue = updates.actualOrderValue;
+    if (updates.deliveredOnTime !== undefined) updateData.deliveredOnTime = updates.deliveredOnTime;
 
     if (Object.keys(updateData).length === 0) {
       return this.getOrderById(id);
@@ -592,6 +603,54 @@ export class DatabaseStorage implements IStorage {
     // Delete the order
     const result = await db.delete(orders).where(eq(orders.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getOrderAnalytics(filters?: OrderFilters): Promise<OrderAnalytics> {
+    const conditions = this.buildOrderConditions(filters);
+    
+    let allOrders;
+    if (conditions.length > 0) {
+      allOrders = await db.select({
+        status: orders.status,
+        actualOrderValue: orders.actualOrderValue,
+        total: orders.total,
+        deliveredOnTime: orders.deliveredOnTime,
+      }).from(orders).where(and(...conditions));
+    } else {
+      allOrders = await db.select({
+        status: orders.status,
+        actualOrderValue: orders.actualOrderValue,
+        total: orders.total,
+        deliveredOnTime: orders.deliveredOnTime,
+      }).from(orders);
+    }
+    
+    const statusCounts: Record<string, number> = {};
+    let totalInvoiceValue = 0;
+    let deliveredOnTimeCount = 0;
+    let deliveredCount = 0;
+    
+    for (const order of allOrders) {
+      const status = order.status || "Created";
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+      
+      const value = Number(order.actualOrderValue || order.total || 0);
+      totalInvoiceValue += value;
+      
+      if (status === "Delivered") {
+        deliveredCount++;
+        if (order.deliveredOnTime === true) {
+          deliveredOnTimeCount++;
+        }
+      }
+    }
+    
+    return {
+      statusCounts,
+      totalInvoiceValue,
+      deliveredOnTimeCount,
+      deliveredCount,
+    };
   }
 }
 
