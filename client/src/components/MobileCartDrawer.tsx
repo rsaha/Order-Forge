@@ -68,7 +68,7 @@ function MobileCartItem({
             {item.product.sku}
           </p>
           <p className="text-xs text-muted-foreground">
-            {formatINR(effectivePrice)} each
+            {item.product.distributorPrice && Number(item.product.distributorPrice) > 0 ? "PTS: " : ""}{formatINR(effectivePrice)} each
           </p>
         </div>
         <Button

@@ -231,7 +231,7 @@ export default function Home() {
     }
 
     const worksheetData = [
-      ["SKU", "Name", "Brand", "Size", "MRP", "Distributor Price", "Alias 1", "Alias 2"],
+      ["SKU", "Name", "Brand", "Size", "MRP", "PTS", "Alias 1", "Alias 2"],
       ...brandProducts.map(p => [
         p.sku,
         p.name,
@@ -1006,7 +1006,7 @@ export default function Home() {
               />
             </div>
             <div>
-              <Label htmlFor="edit-distributor-price">Distributor Price</Label>
+              <Label htmlFor="edit-distributor-price">PTS (Price to Stockist)</Label>
               <Input
                 id="edit-distributor-price"
                 type="number"

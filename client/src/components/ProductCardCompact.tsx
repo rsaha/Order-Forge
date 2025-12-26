@@ -184,7 +184,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
               </span>
               {selectedVariant.distributorPrice && Number(selectedVariant.distributorPrice) > 0 && (
                 <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                  {formatINR(getEffectivePrice(selectedVariant))}
+                  PTS: {formatINR(getEffectivePrice(selectedVariant))}
                 </span>
               )}
             </>

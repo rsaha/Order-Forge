@@ -39,7 +39,7 @@ export default function CartItem({ item, onQuantityChange, onFreeQuantityChange,
           {item.product.sku}
         </p>
         <p className="text-sm text-muted-foreground">
-          {formatINR(effectivePrice)} each
+          {item.product.distributorPrice && Number(item.product.distributorPrice) > 0 ? "PTS: " : ""}{formatINR(effectivePrice)} each
         </p>
       </div>
       <div className="flex flex-col gap-1">

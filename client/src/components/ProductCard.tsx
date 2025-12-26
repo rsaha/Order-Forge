@@ -72,9 +72,9 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
           <span className="text-sm text-muted-foreground" data-testid={`text-mrp-${product.id}`}>
             MRP: {formatINR(product.price)}
           </span>
-          {product.distributorPrice && (
+          {product.distributorPrice && Number(product.distributorPrice) > 0 && (
             <span className="text-lg font-semibold text-green-600 dark:text-green-400" data-testid={`text-distributor-price-${product.id}`}>
-              {formatINR(Number(product.distributorPrice))}
+              PTS: {formatINR(Number(product.distributorPrice))}
             </span>
           )}
         </div>
