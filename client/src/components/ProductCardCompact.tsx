@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Minus, ShoppingCart, Check } from "lucide-react";
 
 export function formatINR(amount: number): string {
@@ -143,14 +144,21 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
   const hasChanges = !isInCart || quantity !== cartQuantity;
 
   return (
-    <Card className="p-3 flex flex-col gap-2">
+    <Card className="p-3 flex flex-col gap-2 overflow-hidden">
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground truncate" data-testid={`text-brand-${group.baseKey}`}>
           {group.brand}
         </p>
-        <h3 className="font-medium text-sm leading-tight line-clamp-2" data-testid={`text-name-${group.baseKey}`}>
-          {group.name}
-        </h3>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <h3 className="font-medium text-sm leading-tight break-words cursor-default" data-testid={`text-name-${group.baseKey}`}>
+              {group.name}
+            </h3>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[250px] hidden sm:block">
+            <p className="text-sm">{group.name}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {group.variants.length > 1 && (
@@ -175,7 +183,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2 mt-auto">
+      <div className="flex flex-col min-[400px]:flex-row min-[400px]:items-center min-[400px]:justify-between gap-2 mt-auto">
         <div className="flex flex-col" data-testid={`text-price-${group.baseKey}`}>
           {selectedVariant ? (
             <>
@@ -195,7 +203,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
           )}
         </div>
         
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 justify-end">
           {selectedVariant && (
             <>
               <Button

@@ -156,7 +156,7 @@ export default function OrderTab({
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
                   {paginatedGroups.map(group => (
                     <ProductCardCompact
                       key={group.baseKey}
