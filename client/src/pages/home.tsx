@@ -794,6 +794,7 @@ export default function Home() {
                 brand: p.brand,
                 size: p.size,
                 price: Number(p.price),
+                distributorPrice: p.distributorPrice,
                 stock: p.stock,
               }))}
               searchQuery={searchQuery}
