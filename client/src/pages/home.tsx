@@ -23,7 +23,7 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Wand2, Loader2 } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -75,15 +75,13 @@ export default function Home() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [createdOrder, setCreatedOrder] = useState<any>(null);
   const [showOrderSuccessDialog, setShowOrderSuccessDialog] = useState(false);
-  const [showAliasGeneratorDialog, setShowAliasGeneratorDialog] = useState(false);
-  const [aliasPreview, setAliasPreview] = useState<any>(null);
-  const [aliasGenerating, setAliasGenerating] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: "",
     brand: "",
     sku: "",
     size: "",
-    aliases: "",
+    alias1: "",
+    alias2: "",
     price: "",
     stock: "",
   });
@@ -179,7 +177,8 @@ export default function Home() {
       brand: product.brand,
       sku: product.sku,
       size: product.size || "",
-      aliases: (product as any).aliases || "",
+      alias1: (product as any).alias1 || "",
+      alias2: (product as any).alias2 || "",
       price: String(product.price),
       stock: String(product.stock),
     });
@@ -194,7 +193,8 @@ export default function Home() {
         brand: editFormData.brand,
         sku: editFormData.sku,
         size: editFormData.size || null,
-        aliases: editFormData.aliases || null,
+        alias1: editFormData.alias1 || null,
+        alias2: editFormData.alias2 || null,
         price: editFormData.price,
         stock: parseInt(editFormData.stock) || 0,
       },
@@ -219,14 +219,15 @@ export default function Home() {
     }
 
     const worksheetData = [
-      ["SKU", "Name", "Brand", "Size", "MRP", "Aliases"],
+      ["SKU", "Name", "Brand", "Size", "MRP", "Alias 1", "Alias 2"],
       ...brandProducts.map(p => [
         p.sku,
         p.name,
         p.brand,
         p.size || "",
         p.price,
-        (p as any).aliases || "",
+        (p as any).alias1 || "",
+        (p as any).alias2 || "",
       ]),
     ];
 
@@ -667,16 +668,6 @@ export default function Home() {
                     <div className="flex-1 min-w-[200px]">
                       <SearchBar value={searchQuery} onChange={setSearchQuery} />
                     </div>
-                    {isAdmin && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowAliasGeneratorDialog(true)}
-                        data-testid="button-generate-aliases"
-                      >
-                        <Wand2 className="w-4 h-4 mr-2" />
-                        Auto Aliases
-                      </Button>
-                    )}
                     <Button
                       variant="outline"
                       onClick={handleExportProducts}
@@ -963,13 +954,23 @@ export default function Home() {
               />
             </div>
             <div>
-              <Label htmlFor="edit-aliases">Aliases (comma-separated)</Label>
+              <Label htmlFor="edit-alias1">Alias 1</Label>
               <Input
-                id="edit-aliases"
-                value={editFormData.aliases}
-                onChange={(e) => setEditFormData({ ...editFormData, aliases: e.target.value })}
-                placeholder="e.g., short name, abbreviation"
-                data-testid="input-edit-aliases"
+                id="edit-alias1"
+                value={editFormData.alias1}
+                onChange={(e) => setEditFormData({ ...editFormData, alias1: e.target.value })}
+                placeholder="e.g., short name or abbreviation"
+                data-testid="input-edit-alias1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-alias2">Alias 2</Label>
+              <Input
+                id="edit-alias2"
+                value={editFormData.alias2}
+                onChange={(e) => setEditFormData({ ...editFormData, alias2: e.target.value })}
+                placeholder="e.g., alternate name"
+                data-testid="input-edit-alias2"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Short names used in import order matching
@@ -1066,140 +1067,6 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showAliasGeneratorDialog} onOpenChange={(open) => {
-        setShowAliasGeneratorDialog(open);
-        if (!open) {
-          setAliasPreview(null);
-        }
-      }}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="w-5 h-5" />
-              Auto-Generate Product Aliases
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              This will automatically generate common abbreviations and aliases for your products based on their names.
-              For example, "Knee Cap" will get aliases like "kc", "kneecap", "k.c".
-            </p>
-            
-            {!aliasPreview && (
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    setAliasGenerating(true);
-                    try {
-                      const response = await fetch('/api/products/generate-aliases', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ preview: true, brand: selectedBrand || 'all' }),
-                      });
-                      const data = await response.json();
-                      setAliasPreview(data);
-                    } catch (error) {
-                      toast({ title: "Error", description: "Failed to preview aliases", variant: "destructive" });
-                    }
-                    setAliasGenerating(false);
-                  }}
-                  disabled={aliasGenerating}
-                  data-testid="button-preview-aliases"
-                >
-                  {aliasGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Preview Changes {selectedBrand ? `(${selectedBrand})` : "(All Brands)"}
-                </Button>
-              </div>
-            )}
-
-            {aliasPreview && (
-              <div className="space-y-4">
-                <div className="bg-muted/50 rounded-md p-3 text-sm">
-                  <p><span className="font-medium">Total Products:</span> {aliasPreview.totalProducts}</p>
-                  <p><span className="font-medium">Products to Update:</span> {aliasPreview.productsToUpdate}</p>
-                </div>
-                
-                {aliasPreview.updates?.length > 0 && (
-                  <div className="border rounded-md max-h-60 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 sticky top-0">
-                        <tr>
-                          <th className="text-left p-2 font-medium">Product</th>
-                          <th className="text-left p-2 font-medium">New Aliases</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {aliasPreview.updates.map((update: any, i: number) => (
-                          <tr key={i} className="border-t">
-                            <td className="p-2">
-                              <div className="font-medium">{update.name}</div>
-                              <div className="text-muted-foreground text-xs">{update.sku}</div>
-                            </td>
-                            <td className="p-2 text-xs text-muted-foreground">{update.newAliases}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                
-                {aliasPreview.productsToUpdate > 50 && (
-                  <p className="text-xs text-muted-foreground">
-                    Showing first 50 of {aliasPreview.productsToUpdate} products...
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowAliasGeneratorDialog(false);
-                setAliasPreview(null);
-              }}
-              data-testid="button-cancel-aliases"
-            >
-              Cancel
-            </Button>
-            {aliasPreview && aliasPreview.productsToUpdate > 0 && (
-              <Button
-                onClick={async () => {
-                  setAliasGenerating(true);
-                  try {
-                    const response = await fetch('/api/products/generate-aliases', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      credentials: 'include',
-                      body: JSON.stringify({ preview: false, brand: selectedBrand || 'all' }),
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                      toast({ 
-                        title: "Aliases Generated", 
-                        description: `Updated aliases for ${data.updatedProducts} products` 
-                      });
-                      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-                      setShowAliasGeneratorDialog(false);
-                      setAliasPreview(null);
-                    }
-                  } catch (error) {
-                    toast({ title: "Error", description: "Failed to generate aliases", variant: "destructive" });
-                  }
-                  setAliasGenerating(false);
-                }}
-                disabled={aliasGenerating}
-                data-testid="button-apply-aliases"
-              >
-                {aliasGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Apply to {aliasPreview.productsToUpdate} Products
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
