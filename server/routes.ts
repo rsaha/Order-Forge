@@ -377,6 +377,57 @@ export async function registerRoutes(
     }
   });
 
+  // Add alias to product (Admin only)
+  app.post('/api/products/:id/add-alias', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can add aliases" });
+      }
+
+      const productId = req.params.id;
+      const { alias } = req.body;
+      
+      if (!alias || typeof alias !== 'string' || alias.trim().length === 0) {
+        return res.status(400).json({ message: "Invalid alias" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      const normalizedAlias = alias.trim().toLowerCase();
+      
+      // Check if alias already exists in alias1 or alias2
+      const existingAlias1 = ((product as any).alias1 || '').toLowerCase();
+      const existingAlias2 = ((product as any).alias2 || '').toLowerCase();
+      
+      if (existingAlias1 === normalizedAlias || existingAlias2 === normalizedAlias) {
+        return res.json({ message: "Alias already exists", product });
+      }
+
+      // Add to first empty slot
+      const updates: Record<string, string> = {};
+      if (!existingAlias1) {
+        updates.alias1 = alias.trim();
+      } else if (!existingAlias2) {
+        updates.alias2 = alias.trim();
+      } else {
+        return res.status(400).json({ 
+          message: "Both alias slots are full. Remove one in the product edit form first." 
+        });
+      }
+
+      const updated = await storage.updateProduct(productId, updates);
+      res.json({ message: "Alias added successfully", product: updated });
+    } catch (error) {
+      console.error("Error adding alias:", error);
+      res.status(500).json({ message: "Failed to add alias" });
+    }
+  });
+
   // Get products filtered by user's brand access (for Order page)
   app.get('/api/products/by-brand', isAuthenticated, async (req: any, res) => {
     try {

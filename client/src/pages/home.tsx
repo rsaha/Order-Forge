@@ -820,6 +820,7 @@ export default function Home() {
                   items={parsedItems}
                   products={orderProducts}
                   brandFilter={importBrandFilter}
+                  isAdmin={isAdmin}
                   onPartyNameChange={setPartyName}
                   onUpdateQuantity={handleUpdateParsedQuantity}
                   onUpdateProduct={(index, product) => {

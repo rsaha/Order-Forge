@@ -241,6 +241,8 @@ export class DatabaseStorage implements IStorage {
     if (updates.sku !== undefined) updateData.sku = updates.sku;
     if (updates.size !== undefined) updateData.size = updates.size;
     if (updates.aliases !== undefined) updateData.aliases = updates.aliases;
+    if (updates.alias1 !== undefined) updateData.alias1 = updates.alias1;
+    if (updates.alias2 !== undefined) updateData.alias2 = updates.alias2;
     if (updates.price !== undefined) updateData.price = updates.price;
     if (updates.stock !== undefined) updateData.stock = updates.stock;
     if (updates.category !== undefined) updateData.category = updates.category;

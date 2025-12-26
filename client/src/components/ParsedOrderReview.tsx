@@ -4,13 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, X, AlertTriangle, ShoppingCart, Search, Pencil } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Check, X, AlertTriangle, ShoppingCart, Search, Pencil, Save, Loader2 } from "lucide-react";
 import { formatINR } from "./ProductCard";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 interface MatchedProduct {
@@ -43,6 +47,7 @@ interface ParsedOrderReviewProps {
   items: ParsedItem[];
   products: Product[];
   brandFilter?: string;
+  isAdmin?: boolean;
   onPartyNameChange: (name: string) => void;
   onUpdateQuantity: (index: number, quantity: number) => void;
   onUpdateProduct: (index: number, product: MatchedProduct | null) => void;
@@ -56,6 +61,7 @@ export default function ParsedOrderReview({
   items,
   products,
   brandFilter,
+  isAdmin,
   onPartyNameChange,
   onUpdateQuantity,
   onUpdateProduct,
@@ -63,8 +69,12 @@ export default function ParsedOrderReview({
   onAddToCart,
   onClear,
 }: ParsedOrderReviewProps) {
+  const { toast } = useToast();
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [productSearch, setProductSearch] = useState("");
+  const [saveAsAlias, setSaveAsAlias] = useState(false);
+  const [originalSearchTerm, setOriginalSearchTerm] = useState("");
+  const [isSavingAlias, setIsSavingAlias] = useState(false);
   
   const matchedItems = items.filter(item => item.matchedProduct);
   const unmatchedItems = items.filter(item => !item.matchedProduct);
@@ -87,23 +97,59 @@ export default function ParsedOrderReview({
            p.brand.toLowerCase().includes(search);
   });
 
-  const handleSelectProduct = (product: Product) => {
-    if (editingIndex !== null) {
-      onUpdateProduct(editingIndex, {
-        id: product.id,
-        sku: product.sku,
-        name: product.name,
-        brand: product.brand,
-        price: Number(product.price),
-      });
-      setEditingIndex(null);
-      setProductSearch("");
+  const handleSelectProduct = async (product: Product) => {
+    if (editingIndex === null) return;
+    
+    const currentItem = items[editingIndex];
+    const wasUnmatched = !currentItem.matchedProduct;
+    
+    // If admin wants to save alias and item was previously unmatched
+    if (isAdmin && saveAsAlias && wasUnmatched && originalSearchTerm) {
+      setIsSavingAlias(true);
+      try {
+        await apiRequest("POST", `/api/products/${product.id}/add-alias`, {
+          alias: originalSearchTerm,
+        });
+        toast({
+          title: "Alias saved",
+          description: `"${originalSearchTerm}" saved as alias for ${product.name}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      } catch (error: any) {
+        toast({
+          title: "Failed to save alias",
+          description: error.message || "Could not save alias",
+          variant: "destructive",
+        });
+      }
+      setIsSavingAlias(false);
     }
+    
+    onUpdateProduct(editingIndex, {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      brand: product.brand,
+      price: Number(product.price),
+    });
+    setEditingIndex(null);
+    setProductSearch("");
+    setSaveAsAlias(false);
+    setOriginalSearchTerm("");
   };
 
   const openProductPicker = (index: number) => {
+    const item = items[index];
     setEditingIndex(index);
-    setProductSearch(items[index].productRef);
+    setProductSearch(item.productRef);
+    // Only track original search term for unmatched items
+    if (!item.matchedProduct) {
+      setOriginalSearchTerm(item.productRef);
+      setSaveAsAlias(true); // Default to saving alias for unmatched items
+    } else {
+      setOriginalSearchTerm("");
+      setSaveAsAlias(false);
+    }
   };
 
   return (
@@ -254,7 +300,13 @@ export default function ParsedOrderReview({
         </div>
       </Card>
 
-      <Dialog open={editingIndex !== null} onOpenChange={(open) => !open && setEditingIndex(null)}>
+      <Dialog open={editingIndex !== null} onOpenChange={(open) => {
+        if (!open) {
+          setEditingIndex(null);
+          setSaveAsAlias(false);
+          setOriginalSearchTerm("");
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Select Product</DialogTitle>
@@ -271,10 +323,30 @@ export default function ParsedOrderReview({
                 data-testid="input-product-search"
               />
             </div>
+
+            {isAdmin && originalSearchTerm && (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+                <Checkbox
+                  id="save-as-alias"
+                  checked={saveAsAlias}
+                  onCheckedChange={(checked) => setSaveAsAlias(checked === true)}
+                  data-testid="checkbox-save-as-alias"
+                />
+                <label htmlFor="save-as-alias" className="text-sm flex-1 cursor-pointer">
+                  <Save className="w-3 h-3 inline mr-1" />
+                  Save "{originalSearchTerm}" as alias
+                </label>
+              </div>
+            )}
             
             <ScrollArea className="h-[300px]">
               <div className="space-y-2">
-                {filteredProducts.length === 0 ? (
+                {isSavingAlias ? (
+                  <div className="flex items-center justify-center py-8 gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-muted-foreground">Saving alias...</span>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
                   <p className="text-center text-muted-foreground py-4">
                     No products found
                   </p>
