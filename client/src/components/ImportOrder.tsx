@@ -2,6 +2,14 @@ import { useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,11 +28,13 @@ interface ParsedItem {
 
 interface ImportOrderProps {
   onItemsParsed: (partyName: string, items: ParsedItem[]) => void;
+  availableBrands?: string[];
 }
 
-export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
+export default function ImportOrder({ onItemsParsed, availableBrands = [] }: ImportOrderProps) {
   const { toast } = useToast();
   const [text, setText] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleTextParse = useCallback(async () => {
@@ -39,10 +49,15 @@ export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
 
     setIsLoading(true);
     try {
+      const body: { text: string; brand?: string } = { text };
+      if (selectedBrand && selectedBrand !== "all") {
+        body.brand = selectedBrand;
+      }
+
       const response = await fetch("/api/orders/parse-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(body),
         credentials: "include",
       });
 
@@ -81,7 +96,7 @@ export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [text, onItemsParsed, toast]);
+  }, [text, selectedBrand, onItemsParsed, toast]);
 
   return (
     <Card className="p-4">
@@ -91,6 +106,23 @@ export default function ImportOrder({ onItemsParsed }: ImportOrderProps) {
       </p>
       
       <div className="space-y-4">
+        {availableBrands.length > 0 && (
+          <div>
+            <Label className="text-sm text-muted-foreground">Filter by Brand (optional)</Label>
+            <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+              <SelectTrigger data-testid="select-import-brand">
+                <SelectValue placeholder="All brands" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Brands</SelectItem>
+                {availableBrands.map((brand) => (
+                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
         <Textarea
           placeholder="Paste or type your order here...&#10;&#10;First line = Party/Customer Name&#10;Following lines = Products&#10;&#10;Example:&#10;ABC Traders&#10;L.S Belt 2&#10;Knee Cap - 3&#10;Product Name x 5"
           value={text}

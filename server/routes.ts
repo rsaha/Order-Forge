@@ -760,7 +760,7 @@ export async function registerRoutes(
   // Parse order from text - simple pattern matching
   app.post('/api/orders/parse-text', isAuthenticated, async (req: any, res) => {
     try {
-      const { text } = req.body;
+      const { text, brand } = req.body;
       
       if (!text || !text.trim()) {
         return res.status(400).json({ message: "No text provided" });
@@ -811,7 +811,12 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       
       // Get products based on user role - admins get all, others get brand-based access
-      const userProducts = await storage.getUserProductsByBrand(userId, user?.isAdmin ?? false);
+      let userProducts = await storage.getUserProductsByBrand(userId, user?.isAdmin ?? false);
+      
+      // If a brand filter is specified, filter products to only that brand
+      if (brand && brand.trim()) {
+        userProducts = userProducts.filter(p => p.brand.toLowerCase() === brand.toLowerCase());
+      }
 
       const matchedItems = parsedItems.map(item => {
         const productRef = item.productRef.trim();

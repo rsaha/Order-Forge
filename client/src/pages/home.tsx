@@ -803,7 +803,10 @@ export default function Home() {
                   Paste or type order text to quickly add items to your cart. The system will match product names and SKUs.
                 </p>
               </div>
-              <ImportOrder onItemsParsed={handleParsedItems} />
+              <ImportOrder 
+                onItemsParsed={handleParsedItems} 
+                availableBrands={Array.from(new Set(orderProducts.map(p => p.brand))).sort()}
+              />
               {(parsedItems.length > 0 || partyName) && (
                 <ParsedOrderReview
                   partyName={partyName}
