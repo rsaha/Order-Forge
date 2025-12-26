@@ -210,8 +210,8 @@ export default function MobileCartDrawer({
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DrawerContent className="max-h-[85vh]">
-        <div className="flex flex-col h-full max-h-[85vh]">
+      <DrawerContent className="max-h-[85vh] overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
         {step === "cart" ? (
           <>
             <DrawerHeader className="flex-none border-b pb-3">
@@ -238,7 +238,7 @@ export default function MobileCartDrawer({
               </div>
             ) : (
               <>
-                <div className="flex-1 overflow-y-auto min-h-0">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                   <div className="p-4 space-y-3">
                     {cartItems.map((item) => (
                       <MobileCartItem
@@ -288,7 +288,7 @@ export default function MobileCartDrawer({
               </div>
             </DrawerHeader>
             
-            <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
               <div className="p-4">
                 <OrderDetailsForm
                   orderDetails={orderDetails}
