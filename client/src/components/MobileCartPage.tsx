@@ -6,6 +6,7 @@ import { Trash2, Minus, Plus, Send, Loader2, ArrowLeft, ChevronRight } from "luc
 import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
+import type { CartItemData } from "./CartItem";
 
 function getEffectivePrice(product: Product): number {
   if (product.distributorPrice) {
@@ -13,12 +14,6 @@ function getEffectivePrice(product: Product): number {
     if (!isNaN(dp) && dp > 0) return dp;
   }
   return product.price;
-}
-
-export interface CartItemData {
-  product: Product;
-  quantity: number;
-  freeQuantity: number;
 }
 
 interface MobileCartPageProps {

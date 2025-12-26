@@ -190,27 +190,26 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
         </div>
       )}
 
-      <div className="flex flex-col min-[400px]:flex-row min-[400px]:items-center min-[400px]:justify-between gap-2 mt-auto">
-        <div className="flex flex-col" data-testid={`text-price-${group.baseKey}`}>
-          {selectedVariant ? (
-            <>
-              <span className="text-xs text-muted-foreground">
-                MRP: {formatINR(Number(selectedVariant.price))}
+      <div className="flex flex-col" data-testid={`text-price-${group.baseKey}`}>
+        {selectedVariant ? (
+          <>
+            <span className="text-xs text-muted-foreground">
+              MRP: {formatINR(Number(selectedVariant.price))}
+            </span>
+            {selectedVariant.distributorPrice && Number(selectedVariant.distributorPrice) > 0 && (
+              <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                PTS: {formatINR(getEffectivePrice(selectedVariant))}
               </span>
-              {selectedVariant.distributorPrice && Number(selectedVariant.distributorPrice) > 0 && (
-                <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                  PTS: {formatINR(getEffectivePrice(selectedVariant))}
-                </span>
-              )}
-            </>
-          ) : priceRange.isSame ? (
-            <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)}</span>
-          ) : (
-            <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)} - {formatINR(priceRange.max)}</span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1 justify-end">
+            )}
+          </>
+        ) : priceRange.isSame ? (
+          <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)} - {formatINR(priceRange.max)}</span>
+        )}
+      </div>
+      
+      <div className="flex items-center gap-1 justify-end mt-auto">
           {selectedVariant && (
             <>
               <Button
@@ -260,7 +259,6 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
               <ShoppingCart className="w-3 h-3" />
             )}
           </Button>
-        </div>
       </div>
 
       {group.variants.length > 1 && !selectedVariant && (
