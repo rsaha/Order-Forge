@@ -62,6 +62,7 @@ export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [partyName, setPartyName] = useState("");
+  const [importBrandFilter, setImportBrandFilter] = useState<string>("all");
   const [orderDetails, setOrderDetails] = useState({
     partyName: "",
     deliveryCompany: "Guided",
@@ -806,12 +807,15 @@ export default function Home() {
               <ImportOrder 
                 onItemsParsed={handleParsedItems} 
                 availableBrands={Array.from(new Set(orderProducts.map(p => p.brand))).sort()}
+                selectedBrand={importBrandFilter}
+                onBrandChange={setImportBrandFilter}
               />
               {(parsedItems.length > 0 || partyName) && (
                 <ParsedOrderReview
                   partyName={partyName}
                   items={parsedItems}
-                  products={products}
+                  products={orderProducts}
+                  brandFilter={importBrandFilter}
                   onPartyNameChange={setPartyName}
                   onUpdateQuantity={handleUpdateParsedQuantity}
                   onUpdateProduct={(index, product) => {

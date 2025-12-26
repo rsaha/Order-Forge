@@ -42,6 +42,7 @@ interface ParsedOrderReviewProps {
   partyName: string;
   items: ParsedItem[];
   products: Product[];
+  brandFilter?: string;
   onPartyNameChange: (name: string) => void;
   onUpdateQuantity: (index: number, quantity: number) => void;
   onUpdateProduct: (index: number, product: MatchedProduct | null) => void;
@@ -54,6 +55,7 @@ export default function ParsedOrderReview({
   partyName,
   items,
   products,
+  brandFilter,
   onPartyNameChange,
   onUpdateQuantity,
   onUpdateProduct,
@@ -75,6 +77,10 @@ export default function ParsedOrderReview({
   }, 0);
 
   const filteredProducts = products.filter(p => {
+    // Apply brand filter first if specified
+    if (brandFilter && brandFilter !== "all" && p.brand.toLowerCase() !== brandFilter.toLowerCase()) {
+      return false;
+    }
     const search = productSearch.toLowerCase();
     return p.name.toLowerCase().includes(search) ||
            p.sku.toLowerCase().includes(search) ||

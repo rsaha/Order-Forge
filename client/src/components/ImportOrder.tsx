@@ -29,13 +29,20 @@ interface ParsedItem {
 interface ImportOrderProps {
   onItemsParsed: (partyName: string, items: ParsedItem[]) => void;
   availableBrands?: string[];
+  selectedBrand?: string;
+  onBrandChange?: (brand: string) => void;
 }
 
-export default function ImportOrder({ onItemsParsed, availableBrands = [] }: ImportOrderProps) {
+export default function ImportOrder({ onItemsParsed, availableBrands = [], selectedBrand = "all", onBrandChange }: ImportOrderProps) {
   const { toast } = useToast();
   const [text, setText] = useState("");
-  const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleBrandChange = (brand: string) => {
+    if (onBrandChange) {
+      onBrandChange(brand);
+    }
+  };
 
   const handleTextParse = useCallback(async () => {
     if (!text.trim()) {
@@ -109,7 +116,7 @@ export default function ImportOrder({ onItemsParsed, availableBrands = [] }: Imp
         {availableBrands.length > 0 && (
           <div>
             <Label className="text-sm text-muted-foreground">Filter by Brand (optional)</Label>
-            <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+            <Select value={selectedBrand} onValueChange={handleBrandChange}>
               <SelectTrigger data-testid="select-import-brand">
                 <SelectValue placeholder="All brands" />
               </SelectTrigger>
