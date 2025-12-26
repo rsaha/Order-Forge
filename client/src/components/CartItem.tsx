@@ -4,6 +4,13 @@ import { X } from "lucide-react";
 import QuantitySelector from "./QuantitySelector";
 import { formatINR, type Product } from "./ProductCard";
 
+function getEffectivePrice(product: Product): number {
+  if (product.distributorPrice) {
+    return Number(product.distributorPrice);
+  }
+  return product.price;
+}
+
 export interface CartItemData {
   product: Product;
   quantity: number;
@@ -18,7 +25,8 @@ interface CartItemProps {
 }
 
 export default function CartItem({ item, onQuantityChange, onFreeQuantityChange, onRemove }: CartItemProps) {
-  const subtotal = item.product.price * item.quantity;
+  const effectivePrice = getEffectivePrice(item.product);
+  const subtotal = effectivePrice * item.quantity;
 
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-b-0">
@@ -30,7 +38,7 @@ export default function CartItem({ item, onQuantityChange, onFreeQuantityChange,
           {item.product.sku}
         </p>
         <p className="text-sm text-muted-foreground">
-          {formatINR(item.product.price)} each
+          {formatINR(effectivePrice)} each
         </p>
       </div>
       <div className="flex flex-col gap-1">

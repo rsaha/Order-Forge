@@ -41,7 +41,15 @@ interface ParsedItem {
     name: string;
     brand: string;
     price: number;
+    distributorPrice?: number | string | null;
   } | null;
+}
+
+function getEffectivePrice(product: { price: number; distributorPrice?: number | string | null }): number {
+  if (product.distributorPrice) {
+    return Number(product.distributorPrice);
+  }
+  return product.price;
 }
 
 interface UploadedFile {
@@ -83,6 +91,7 @@ export default function Home() {
     alias1: "",
     alias2: "",
     price: "",
+    distributorPrice: "",
     stock: "",
   });
   
@@ -180,6 +189,7 @@ export default function Home() {
       alias1: (product as any).alias1 || "",
       alias2: (product as any).alias2 || "",
       price: String(product.price),
+      distributorPrice: (product as any).distributorPrice ? String((product as any).distributorPrice) : "",
       stock: String(product.stock),
     });
   }, []);
@@ -196,6 +206,7 @@ export default function Home() {
         alias1: editFormData.alias1 || null,
         alias2: editFormData.alias2 || null,
         price: editFormData.price,
+        distributorPrice: editFormData.distributorPrice || null,
         stock: parseInt(editFormData.stock) || 0,
       },
     });
@@ -371,13 +382,14 @@ export default function Home() {
     lines.push("");
 
     cart.forEach(item => {
+      const effectivePrice = getEffectivePrice(item.product);
       lines.push(`${item.product.name}`);
       lines.push(`  SKU: ${item.product.sku}`);
-      lines.push(`  Qty: ${item.quantity} x ${formatINR(item.product.price)} = ${formatINR(item.quantity * item.product.price)}`);
+      lines.push(`  Qty: ${item.quantity} x ${formatINR(effectivePrice)} = ${formatINR(item.quantity * effectivePrice)}`);
       lines.push("");
     });
 
-    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + getEffectivePrice(item.product) * item.quantity, 0);
     const safeDiscount = Math.min(100, Math.max(0, orderDetails.proposedDiscount || 0));
     const discountAmount = subtotal * (safeDiscount / 100);
     const finalTotal = subtotal - discountAmount;
@@ -416,7 +428,7 @@ export default function Home() {
 
     setIsSendingOrder(true);
     try {
-      const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+      const subtotal = cart.reduce((sum, item) => sum + getEffectivePrice(item.product) * item.quantity, 0);
       const safeDiscount = Math.min(100, Math.max(0, orderDetails.proposedDiscount || 0));
       const discountAmount = subtotal * (safeDiscount / 100);
       const finalTotal = subtotal - discountAmount;
@@ -429,7 +441,7 @@ export default function Home() {
             productId: item.product.id,
             quantity: item.quantity,
             freeQuantity: item.freeQuantity || 0,
-            price: String(item.product.price),
+            price: String(getEffectivePrice(item.product)),
           })),
           total: String(finalTotal),
           brand: cart[0]?.product.brand || null,
@@ -987,6 +999,21 @@ export default function Home() {
                 onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })}
                 data-testid="input-edit-price"
               />
+            </div>
+            <div>
+              <Label htmlFor="edit-distributor-price">Distributor Price</Label>
+              <Input
+                id="edit-distributor-price"
+                type="number"
+                step="0.01"
+                value={editFormData.distributorPrice}
+                onChange={(e) => setEditFormData({ ...editFormData, distributorPrice: e.target.value })}
+                placeholder="Leave empty to use MRP"
+                data-testid="input-edit-distributor-price"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Price used for cart calculations (optional)
+              </p>
             </div>
           </div>
           <DialogFooter>

@@ -54,6 +54,7 @@ export const products = pgTable("products", {
   alias1: varchar("alias1"),
   alias2: varchar("alias2"),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  distributorPrice: numeric("distributor_price", { precision: 10, scale: 2 }),
   stock: integer("stock").notNull().default(0),
   category: varchar("category"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -193,6 +194,7 @@ export const updateProductSchema = z.object({
   alias1: z.string().nullable().optional(),
   alias2: z.string().nullable().optional(),
   price: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
+  distributorPrice: z.union([z.string(), z.number()]).transform(v => String(v)).nullable().optional(),
   stock: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? parseInt(v) || 0 : v).optional(),
   category: z.string().nullable().optional(),
 });

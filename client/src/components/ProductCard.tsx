@@ -18,6 +18,7 @@ export interface Product {
   name: string;
   brand: string;
   price: number;
+  distributorPrice?: number | string | null;
   stock: number;
   category?: string;
 }
@@ -67,9 +68,16 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
         </p>
       </div>
       <div className="flex items-center justify-between gap-2 mt-auto pt-2">
-        <span className="text-lg font-semibold" data-testid={`text-price-${product.id}`}>
-          {formatINR(product.price)}
-        </span>
+        <div className="flex flex-col">
+          <span className="text-sm text-muted-foreground" data-testid={`text-mrp-${product.id}`}>
+            MRP: {formatINR(product.price)}
+          </span>
+          {product.distributorPrice && (
+            <span className="text-lg font-semibold text-green-600 dark:text-green-400" data-testid={`text-distributor-price-${product.id}`}>
+              {formatINR(Number(product.distributorPrice))}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           <Button
             size="icon"
