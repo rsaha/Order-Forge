@@ -46,32 +46,240 @@ function calculateSimilarity(query: string, target: string): number {
   const normalizedQuery = normalizeText(query);
   const normalizedTarget = normalizeText(target);
   
+  // Exact match
   if (normalizedQuery === normalizedTarget) return 1;
-  if (normalizedTarget.includes(normalizedQuery) || normalizedQuery.includes(normalizedTarget)) {
-    return 0.9;
+  
+  // Substring match - very high score if query is contained in target
+  if (normalizedTarget.includes(normalizedQuery)) {
+    // Score higher for longer query matches
+    return 0.85 + (normalizedQuery.length / normalizedTarget.length) * 0.1;
+  }
+  if (normalizedQuery.includes(normalizedTarget)) {
+    return 0.85;
   }
   
-  const queryWords = normalizedQuery.split(' ').filter(w => w.length > 1);
-  const targetWords = normalizedTarget.split(' ').filter(w => w.length > 1);
+  // Check if query starts with target or vice versa (prefix matching)
+  if (normalizedTarget.startsWith(normalizedQuery) || normalizedQuery.startsWith(normalizedTarget)) {
+    return 0.8;
+  }
   
-  let matchedWords = 0;
-  for (const qWord of queryWords) {
+  const queryWords = normalizedQuery.split(' ').filter(w => w.length > 0);
+  const targetWords = normalizedTarget.split(' ').filter(w => w.length > 0);
+  
+  // Single word query - check each word in target
+  if (queryWords.length === 1 && queryWords[0].length >= 2) {
+    const qWord = queryWords[0];
     for (const tWord of targetWords) {
-      if (tWord.includes(qWord) || qWord.includes(tWord)) {
-        matchedWords++;
-        break;
-      }
+      // Exact word match
+      if (tWord === qWord) return 0.9;
+      // Word contains query
+      if (tWord.includes(qWord)) return 0.75;
+      // Query contains word
+      if (qWord.includes(tWord)) return 0.7;
+      // Word starts with query
+      if (tWord.startsWith(qWord)) return 0.75;
+      // Fuzzy match for single words (allow more typos)
       const distance = levenshteinDistance(qWord, tWord);
       const maxLen = Math.max(qWord.length, tWord.length);
-      if (distance <= Math.floor(maxLen * 0.3)) {
-        matchedWords++;
-        break;
+      if (distance <= Math.ceil(maxLen * 0.4)) { // More forgiving - allow 40% difference
+        return 0.6 + (1 - distance / maxLen) * 0.2;
       }
     }
   }
   
-  if (queryWords.length === 0) return 0;
-  return matchedWords / queryWords.length;
+  // Multi-word matching
+  let matchedWords = 0;
+  let partialScore = 0;
+  for (const qWord of queryWords) {
+    if (qWord.length < 2) continue; // Skip single letters
+    
+    let bestWordScore = 0;
+    for (const tWord of targetWords) {
+      if (tWord === qWord) {
+        bestWordScore = 1;
+        break;
+      }
+      if (tWord.includes(qWord) || qWord.includes(tWord)) {
+        bestWordScore = Math.max(bestWordScore, 0.8);
+        continue;
+      }
+      if (tWord.startsWith(qWord) || qWord.startsWith(tWord)) {
+        bestWordScore = Math.max(bestWordScore, 0.7);
+        continue;
+      }
+      const distance = levenshteinDistance(qWord, tWord);
+      const maxLen = Math.max(qWord.length, tWord.length);
+      if (distance <= Math.ceil(maxLen * 0.4)) {
+        const score = 0.5 + (1 - distance / maxLen) * 0.3;
+        bestWordScore = Math.max(bestWordScore, score);
+      }
+    }
+    if (bestWordScore > 0.5) {
+      matchedWords++;
+      partialScore += bestWordScore;
+    }
+  }
+  
+  const validQueryWords = queryWords.filter(w => w.length >= 2).length;
+  if (validQueryWords === 0) return 0;
+  
+  // Return weighted score based on matched words and their quality
+  const matchRatio = matchedWords / validQueryWords;
+  const avgScore = matchedWords > 0 ? partialScore / matchedWords : 0;
+  return matchRatio * avgScore;
+}
+
+// Common abbreviations for product name parts
+const COMMON_ABBREVIATIONS: Record<string, string[]> = {
+  'lumbar': ['ls', 'l.s', 'l.s.'],
+  'sacral': ['ls', 'l.s', 'l.s.'],
+  'belt': ['blt', 'b'],
+  'support': ['supp', 'sup', 's'],
+  'knee': ['kn', 'k'],
+  'cap': ['cp', 'c'],
+  'ankle': ['ank', 'a'],
+  'wrist': ['wrst', 'w'],
+  'elbow': ['elb', 'e'],
+  'shoulder': ['shld', 'sh'],
+  'back': ['bk', 'b'],
+  'brace': ['brc', 'br'],
+  'splint': ['splt', 'sp'],
+  'wrap': ['wrp', 'w'],
+  'bandage': ['bndg', 'band', 'b'],
+  'compression': ['comp', 'cmp'],
+  'ortho': ['orth', 'o'],
+  'orthopedic': ['ortho', 'orth'],
+  'cervical': ['cerv', 'cv', 'c'],
+  'collar': ['cllr', 'clr', 'c'],
+  'small': ['s', 'sm'],
+  'medium': ['m', 'md', 'med'],
+  'large': ['l', 'lg', 'lrg'],
+  'extra': ['x', 'ex'],
+  'universal': ['uni', 'u', 'univ'],
+  'adjustable': ['adj', 'adjust'],
+  'elastic': ['elst', 'ela'],
+  'neoprene': ['neo', 'np'],
+  'premium': ['prem', 'prm'],
+  'classic': ['cls', 'clsc'],
+  'pro': ['p'],
+  'plus': ['pls', '+'],
+  'junior': ['jr', 'j'],
+  'senior': ['sr', 's'],
+  'left': ['l', 'lt'],
+  'right': ['r', 'rt'],
+  'pair': ['pr', 'p'],
+  'single': ['sgl', 's'],
+  'double': ['dbl', 'd'],
+  'triple': ['trpl', 't'],
+  'super': ['spr', 'sup'],
+  'comfort': ['cmft', 'cmf'],
+  'walker': ['wlk', 'wlkr'],
+  'crutch': ['crtch', 'cr'],
+  'pillow': ['pllw', 'plw'],
+  'cushion': ['cshn', 'cush'],
+  'pad': ['pd', 'p'],
+  'gel': ['g'],
+  'foam': ['fm', 'f'],
+  'traction': ['trctn', 'trc'],
+  'tensor': ['tns', 'tens'],
+  'crepe': ['crp', 'cp'],
+  'abdominal': ['abdom', 'abd', 'ab'],
+  'lumbo': ['lmb', 'lm'],
+  'sacro': ['scr', 'sc'],
+  'thoracic': ['thor', 'th'],
+  'hip': ['h'],
+  'thigh': ['th'],
+  'calf': ['clf', 'c'],
+  'heel': ['h', 'hl'],
+  'toe': ['t'],
+  'finger': ['fngr', 'fng', 'f'],
+  'thumb': ['thb', 'th'],
+  'palm': ['plm', 'p'],
+  'arm': ['a'],
+  'leg': ['l'],
+  'sling': ['slng', 'sl'],
+  'immobilizer': ['immob', 'imm'],
+  'stabilizer': ['stab', 'stbl'],
+  'protector': ['prot', 'pr'],
+  'guard': ['grd', 'gd'],
+  'sleeve': ['slv', 'sl'],
+  'sock': ['sk', 'sck'],
+  'stocking': ['stck', 'stkg'],
+  'glove': ['glv', 'gl'],
+  'mitt': ['mt', 'm'],
+  'posture': ['pstr', 'post'],
+  'corrector': ['corr', 'cor'],
+  'trainer': ['trnr', 'tr'],
+  'exerciser': ['exer', 'ex'],
+  'massager': ['mssr', 'mass'],
+  'stimulator': ['stim', 'stm'],
+  'tens': ['t'],
+  'electro': ['elec', 'el'],
+  'magnetic': ['mag', 'mg'],
+  'therapy': ['thpy', 'th'],
+  'hot': ['h'],
+  'cold': ['c'],
+  'ice': ['i'],
+  'heat': ['ht', 'h'],
+  'infrared': ['ir'],
+};
+
+function generateAliasesForProduct(name: string, sku: string, existingAliases: string | null): string {
+  const aliases = new Set<string>();
+  
+  // Add existing aliases
+  if (existingAliases) {
+    existingAliases.split(',').forEach(a => {
+      const trimmed = a.trim();
+      if (trimmed) aliases.add(trimmed.toLowerCase());
+    });
+  }
+  
+  const normalizedName = name.toLowerCase();
+  const words = normalizedName.split(/[\s\-\.]+/).filter(w => w.length > 1);
+  
+  // Generate abbreviations based on word matches
+  for (const word of words) {
+    const abbrevs = COMMON_ABBREVIATIONS[word];
+    if (abbrevs) {
+      abbrevs.forEach(a => aliases.add(a));
+    }
+  }
+  
+  // Generate initials from multi-word names
+  if (words.length > 1) {
+    const initials = words.map(w => w[0]).join('');
+    if (initials.length >= 2) {
+      aliases.add(initials);
+    }
+    // Also with dots
+    const initialsWithDots = words.map(w => w[0]).join('.');
+    aliases.add(initialsWithDots);
+  }
+  
+  // Generate combined abbreviations (e.g., "knee cap" -> "kc", "kneecap")
+  if (words.length >= 2) {
+    // Combined without space
+    aliases.add(words.slice(0, 2).join(''));
+    // First letters of first two words
+    aliases.add(words[0][0] + words[1][0]);
+    // Abbreviated first word + full second word
+    const firstWordAbbrevs = COMMON_ABBREVIATIONS[words[0]];
+    if (firstWordAbbrevs && firstWordAbbrevs.length > 0) {
+      aliases.add(firstWordAbbrevs[0] + words[1]);
+      aliases.add(firstWordAbbrevs[0] + ' ' + words[1]);
+    }
+  }
+  
+  // Add SKU variations without special characters
+  const skuClean = sku.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  if (skuClean && skuClean !== sku.toLowerCase()) {
+    aliases.add(skuClean);
+  }
+  
+  // Remove empty strings and convert to comma-separated
+  const filteredAliases = Array.from(aliases).filter(a => a && a.length > 0);
+  return filteredAliases.join(', ');
 }
 
 function findBestMatch<T extends { sku: string; name: string; aliases?: string | null }>(
@@ -299,6 +507,65 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting product:", error);
       res.status(500).json({ message: "Failed to delete product" });
+    }
+  });
+
+  // Bulk generate aliases for all products (Admin only)
+  app.post('/api/products/generate-aliases', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can generate aliases" });
+      }
+
+      const { preview = false, brand } = req.body;
+      
+      // Get all products or filter by brand
+      let allProducts = await storage.getAllProducts();
+      if (brand && brand !== 'all') {
+        allProducts = allProducts.filter(p => p.brand.toLowerCase() === brand.toLowerCase());
+      }
+      
+      const updates: Array<{id: string; name: string; sku: string; currentAliases: string | null; newAliases: string}> = [];
+      
+      for (const product of allProducts) {
+        const newAliases = generateAliasesForProduct(product.name, product.sku, product.aliases || null);
+        if (newAliases && newAliases !== (product.aliases || '')) {
+          updates.push({
+            id: product.id,
+            name: product.name,
+            sku: product.sku,
+            currentAliases: product.aliases || null,
+            newAliases,
+          });
+        }
+      }
+      
+      if (preview) {
+        return res.json({ 
+          preview: true, 
+          totalProducts: allProducts.length,
+          productsToUpdate: updates.length,
+          updates: updates.slice(0, 50), // Show max 50 in preview
+        });
+      }
+      
+      // Actually update the products
+      let updatedCount = 0;
+      for (const update of updates) {
+        await storage.updateProduct(update.id, { aliases: update.newAliases });
+        updatedCount++;
+      }
+      
+      res.json({ 
+        success: true, 
+        totalProducts: allProducts.length,
+        updatedProducts: updatedCount,
+      });
+    } catch (error) {
+      console.error("Error generating aliases:", error);
+      res.status(500).json({ message: "Failed to generate aliases" });
     }
   });
 
