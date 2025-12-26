@@ -7,6 +7,7 @@ import ProductCard from "@/components/ProductCard";
 import UploadDropzone from "@/components/UploadDropzone";
 import CartPanel from "@/components/CartPanel";
 import MobileCartDrawer from "@/components/MobileCartDrawer";
+import MobileCartPage from "@/components/MobileCartPage";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import EmptyState from "@/components/EmptyState";
 import ImportOrder from "@/components/ImportOrder";
@@ -63,6 +64,7 @@ export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const isVerySmallScreen = useIsMobile(376);
   const [activeTab, setActiveTab] = useState<"products" | "order" | "import" | "upload">("order");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -875,8 +877,30 @@ export default function Home() {
         )}
       </main>
 
-      {/* Cart - Desktop uses Sheet, Mobile uses Drawer */}
-      {isMobile ? (
+      {/* Cart - Desktop uses Sheet, Larger Mobile uses Drawer, Small Mobile uses Full Page */}
+      {isMobile && isCartOpen && isVerySmallScreen ? (
+        <MobileCartPage
+          cartItems={cart}
+          orderDetails={orderDetails}
+          onOrderDetailsChange={setOrderDetails}
+          onQuantityChange={handleQuantityChange}
+          onFreeQuantityChange={handleFreeQuantityChange}
+          onRemoveItem={handleRemoveItem}
+          onClearCart={() => {
+            setCart([]);
+            setOrderDetails({
+              partyName: "",
+              deliveryCompany: "Guided",
+              deliveryNotes: "",
+              specialNotes: "",
+              proposedDiscount: 0,
+            });
+          }}
+          onSendOrder={handleSendOrder}
+          onClose={() => setIsCartOpen(false)}
+          isSending={isSendingOrder}
+        />
+      ) : isMobile ? (
         <MobileCartDrawer
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
