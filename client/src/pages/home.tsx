@@ -795,6 +795,8 @@ export default function Home() {
                 size: p.size,
                 price: Number(p.price),
                 distributorPrice: p.distributorPrice,
+                alias1: (p as any).alias1 || null,
+                alias2: (p as any).alias2 || null,
                 stock: p.stock,
               }))}
               searchQuery={searchQuery}

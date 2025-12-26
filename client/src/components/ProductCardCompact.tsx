@@ -22,6 +22,8 @@ export interface ProductVariant {
   size: string | null;
   price: number;
   distributorPrice?: number | string | null;
+  alias1?: string | null;
+  alias2?: string | null;
   stock: number;
 }
 
@@ -159,6 +161,11 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
             <p className="text-sm">{group.name}</p>
           </TooltipContent>
         </Tooltip>
+        {(group.variants[0]?.alias1 || group.variants[0]?.alias2) && (
+          <p className="text-xs text-muted-foreground italic mt-0.5" data-testid={`text-alias-${group.baseKey}`}>
+            {[group.variants[0]?.alias1, group.variants[0]?.alias2].filter(Boolean).join(', ')}
+          </p>
+        )}
       </div>
 
       {group.variants.length > 1 && (

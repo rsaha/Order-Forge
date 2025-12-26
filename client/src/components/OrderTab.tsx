@@ -17,6 +17,8 @@ interface Product {
   size?: string | null;
   price: number;
   distributorPrice?: number | string | null;
+  alias1?: string | null;
+  alias2?: string | null;
   stock: number;
 }
 
@@ -74,6 +76,8 @@ export default function OrderTab({
       size: p.size || null,
       price: p.price,
       distributorPrice: p.distributorPrice,
+      alias1: p.alias1,
+      alias2: p.alias2,
       stock: p.stock,
     }));
     return groupProductsByName(variants);
