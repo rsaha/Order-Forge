@@ -47,7 +47,8 @@ interface ParsedItem {
 
 function getEffectivePrice(product: { price: number; distributorPrice?: number | string | null }): number {
   if (product.distributorPrice) {
-    return Number(product.distributorPrice);
+    const dp = Number(product.distributorPrice);
+    if (!isNaN(dp) && dp > 0) return dp;
   }
   return product.price;
 }
@@ -230,13 +231,14 @@ export default function Home() {
     }
 
     const worksheetData = [
-      ["SKU", "Name", "Brand", "Size", "MRP", "Alias 1", "Alias 2"],
+      ["SKU", "Name", "Brand", "Size", "MRP", "Distributor Price", "Alias 1", "Alias 2"],
       ...brandProducts.map(p => [
         p.sku,
         p.name,
         p.brand,
         p.size || "",
         p.price,
+        (p as any).distributorPrice || "",
         (p as any).alias1 || "",
         (p as any).alias2 || "",
       ]),
@@ -462,11 +464,14 @@ export default function Home() {
       
       const orderWithProducts = {
         ...orderData,
-        items: orderData.items.map((item: any) => ({
-          ...item,
-          price: item.unitPrice || String(cart.find(c => c.product.id === item.productId)?.product.price || 0),
-          product: cart.find(c => c.product.id === item.productId)?.product,
-        })),
+        items: orderData.items.map((item: any) => {
+          const cartItem = cart.find(c => c.product.id === item.productId);
+          return {
+            ...item,
+            price: item.unitPrice || String(cartItem ? getEffectivePrice(cartItem.product) : 0),
+            product: cartItem?.product,
+          };
+        }),
         user: user ? { firstName: user.firstName, lastName: user.lastName } : orderData.user,
       };
       

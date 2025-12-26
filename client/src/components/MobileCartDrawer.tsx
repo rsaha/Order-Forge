@@ -13,6 +13,14 @@ import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
 
+function getEffectivePrice(product: Product): number {
+  if (product.distributorPrice) {
+    const dp = Number(product.distributorPrice);
+    if (!isNaN(dp) && dp > 0) return dp;
+  }
+  return product.price;
+}
+
 export interface CartItemData {
   product: Product;
   quantity: number;
@@ -46,7 +54,8 @@ function MobileCartItem({
   onFreeQuantityChange: (productId: string, freeQuantity: number) => void;
   onRemove: (productId: string) => void;
 }) {
-  const subtotal = item.product.price * item.quantity;
+  const effectivePrice = getEffectivePrice(item.product);
+  const subtotal = effectivePrice * item.quantity;
 
   return (
     <div className="p-3 bg-muted/30 rounded-md space-y-3" data-testid={`mobile-cart-item-${item.product.id}`}>
@@ -59,7 +68,7 @@ function MobileCartItem({
             {item.product.sku}
           </p>
           <p className="text-xs text-muted-foreground">
-            {formatINR(item.product.price)} each
+            {formatINR(effectivePrice)} each
           </p>
         </div>
         <Button
@@ -184,7 +193,7 @@ export default function MobileCartDrawer({
   const cartBrand = cartItems.length > 0 ? cartItems[0].product.brand : null;
   
   const subtotal = cartItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + getEffectivePrice(item.product) * item.quantity,
     0
   );
   const discountPercent = orderDetails.proposedDiscount || 0;

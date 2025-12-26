@@ -6,7 +6,8 @@ import { formatINR, type Product } from "./ProductCard";
 
 function getEffectivePrice(product: Product): number {
   if (product.distributorPrice) {
-    return Number(product.distributorPrice);
+    const dp = Number(product.distributorPrice);
+    if (!isNaN(dp) && dp > 0) return dp;
   }
   return product.price;
 }
