@@ -82,8 +82,8 @@ function MobileCartItem({
         </Button>
       </div>
       
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between min-[380px]:gap-3">
+        <div className="flex items-center justify-between min-[380px]:justify-start gap-2">
           <span className="text-sm font-medium">Qty:</span>
           <div className="flex items-center border rounded-md">
             <Button
@@ -121,7 +121,7 @@ function MobileCartItem({
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between min-[380px]:justify-start gap-2">
           <span className="text-xs text-muted-foreground whitespace-nowrap">Free:</span>
           <div className="flex items-center border rounded-md">
             <Button
@@ -210,8 +210,8 @@ export default function MobileCartDrawer({
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DrawerContent className="max-h-[85vh] overflow-hidden">
-        <div className="flex flex-col w-full h-full overflow-hidden">
+      <DrawerContent className="max-h-[85vh]">
+        <div className="flex flex-col w-full h-full max-h-[85vh] overflow-hidden">
         {step === "cart" ? (
           <>
             <DrawerHeader className="flex-none border-b pb-3">
