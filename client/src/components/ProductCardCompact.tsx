@@ -20,7 +20,16 @@ export interface ProductVariant {
   brand: string;
   size: string | null;
   price: number;
+  distributorPrice?: number | string | null;
   stock: number;
+}
+
+function getEffectivePrice(variant: ProductVariant): number {
+  if (variant.distributorPrice) {
+    const dp = Number(variant.distributorPrice);
+    if (!isNaN(dp) && dp > 0) return dp;
+  }
+  return Number(variant.price) || 0;
 }
 
 export interface GroupedProduct {
@@ -167,13 +176,22 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
       )}
 
       <div className="flex items-center justify-between gap-2 mt-auto">
-        <div className="text-sm font-semibold" data-testid={`text-price-${group.baseKey}`}>
+        <div className="flex flex-col" data-testid={`text-price-${group.baseKey}`}>
           {selectedVariant ? (
-            formatINR(selectedVariant.price)
+            <>
+              <span className="text-xs text-muted-foreground">
+                MRP: {formatINR(Number(selectedVariant.price))}
+              </span>
+              {selectedVariant.distributorPrice && Number(selectedVariant.distributorPrice) > 0 && (
+                <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                  {formatINR(getEffectivePrice(selectedVariant))}
+                </span>
+              )}
+            </>
           ) : priceRange.isSame ? (
-            formatINR(priceRange.min)
+            <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)}</span>
           ) : (
-            <span className="text-xs">{formatINR(priceRange.min)} - {formatINR(priceRange.max)}</span>
+            <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)} - {formatINR(priceRange.max)}</span>
           )}
         </div>
         

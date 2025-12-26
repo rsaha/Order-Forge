@@ -16,6 +16,7 @@ interface Product {
   brand: string;
   size?: string | null;
   price: number;
+  distributorPrice?: number | string | null;
   stock: number;
 }
 
@@ -72,6 +73,7 @@ export default function OrderTab({
       brand: p.brand,
       size: p.size || null,
       price: p.price,
+      distributorPrice: p.distributorPrice,
       stock: p.stock,
     }));
     return groupProductsByName(variants);
