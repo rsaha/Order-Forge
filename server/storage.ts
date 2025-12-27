@@ -554,6 +554,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.actualDeliveryDate !== undefined) updateData.actualDeliveryDate = updates.actualDeliveryDate ? new Date(updates.actualDeliveryDate) : null;
     if (updates.deliveryCost !== undefined) updateData.deliveryCost = updates.deliveryCost;
     if (updates.deliveryNote !== undefined) updateData.deliveryNote = updates.deliveryNote;
+    if (updates.deliveryCompany !== undefined) updateData.deliveryCompany = updates.deliveryCompany;
     if (updates.actualOrderValue !== undefined) updateData.actualOrderValue = updates.actualOrderValue;
     if (updates.deliveredOnTime !== undefined) updateData.deliveredOnTime = updates.deliveredOnTime;
 
