@@ -318,6 +318,7 @@ export default function OrdersPage() {
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
       if (updates.deliveryCost !== undefined) payload.deliveryCost = updates.deliveryCost || null;
       if (updates.deliveryNote !== undefined) payload.deliveryNote = updates.deliveryNote || null;
+      if (updates.deliveryCompany !== undefined) payload.deliveryCompany = updates.deliveryCompany || null;
       if (updates.actualOrderValue !== undefined) payload.actualOrderValue = updates.actualOrderValue || null;
 
       return apiRequest("PATCH", `/api/admin/orders/${id}`, payload);
