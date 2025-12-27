@@ -22,18 +22,21 @@ function Router() {
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route component={Landing} />
+      </Switch>
+    );
+  }
+
   return (
     <Switch>
-      {!isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/orders" component={OrdersPage} />
-          <Route path="/users" component={UsersPage} />
-          <Route path="/analytics" component={AnalyticsPage} />
-        </>
-      )}
+      <Route path="/" component={Home} />
+      <Route path="/orders" component={OrdersPage} />
+      <Route path="/users" component={UsersPage} />
+      <Route path="/analytics" component={AnalyticsPage} />
       <Route component={NotFound} />
     </Switch>
   );
