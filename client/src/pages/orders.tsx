@@ -101,6 +101,7 @@ interface OrderEditFormData {
   status: OrderStatus;
   partyName: string;
   deliveryAddress: string;
+  deliveryCompany: string;
   invoiceNumber: string;
   invoiceDate: string;
   dispatchDate: string;
@@ -169,6 +170,7 @@ export default function OrdersPage() {
     status: "Created",
     partyName: "",
     deliveryAddress: "",
+    deliveryCompany: "",
     invoiceNumber: "",
     invoiceDate: "",
     dispatchDate: "",
@@ -401,6 +403,7 @@ export default function OrdersPage() {
       status: normalizedStatus,
       partyName: order.partyName || "",
       deliveryAddress: order.deliveryAddress || "",
+      deliveryCompany: order.deliveryCompany || "",
       invoiceNumber: order.invoiceNumber || "",
       invoiceDate: order.invoiceDate ? new Date(order.invoiceDate).toISOString().split("T")[0] : "",
       dispatchDate: order.dispatchDate ? new Date(order.dispatchDate).toISOString().split("T")[0] : "",
@@ -1031,6 +1034,25 @@ export default function OrdersPage() {
                       />
                     </div>
 
+                    <div>
+                      <Label htmlFor="deliveryCompany">Delivery Company</Label>
+                      <Select
+                        value={editFormData.deliveryCompany}
+                        onValueChange={(v) => setEditFormData({ ...editFormData, deliveryCompany: v })}
+                      >
+                        <SelectTrigger id="deliveryCompany" data-testid="select-edit-delivery-company">
+                          <SelectValue placeholder="Select delivery company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DELIVERY_COMPANIES.map((company) => (
+                            <SelectItem key={company} value={company}>
+                              {company}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <Label htmlFor="invoiceNumber">Invoice No {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
@@ -1206,6 +1228,25 @@ export default function OrdersPage() {
                     </p>
                   </div>
 
+                  <div>
+                    <Label htmlFor="brandAdminDeliveryCompany">Delivery Company</Label>
+                    <Select
+                      value={editFormData.deliveryCompany}
+                      onValueChange={(v) => setEditFormData({ ...editFormData, deliveryCompany: v })}
+                    >
+                      <SelectTrigger id="brandAdminDeliveryCompany" data-testid="select-brand-admin-delivery-company">
+                        <SelectValue placeholder="Select delivery company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DELIVERY_COMPANIES.map((company) => (
+                          <SelectItem key={company} value={company}>
+                            {company}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label htmlFor="brandAdminInvoiceNumber">Invoice No <span className="text-destructive">*</span></Label>
@@ -1267,6 +1308,7 @@ export default function OrdersPage() {
                         updateMutation.mutate(
                           { id: selectedOrder.id, updates: { 
                             status: "Invoiced",
+                            deliveryCompany: editFormData.deliveryCompany || undefined,
                             invoiceNumber: editFormData.invoiceNumber,
                             invoiceDate: editFormData.invoiceDate,
                             actualOrderValue: editFormData.actualOrderValue

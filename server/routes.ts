@@ -739,13 +739,20 @@ export async function registerRoutes(
           return res.status(403).json({ message: "Access denied to this order" });
         }
 
-        if (req.body.status) {
+        // BrandAdmin can update deliveryCompany and status (with restrictions)
+        const allowedFields = ['deliveryCompany', 'status', 'invoiceNumber', 'invoiceDate', 'actualOrderValue'];
+        const requestedFields = Object.keys(req.body);
+        const disallowedFields = requestedFields.filter(f => !allowedFields.includes(f));
+        
+        if (disallowedFields.length > 0) {
+          return res.status(403).json({ message: `BrandAdmin cannot update: ${disallowedFields.join(', ')}` });
+        }
+
+        // Status change restriction: only Approved -> Invoiced
+        if (req.body.status && req.body.status !== order.status) {
           if (order.status !== 'Approved' || req.body.status !== 'Invoiced') {
             return res.status(403).json({ message: "BrandAdmin can only change status from Approved to Invoiced" });
           }
-          req.body = { status: 'Invoiced' };
-        } else {
-          return res.status(403).json({ message: "BrandAdmin can only update order status" });
         }
       }
 

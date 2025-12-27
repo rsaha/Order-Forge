@@ -28,6 +28,9 @@ function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] 
   if (brand === "Elmeric") {
     return ["Elmeric", "Guided"];
   }
+  if (brand === "Morison") {
+    return ["Xmaple", "Elmeric"];
+  }
   return DELIVERY_COMPANY_OPTIONS;
 }
 
