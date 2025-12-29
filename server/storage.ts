@@ -4,6 +4,7 @@ import {
   userBrandAccess,
   orders,
   orderItems,
+  brands,
   type User,
   type UpsertUser,
   type Product,
@@ -16,6 +17,8 @@ import {
   type InsertOrderItem,
   type UpdateOrder,
   type UpdateProduct,
+  type BrandRecord,
+  type InsertBrand,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
@@ -55,6 +58,14 @@ export interface IStorage {
   deleteOrder(id: string): Promise<boolean>;
   getBulkOrderSummary(filters: OrderFilters): Promise<BulkOrderSummary[]>;
   getOrderAnalytics(filters?: OrderFilters): Promise<OrderAnalytics>;
+  
+  // Brand operations
+  getAllBrands(): Promise<BrandRecord[]>;
+  getActiveBrands(): Promise<BrandRecord[]>;
+  createBrand(brand: InsertBrand): Promise<BrandRecord>;
+  updateBrand(id: string, updates: { name?: string; isActive?: boolean }): Promise<BrandRecord | undefined>;
+  deleteBrand(id: string): Promise<boolean>;
+  seedBrands(): Promise<void>;
 }
 
 export interface OrderAnalytics {
@@ -655,6 +666,53 @@ export class DatabaseStorage implements IStorage {
       deliveredOnTimeCount,
       deliveredCount,
     };
+  }
+
+  // Brand operations
+  async getAllBrands(): Promise<BrandRecord[]> {
+    return db.select().from(brands).orderBy(brands.name);
+  }
+
+  async getActiveBrands(): Promise<BrandRecord[]> {
+    return db.select().from(brands).where(eq(brands.isActive, true)).orderBy(brands.name);
+  }
+
+  async createBrand(brand: InsertBrand): Promise<BrandRecord> {
+    const [newBrand] = await db.insert(brands).values(brand).returning();
+    return newBrand;
+  }
+
+  async updateBrand(id: string, updates: { name?: string; isActive?: boolean }): Promise<BrandRecord | undefined> {
+    const updateData: Record<string, unknown> = {};
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
+    
+    if (Object.keys(updateData).length === 0) {
+      const [existing] = await db.select().from(brands).where(eq(brands.id, id));
+      return existing;
+    }
+    
+    const [updated] = await db.update(brands).set(updateData).where(eq(brands.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBrand(id: string): Promise<boolean> {
+    const result = await db.delete(brands).where(eq(brands.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async seedBrands(): Promise<void> {
+    const existingBrands = await this.getAllBrands();
+    if (existingBrands.length > 0) return;
+    
+    const defaultBrands = [
+      "Tynor", "Morison", "Karemed", "UM", "Biostige", 
+      "Acusure", "Elmeric", "Blefit", "Shikon", "Samson"
+    ];
+    
+    for (const name of defaultBrands) {
+      await db.insert(brands).values({ name, isActive: true }).onConflictDoNothing();
+    }
   }
 }
 

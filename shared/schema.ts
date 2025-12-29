@@ -64,9 +64,17 @@ export const products = pgTable("products", {
 export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
-// Brand options
-export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric", "Blefit"] as const;
+// Brand options (legacy - kept for backwards compatibility, use brands table instead)
+export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric", "Blefit", "Shikon", "Samson"] as const;
 export type Brand = typeof BRAND_OPTIONS[number];
+
+// Brands dimension table - for dynamic brand management
+export const brands = pgTable("brands", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 // Delivery company options
 export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"] as const;
@@ -161,6 +169,7 @@ export const insertProductSchema = createInsertSchema(products).omit({ id: true,
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
+export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
 
 // Update schema for orders (all fields optional except id)
 export const updateOrderSchema = z.object({
@@ -211,3 +220,5 @@ export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
+export type BrandRecord = typeof brands.$inferSelect;
+export type InsertBrand = z.infer<typeof insertBrandSchema>;

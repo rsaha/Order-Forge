@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES } from "@shared/schema";
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
@@ -1183,6 +1183,101 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error sending order email:", error);
       res.status(500).json({ message: error.message || "Failed to send order email" });
+    }
+  });
+
+  // Brand management routes
+  app.get('/api/brands', isAuthenticated, async (req: any, res) => {
+    try {
+      // Seed brands if table is empty
+      await storage.seedBrands();
+      const brandList = await storage.getActiveBrands();
+      res.json(brandList);
+    } catch (error: any) {
+      console.error("Error fetching brands:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get('/api/admin/brands', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      // Seed brands if table is empty
+      await storage.seedBrands();
+      const brandList = await storage.getAllBrands();
+      res.json(brandList);
+    } catch (error: any) {
+      console.error("Error fetching brands:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post('/api/admin/brands', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const parseResult = insertBrandSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid brand data", errors: parseResult.error.errors });
+      }
+      
+      const brand = await storage.createBrand(parseResult.data);
+      res.status(201).json(brand);
+    } catch (error: any) {
+      console.error("Error creating brand:", error);
+      if (error.code === "23505") {
+        return res.status(400).json({ message: "Brand already exists" });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch('/api/admin/brands/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { id } = req.params;
+      const { name, isActive } = req.body;
+      
+      const updated = await storage.updateBrand(id, { name, isActive });
+      if (!updated) {
+        return res.status(404).json({ message: "Brand not found" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating brand:", error);
+      if (error.code === "23505") {
+        return res.status(400).json({ message: "Brand name already exists" });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete('/api/admin/brands/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { id } = req.params;
+      const deleted = await storage.deleteBrand(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Brand not found" });
+      }
+      res.json({ message: "Brand deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting brand:", error);
+      res.status(500).json({ message: error.message });
     }
   });
 
