@@ -26,7 +26,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { ORDER_STATUSES, BRAND_OPTIONS } from "@shared/schema";
+import { ORDER_STATUSES } from "@shared/schema";
+import type { BrandRecord } from "@shared/schema";
 
 interface OrderAnalytics {
   statusCounts: Record<string, number>;
@@ -103,6 +104,10 @@ export default function AnalyticsPage() {
     enabled: isAdmin,
   });
 
+  const { data: brands = [] } = useQuery<BrandRecord[]>({
+    queryKey: ["/api/brands"],
+  });
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -166,8 +171,8 @@ export default function AnalyticsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Brands</SelectItem>
-                  {BRAND_OPTIONS.map((brand) => (
-                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                  {brands.map((brand) => (
+                    <SelectItem key={brand.id} value={brand.name}>{brand.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

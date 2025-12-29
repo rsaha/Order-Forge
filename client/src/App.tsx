@@ -10,6 +10,7 @@ import Landing from "@/pages/landing";
 import OrdersPage from "@/pages/orders";
 import UsersPage from "@/pages/users";
 import AnalyticsPage from "@/pages/analytics";
+import BrandsPage from "@/pages/brands";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/orders" component={OrdersPage} />
       <Route path="/users" component={UsersPage} />
       <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/brands" component={BrandsPage} />
       <Route component={NotFound} />
     </Switch>
   );

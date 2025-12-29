@@ -477,7 +477,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Brands must be an array" });
       }
       
-      const validBrands = brands.filter(b => BRAND_OPTIONS.includes(b));
+      // Get valid brands from database
+      const allBrands = await storage.getActiveBrands();
+      const validBrandNames = allBrands.map(b => b.name);
+      const validBrands = brands.filter((b: string) => validBrandNames.includes(b));
       await storage.setUserBrandAccess(targetUserId, validBrands);
       
       res.json({ message: "Brand access updated", brands: validBrands });
@@ -489,10 +492,19 @@ export async function registerRoutes(
 
   // Get available brand and delivery company options
   app.get('/api/options', isAuthenticated, async (req: any, res) => {
-    res.json({
-      brands: BRAND_OPTIONS,
-      deliveryCompanies: DELIVERY_COMPANY_OPTIONS,
-    });
+    try {
+      // Seed brands if table is empty
+      await storage.seedBrands();
+      const brandRecords = await storage.getActiveBrands();
+      const brandNames = brandRecords.map(b => b.name);
+      res.json({
+        brands: brandNames,
+        deliveryCompanies: DELIVERY_COMPANY_OPTIONS,
+      });
+    } catch (error: any) {
+      console.error("Error fetching options:", error);
+      res.status(500).json({ message: error.message });
+    }
   });
 
   // Create order

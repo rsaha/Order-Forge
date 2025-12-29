@@ -33,8 +33,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { User, UserRole } from "@shared/schema";
-import { BRAND_OPTIONS, USER_ROLES } from "@shared/schema";
+import type { User, UserRole, BrandRecord } from "@shared/schema";
+import { USER_ROLES } from "@shared/schema";
 
 interface UserWithBrands extends User {
   brandAccess: string[];
@@ -61,6 +61,10 @@ export default function UsersPage() {
   const { data: users = [], isLoading } = useQuery<UserWithBrands[]>({
     queryKey: ["/api/admin/users"],
     enabled: isAdmin,
+  });
+
+  const { data: brandRecords = [] } = useQuery<BrandRecord[]>({
+    queryKey: ["/api/brands"],
   });
 
   const usersByRole = useMemo(() => {
@@ -336,15 +340,15 @@ export default function UsersPage() {
           <span className="text-xs text-muted-foreground">Brands:</span>
           {isEditingBrands ? (
             <div className="flex flex-wrap items-center gap-1">
-              {BRAND_OPTIONS.map((brand) => (
+              {brandRecords.map((brand) => (
                 <Badge
-                  key={brand}
-                  variant={editingBrands.includes(brand) ? "default" : "outline"}
+                  key={brand.id}
+                  variant={editingBrands.includes(brand.name) ? "default" : "outline"}
                   className="text-xs cursor-pointer"
-                  onClick={() => handleBrandToggle(brand)}
-                  data-testid={`badge-brand-${u.id}-${brand}`}
+                  onClick={() => handleBrandToggle(brand.name)}
+                  data-testid={`badge-brand-${u.id}-${brand.name}`}
                 >
-                  {brand}
+                  {brand.name}
                 </Badge>
               ))}
               <Button 
