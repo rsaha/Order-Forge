@@ -750,8 +750,10 @@ export default function OrdersPage() {
                       <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
                       <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
                       <th className="text-left p-2 font-medium">Status</th>
+                      <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
+                      <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
                       <th className="text-left p-2 font-medium">Invoice</th>
-                      <th className="text-left p-2 font-medium">Del.</th>
+                      <th className="text-left p-2 font-medium">Est Del</th>
                       <th className="text-right p-2 font-medium hidden lg:table-cell">Total</th>
                       <th className="text-center p-2 font-medium"></th>
                     </tr>
@@ -822,6 +824,12 @@ export default function OrdersPage() {
                               {order.status}
                             </Badge>
                           )}
+                        </td>
+                        <td className="p-2 text-center text-xs hidden md:table-cell" data-testid={`text-cases-${order.id}`}>
+                          {order.cases || "-"}
+                        </td>
+                        <td className="p-2 text-xs whitespace-nowrap hidden md:table-cell" data-testid={`text-dispatch-by-${order.id}`}>
+                          {order.dispatchBy ? new Date(order.dispatchBy).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
                         </td>
                         <td className="p-2 text-xs" data-testid={`text-invoice-${order.id}`}>
                           {order.invoiceNumber ? (
