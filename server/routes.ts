@@ -525,6 +525,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Order brand is required" });
       }
 
+      // Validate that brand exists and is active
+      const brandRecord = await storage.getBrandByName(brand.trim());
+      if (!brandRecord || !brandRecord.isActive) {
+        return res.status(400).json({ message: `Brand "${brand}" is not valid or has been deactivated` });
+      }
+
       const productIds = items.map((item: any) => item.productId);
       const orderedProducts = await Promise.all(productIds.map((id: string) => storage.getProduct(id)));
       const invalidProducts = orderedProducts.some(p => !p);
@@ -1282,6 +1288,22 @@ export async function registerRoutes(
       }
       
       const { id } = req.params;
+      
+      // Get the brand first to check usage
+      const allBrands = await storage.getAllBrands();
+      const brand = allBrands.find(b => b.id === id);
+      if (!brand) {
+        return res.status(404).json({ message: "Brand not found" });
+      }
+      
+      // Check if brand is in use by products or orders
+      const usage = await storage.getBrandUsage(brand.name);
+      if (usage.productCount > 0 || usage.orderCount > 0) {
+        return res.status(409).json({ 
+          message: `Cannot delete brand "${brand.name}". It is used by ${usage.productCount} product(s) and ${usage.orderCount} order(s). Consider deactivating the brand instead.` 
+        });
+      }
+      
       const deleted = await storage.deleteBrand(id);
       if (!deleted) {
         return res.status(404).json({ message: "Brand not found" });

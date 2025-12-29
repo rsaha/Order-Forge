@@ -62,6 +62,8 @@ export interface IStorage {
   // Brand operations
   getAllBrands(): Promise<BrandRecord[]>;
   getActiveBrands(): Promise<BrandRecord[]>;
+  getBrandByName(name: string): Promise<BrandRecord | undefined>;
+  getBrandUsage(brandName: string): Promise<{ productCount: number; orderCount: number }>;
   createBrand(brand: InsertBrand): Promise<BrandRecord>;
   updateBrand(id: string, updates: { name?: string; isActive?: boolean }): Promise<BrandRecord | undefined>;
   deleteBrand(id: string): Promise<boolean>;
@@ -675,6 +677,26 @@ export class DatabaseStorage implements IStorage {
 
   async getActiveBrands(): Promise<BrandRecord[]> {
     return db.select().from(brands).where(eq(brands.isActive, true)).orderBy(brands.name);
+  }
+
+  async getBrandByName(name: string): Promise<BrandRecord | undefined> {
+    const [brand] = await db.select().from(brands).where(eq(brands.name, name));
+    return brand;
+  }
+
+  async getBrandUsage(brandName: string): Promise<{ productCount: number; orderCount: number }> {
+    const [productResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(eq(products.brand, brandName));
+    
+    const [orderResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(orders)
+      .where(eq(orders.brand, brandName));
+    
+    return {
+      productCount: Number(productResult?.count || 0),
+      orderCount: Number(orderResult?.count || 0),
+    };
   }
 
   async createBrand(brand: InsertBrand): Promise<BrandRecord> {
