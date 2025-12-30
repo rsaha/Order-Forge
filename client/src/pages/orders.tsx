@@ -216,12 +216,10 @@ export default function OrdersPage() {
           const range = getDateRange(7);
           params.append("fromDate", range.fromDate);
           params.append("toDate", range.toDate);
-          params.append("includeActive", "true");
         } else if (dateRange === "today") {
           const today = getTodayDate();
           params.append("fromDate", today);
           params.append("toDate", today);
-          params.append("includeActive", "true");
         }
         const queryString = params.toString();
         const url = queryString ? `/api/admin/orders?${queryString}` : "/api/admin/orders";
@@ -266,17 +264,13 @@ export default function OrdersPage() {
           const fromDate = new Date(range.fromDate);
           sorted = sorted.filter(o => {
             const orderDate = new Date(o.createdAt || 0);
-            const isWithinRange = orderDate >= fromDate;
-            const isActive = o.status !== "Cancelled" && o.status !== "Delivered";
-            return isWithinRange || isActive;
+            return orderDate >= fromDate;
           });
         } else if (dateRange === "today") {
           const today = getTodayDate();
           sorted = sorted.filter(o => {
             const orderDate = (o.createdAt || '').toString().split('T')[0];
-            const isToday = orderDate === today;
-            const isActive = o.status !== "Cancelled" && o.status !== "Delivered";
-            return isToday || isActive;
+            return orderDate === today;
           });
         }
         
