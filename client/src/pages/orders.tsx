@@ -162,7 +162,7 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("7days");
+  const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("all");
   const [showBulkWhatsApp, setShowBulkWhatsApp] = useState(false);
   const [bulkType, setBulkType] = useState<"dispatched" | "delivered">("dispatched");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -713,11 +713,11 @@ export default function OrdersPage() {
           </Select>
           
           <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
-            <SelectTrigger className="w-28 hidden lg:flex" data-testid="select-delivery-filter">
+            <SelectTrigger className="w-44 hidden lg:flex" data-testid="select-delivery-filter">
               <SelectValue placeholder="Delivery" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="all">All Delivery Company</SelectItem>
               {DELIVERY_COMPANIES.map((company) => (
                 <SelectItem key={company} value={company}>
                   {company}
