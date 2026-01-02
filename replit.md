@@ -71,6 +71,19 @@ Key tables:
 - Backend validates all products in order belong to the same brand before creation
 - Orders table has a required `brand` field that stores the brand of all products in the order
 
+### Orders Page Status Tab Navigation
+- Orders page uses horizontal status tabs instead of dropdown filter
+- Color-coded tabs: Created (Blue), Approved (Green), Invoiced (Purple), Dispatched (Orange), Delivered (Teal), Cancelled (Gray)
+- Each tab shows a badge with count of orders in that status
+- Status-specific table columns:
+  - **Created**: Date, Party, Created By, Brand, Notes, Total
+  - **Approved**: Date, Party, Approved By, Approved At, Brand, Notes, Total
+  - **Invoiced**: Date, Party, Invoice #, Invoice Date, Order Value, Delivery Co.
+  - **Dispatched**: Date, Party, Invoice #, Dispatch By, Cases, Order Value, Est. Delivery, Delivery Co.
+  - **Delivered**: Date, Party, Invoice #, Delivered On, Order Value, On Time?
+  - **Cancelled**: Date, Party, Brand, Total
+- All orders are fetched once and filtered client-side for responsive tab switching
+
 ## External Dependencies
 
 ### Third-Party Services

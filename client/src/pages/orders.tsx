@@ -64,11 +64,29 @@ const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Invoiced", "Dispa
 
 const statusColors: Record<OrderStatus, string> = {
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  Approved: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   Dispatched: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-  Delivered: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  Delivered: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+  Cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+};
+
+const tabColors: Record<OrderStatus, string> = {
+  Created: "border-blue-500 text-blue-700 dark:text-blue-300",
+  Approved: "border-green-500 text-green-700 dark:text-green-300",
+  Invoiced: "border-purple-500 text-purple-700 dark:text-purple-300",
+  Dispatched: "border-orange-500 text-orange-700 dark:text-orange-300",
+  Delivered: "border-teal-500 text-teal-700 dark:text-teal-300",
+  Cancelled: "border-gray-500 text-gray-700 dark:text-gray-300",
+};
+
+const tabBgColors: Record<OrderStatus, string> = {
+  Created: "bg-blue-50 dark:bg-blue-950",
+  Approved: "bg-green-50 dark:bg-green-950",
+  Invoiced: "bg-purple-50 dark:bg-purple-950",
+  Dispatched: "bg-orange-50 dark:bg-orange-950",
+  Delivered: "bg-teal-50 dark:bg-teal-950",
+  Cancelled: "bg-gray-50 dark:bg-gray-950",
 };
 
 const statusIcons: Record<OrderStatus, typeof Package> = {
@@ -159,7 +177,7 @@ export default function OrdersPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [statusFilter, setStatusFilter] = useState<OrderStatus>("Created");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("all");
@@ -198,14 +216,11 @@ export default function OrdersPage() {
   const isBrandAdmin = user?.role === 'BrandAdmin';
   const hasAdminAccess = isAdmin || isBrandAdmin;
 
-  const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", statusFilter, deliveryCompanyFilter, brandFilter, dateRange],
+  const { data: allOrders = [], isLoading } = useQuery<Order[]>({
+    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", deliveryCompanyFilter, brandFilter, dateRange],
     queryFn: async () => {
       if (hasAdminAccess) {
         const params = new URLSearchParams();
-        if (statusFilter !== "all" && statusFilter !== "active") {
-          params.append("status", statusFilter);
-        }
         if (deliveryCompanyFilter !== "all") {
           params.append("deliveryCompany", deliveryCompanyFilter);
         }
@@ -228,14 +243,9 @@ export default function OrdersPage() {
         if (!res.ok) throw new Error("Failed to fetch orders");
         const data: Order[] = await res.json();
         
-        const sorted = data.sort((a, b) => 
+        return data.sort((a, b) => 
           new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
         );
-        
-        if (statusFilter === "active") {
-          return sorted.filter(o => o.status !== "Cancelled" && o.status !== "Delivered");
-        }
-        return sorted;
       } else {
         const res = await fetch("/api/orders", { credentials: "include" });
         if (!res.ok) throw new Error("Failed to fetch orders");
@@ -244,12 +254,6 @@ export default function OrdersPage() {
         let sorted = data.sort((a, b) => 
           new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
         );
-        
-        if (statusFilter === "active") {
-          sorted = sorted.filter(o => o.status !== "Cancelled" && o.status !== "Delivered");
-        } else if (statusFilter !== "all") {
-          sorted = sorted.filter(o => o.status === statusFilter);
-        }
         
         if (deliveryCompanyFilter !== "all") {
           sorted = sorted.filter(o => o.deliveryCompany === deliveryCompanyFilter);
@@ -279,6 +283,19 @@ export default function OrdersPage() {
     },
     enabled: !!user,
   });
+
+  // Filter orders by current status tab
+  const orders = allOrders.filter(o => o.status === statusFilter);
+  
+  // Count orders by status for tab badges
+  const statusCounts: Record<OrderStatus, number> = {
+    Created: allOrders.filter(o => o.status === "Created").length,
+    Approved: allOrders.filter(o => o.status === "Approved").length,
+    Invoiced: allOrders.filter(o => o.status === "Invoiced").length,
+    Dispatched: allOrders.filter(o => o.status === "Dispatched").length,
+    Delivered: allOrders.filter(o => o.status === "Delivered").length,
+    Cancelled: allOrders.filter(o => o.status === "Cancelled").length,
+  };
 
   const { data: bulkSummary = [] } = useQuery<BulkOrderSummary[]>({
     queryKey: ["/api/admin/orders/bulk-summary", bulkType],
@@ -676,21 +693,6 @@ export default function OrdersPage() {
               <SelectItem value="all">All Time</SelectItem>
             </SelectContent>
           </Select>
-
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-28" data-testid="select-status-filter">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-              {ORDER_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           
           <Select value={brandFilter} onValueChange={setBrandFilter}>
             <SelectTrigger className="w-28 hidden lg:flex" data-testid="select-brand-filter">
@@ -720,6 +722,32 @@ export default function OrdersPage() {
             </SelectContent>
           </Select>
         </div>
+        
+        {/* Status Tabs */}
+        <div className="flex gap-1 overflow-x-auto pb-1 -mx-4 px-4">
+          {ORDER_STATUSES.map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                statusFilter === status
+                  ? `${tabColors[status]} ${tabBgColors[status]} border-b-2`
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
+              data-testid={`tab-status-${status.toLowerCase()}`}
+            >
+              {status}
+              {statusCounts[status] > 0 && (
+                <Badge 
+                  variant="secondary" 
+                  className={`text-xs px-1.5 py-0 min-w-5 h-5 ${statusFilter === status ? statusColors[status] : ""}`}
+                >
+                  {statusCounts[status]}
+                </Badge>
+              )}
+            </button>
+          ))}
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
@@ -737,20 +765,79 @@ export default function OrdersPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 border-b">
-                    <tr>
-                      <th className="text-left p-2 font-medium text-xs">Date</th>
-                      <th className="text-left p-2 font-medium">Party</th>
-                      <th className="text-left p-2 font-medium hidden lg:table-cell">Created By</th>
-                      <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
-                      <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
-                      <th className="text-left p-2 font-medium">Status</th>
-                      <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
-                      <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
-                      <th className="text-left p-2 font-medium">Invoice</th>
-                      <th className="text-left p-2 font-medium">Est Del</th>
-                      <th className="text-right p-2 font-medium hidden lg:table-cell">Total</th>
-                      <th className="text-center p-2 font-medium"></th>
-                    </tr>
+                    {/* Created Tab Headers */}
+                    {statusFilter === "Created" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
+                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
+                    {/* Approved Tab Headers */}
+                    {statusFilter === "Approved" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Approved By</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Approved At</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
+                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
+                    {/* Invoiced Tab Headers */}
+                    {statusFilter === "Invoiced" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
+                    {/* Dispatched Tab Headers */}
+                    {statusFilter === "Dispatched" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
+                        <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Est. Delivery</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
+                    {/* Delivered Tab Headers */}
+                    {statusFilter === "Delivered" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Delivered On</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
+                        <th className="text-center p-2 font-medium hidden lg:table-cell">On Time?</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
+                    {/* Cancelled Tab Headers */}
+                    {statusFilter === "Cancelled" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Brand</th>
+                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody className="divide-y">
                     {orders.map((order) => (
@@ -760,122 +847,111 @@ export default function OrdersPage() {
                         onClick={() => handleOrderClick(order)}
                         data-testid={`row-order-${order.id}`}
                       >
-                        <td className="p-2 text-xs text-muted-foreground whitespace-nowrap" data-testid={`text-date-${order.id}`}>
-                          {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                        </td>
-                        <td className="p-2" data-testid={`text-party-${order.id}`}>
-                          <div className="font-medium text-sm">{order.partyName || "Unknown"}</div>
-                        </td>
-                        <td className="p-2 hidden lg:table-cell" data-testid={`text-created-by-${order.id}`}>
-                          {(order as any).createdByName || (order as any).createdByEmail || "-"}
-                        </td>
-                        <td className="p-2 max-w-[200px] hidden lg:table-cell" data-testid={`text-delivery-notes-${order.id}`}>
-                          <div className="truncate" title={order.deliveryNote || ""}>
-                            {order.deliveryNote || "-"}
-                          </div>
-                        </td>
-                        <td className="p-2 hidden lg:table-cell" data-testid={`text-delivery-${order.id}`}>
-                          {order.deliveryCompany || "-"}
-                        </td>
-                        <td className="p-2" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Created")) && e.stopPropagation()}>
-                          {isAdmin ? (
-                            <Select
-                              value={order.status}
-                              onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
-                            >
-                              <SelectTrigger 
-                                className={`w-28 h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
-                                data-testid={`select-status-${order.id}`}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ORDER_STATUSES.map((status) => (
-                                  <SelectItem key={status} value={status}>
-                                    {status}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : isBrandAdmin && order.status === "Created" ? (
-                            <Select
-                              value={order.status}
-                              onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
-                            >
-                              <SelectTrigger 
-                                className={`w-28 h-7 px-2 text-xs ${statusColors[order.status as OrderStatus]}`}
-                                data-testid={`select-status-${order.id}`}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Created">Created</SelectItem>
-                                <SelectItem value="Approved">Approved</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Badge className={statusColors[order.status as OrderStatus]} data-testid={`badge-status-${order.id}`}>
-                              {order.status}
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="p-2 text-center text-xs hidden md:table-cell" data-testid={`text-cases-${order.id}`}>
-                          {order.cases || "-"}
-                        </td>
-                        <td className="p-2 text-xs hidden md:table-cell" data-testid={`text-dispatch-by-${order.id}`}>
-                          {order.dispatchBy || "-"}
-                        </td>
-                        <td className="p-2 text-xs" data-testid={`text-invoice-${order.id}`}>
-                          {order.invoiceNumber ? (
-                            <div>
-                              <div className="font-medium">{order.invoiceNumber}</div>
-                            </div>
-                          ) : "-"}
-                        </td>
-                        <td className="p-2 text-xs whitespace-nowrap" data-testid={`text-delivery-date-${order.id}`}>
-                          {order.status === "Dispatched" && order.estimatedDeliveryDate ? (
-                            <div>{new Date(order.estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</div>
-                          ) : order.status === "Delivered" && order.actualDeliveryDate ? (
-                            <div>{new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</div>
-                          ) : "-"}
-                        </td>
-                        <td className="p-2 text-right font-medium whitespace-nowrap hidden lg:table-cell" data-testid={`text-total-${order.id}`}>
-                          {formatINR(order.actualOrderValue || order.total)}
-                        </td>
-                        <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-0">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={(e) => handleWhatsAppShare(order, e)}
-                              data-testid={`button-whatsapp-${order.id}`}
-                              title="Share on WhatsApp"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                            </Button>
-                            {hasAdminAccess && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={(e) => handleDownloadXLS(order, e)}
-                                data-testid={`button-download-${order.id}`}
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                            )}
-                            {canDeleteOrder(order) && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={(e) => handleDeleteClick(order, e)}
-                                data-testid={`button-delete-${order.id}`}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
+                        {/* Created Tab Cells */}
+                        {statusFilter === "Created" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                        {/* Approved Tab Cells */}
+                        {statusFilter === "Approved" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{order.approvedBy || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                        {/* Invoiced Tab Cells */}
+                        {statusFilter === "Invoiced" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.deliveryCompany || "-"}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                        {/* Dispatched Tab Cells */}
+                        {statusFilter === "Dispatched" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
+                            <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
+                            <td className="p-2 hidden lg:table-cell text-xs whitespace-nowrap">{order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.deliveryCompany || "-"}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                        {/* Delivered Tab Cells */}
+                        {statusFilter === "Delivered" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
+                            <td className="p-2 text-center hidden lg:table-cell">
+                              {order.deliveredOnTime === true ? <CheckCircle className="w-4 h-4 text-green-600 mx-auto" /> : order.deliveredOnTime === false ? <XCircle className="w-4 h-4 text-red-600 mx-auto" /> : "-"}
+                            </td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                        {/* Cancelled Tab Cells */}
+                        {statusFilter === "Cancelled" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
