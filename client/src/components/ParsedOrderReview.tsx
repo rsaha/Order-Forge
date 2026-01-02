@@ -247,25 +247,29 @@ export default function ParsedOrderReview({
                   
                   <div className="flex flex-col gap-1 shrink-0">
                     <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
-                        className="w-14 h-8 text-center text-sm"
-                        title="Quantity"
-                        data-testid={`input-quantity-${index}`}
-                      />
-                      <span className="text-muted-foreground text-sm">+</span>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={item.freeQuantity || 0}
-                        onChange={(e) => onUpdateQuantity(index, item.quantity, parseInt(e.target.value) || 0)}
-                        className="w-14 h-8 text-center text-sm"
-                        title="Free Quantity"
-                        data-testid={`input-free-quantity-${index}`}
-                      />
+                      <div className="flex flex-col items-center">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
+                          className="w-20 h-8 text-center text-sm"
+                          data-testid={`input-quantity-${index}`}
+                        />
+                        <span className="text-xs text-muted-foreground">Qty</span>
+                      </div>
+                      <span className="text-muted-foreground text-sm font-medium">+</span>
+                      <div className="flex flex-col items-center">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={item.freeQuantity || 0}
+                          onChange={(e) => onUpdateQuantity(index, item.quantity, parseInt(e.target.value) || 0)}
+                          className="w-20 h-8 text-center text-sm"
+                          data-testid={`input-free-quantity-${index}`}
+                        />
+                        <span className="text-xs text-muted-foreground">Free</span>
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -275,7 +279,6 @@ export default function ParsedOrderReview({
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
-                    <span className="text-xs text-muted-foreground text-center">Qty + Free</span>
                   </div>
                 </div>
               </div>
