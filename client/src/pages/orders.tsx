@@ -860,6 +860,7 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {canDeleteOrder(order) && <Button size="icon" variant="ghost" onClick={(e) => handleDeleteClick(order, e)} title="Delete Order" className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
                               </div>
                             </td>
                           </>
