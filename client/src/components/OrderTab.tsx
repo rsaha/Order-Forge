@@ -246,7 +246,7 @@ export default function OrderTab({
                     <span className="text-muted-foreground truncate">
                       {item.product.name} x{item.quantity}
                     </span>
-                    <span className="shrink-0">{formatINR(item.product.price * item.quantity)}</span>
+                    <span className="shrink-0">{formatINR(getEffectivePrice(item.product) * item.quantity)}</span>
                   </div>
                 ))}
                 {cart.length > 5 && (

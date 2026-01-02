@@ -2,10 +2,18 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Send, Loader2 } from "lucide-react";
 import type { CartItemData } from "./CartItem";
-import { formatINR } from "./ProductCard";
+import { formatINR, type Product } from "./ProductCard";
 import { type OrderDetails } from "./OrderDetailsForm";
 
 export type { OrderDetails };
+
+function getEffectivePrice(product: Product): number {
+  if (product.distributorPrice) {
+    const dp = Number(product.distributorPrice);
+    if (!isNaN(dp) && dp > 0) return dp;
+  }
+  return product.price;
+}
 
 interface OrderSummaryProps {
   cartItems: CartItemData[];
@@ -21,9 +29,15 @@ export default function OrderSummary({
   isSending = false 
 }: OrderSummaryProps) {
   const subtotal = cartItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + getEffectivePrice(item.product) * item.quantity,
     0
   );
+  
+  // Check if all cart items have PTS (distributorPrice)
+  const allHavePTS = cartItems.length > 0 && cartItems.every(item => {
+    const dp = item.product.distributorPrice;
+    return dp != null && Number(dp) > 0;
+  });
   const discountPercent = orderDetails.proposedDiscount || 0;
   const safeDiscount = Math.min(100, Math.max(0, discountPercent));
   const discountAmount = subtotal * (safeDiscount / 100);
@@ -62,7 +76,12 @@ export default function OrderSummary({
       </div>
 
       <div className="flex justify-between items-center text-lg font-semibold pt-2 border-t">
-        <span>Total</span>
+        <div>
+          <span>Total</span>
+          <span className="text-xs text-muted-foreground font-normal ml-1">
+            ({allHavePTS ? "PTS" : "MRP"})
+          </span>
+        </div>
         <span data-testid="text-total">{formatINR(finalTotal)}</span>
       </div>
 
