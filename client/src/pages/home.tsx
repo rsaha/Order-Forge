@@ -43,7 +43,7 @@ interface ParsedItem {
     name: string;
     brand: string;
     price: number;
-    distributorPrice?: number | string | null;
+    distributorPrice?: number | null;
   } | null;
 }
 

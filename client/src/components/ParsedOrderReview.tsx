@@ -43,6 +43,8 @@ interface Product {
   price: string | number;
   distributorPrice?: string | number | null;
   stock: number;
+  alias1?: string | null;
+  alias2?: string | null;
 }
 
 interface ParsedOrderReviewProps {

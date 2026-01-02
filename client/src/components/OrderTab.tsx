@@ -31,7 +31,7 @@ interface OrderTabProps {
   selectedBrand: string | null;
   onBrandSelect: (brand: string | null) => void;
   cart: CartItemData[];
-  onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; stock: number }, quantity: number) => void;
+  onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; distributorPrice?: string | number | null; stock: number }, quantity: number) => void;
   onOpenCart: () => void;
 }
 
@@ -188,6 +188,7 @@ export default function OrderTab({
                         name: variant.name,
                         brand: variant.brand,
                         price: variant.price,
+                        distributorPrice: variant.distributorPrice,
                         stock: variant.stock,
                       }, qty)}
                     />

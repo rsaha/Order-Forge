@@ -24,6 +24,7 @@ interface ParsedItem {
     name: string;
     brand: string;
     price: number;
+    distributorPrice?: number | null;
   } | null;
 }
 
