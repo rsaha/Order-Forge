@@ -777,7 +777,7 @@ export default function OrdersPage() {
                         <td className="p-2 hidden lg:table-cell" data-testid={`text-delivery-${order.id}`}>
                           {order.deliveryCompany || "-"}
                         </td>
-                        <td className="p-2" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Approved")) && e.stopPropagation()}>
+                        <td className="p-2" onClick={(e) => (isAdmin || (isBrandAdmin && order.status === "Created")) && e.stopPropagation()}>
                           {isAdmin ? (
                             <Select
                               value={order.status}
@@ -797,7 +797,7 @@ export default function OrdersPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          ) : isBrandAdmin && order.status === "Approved" ? (
+                          ) : isBrandAdmin && order.status === "Created" ? (
                             <Select
                               value={order.status}
                               onValueChange={(v) => handleInlineStatusUpdate(order, v as OrderStatus, { stopPropagation: () => {} } as React.MouseEvent)}
@@ -809,8 +809,8 @@ export default function OrdersPage() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="Created">Created</SelectItem>
                                 <SelectItem value="Approved">Approved</SelectItem>
-                                <SelectItem value="Invoiced">Invoiced</SelectItem>
                               </SelectContent>
                             </Select>
                           ) : (
@@ -910,10 +910,10 @@ export default function OrdersPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Approved" ? "Update Order Status" : "Order Details"}
+              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve Order" : "Order Details"}
             </DialogTitle>
             <DialogDescription>
-              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Approved" ? "Mark this order as Invoiced." : "View your order details."}
+              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve this order to proceed with fulfillment." : "View your order details."}
             </DialogDescription>
           </DialogHeader>
 
@@ -928,6 +928,17 @@ export default function OrdersPage() {
                   <div className="text-sm">
                     <span className="font-medium">Created By: </span>
                     <span className="text-muted-foreground">{(selectedOrder as any).createdByName || (selectedOrder as any).createdByEmail}</span>
+                  </div>
+                )}
+                {selectedOrder.approvedBy && (
+                  <div className="text-sm">
+                    <span className="font-medium">Approved By: </span>
+                    <span className="text-muted-foreground">{selectedOrder.approvedBy}</span>
+                    {selectedOrder.approvedAt && (
+                      <span className="text-muted-foreground ml-1">
+                        ({new Date(selectedOrder.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })})
+                      </span>
+                    )}
                   </div>
                 )}
                 {selectedOrder.deliveryAddress && (

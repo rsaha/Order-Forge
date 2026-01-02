@@ -757,8 +757,8 @@ export async function registerRoutes(
           return res.status(403).json({ message: "Access denied to this order" });
         }
 
-        // BrandAdmin can update deliveryCompany and status (with restrictions)
-        const allowedFields = ['deliveryCompany', 'status', 'invoiceNumber', 'invoiceDate', 'actualOrderValue'];
+        // BrandAdmin can only update status (with restrictions)
+        const allowedFields = ['status'];
         const requestedFields = Object.keys(req.body);
         const disallowedFields = requestedFields.filter(f => !allowedFields.includes(f));
         
@@ -766,12 +766,21 @@ export async function registerRoutes(
           return res.status(403).json({ message: `BrandAdmin cannot update: ${disallowedFields.join(', ')}` });
         }
 
-        // Status change restriction: only Approved -> Invoiced
+        // Status change restriction: only Created -> Approved
         if (req.body.status && req.body.status !== order.status) {
-          if (order.status !== 'Approved' || req.body.status !== 'Invoiced') {
-            return res.status(403).json({ message: "BrandAdmin can only change status from Approved to Invoiced" });
+          if (order.status !== 'Created' || req.body.status !== 'Approved') {
+            return res.status(403).json({ message: "BrandAdmin can only change status from Created to Approved" });
           }
         }
+      }
+
+      // Set approvedBy and approvedAt when status changes to Approved
+      if (req.body.status === 'Approved' && order.status !== 'Approved') {
+        const approverName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email || userId;
+        req.body.approvedBy = approverName;
+        req.body.approvedAt = new Date().toISOString();
       }
 
       const parseResult = updateOrderSchema.safeParse(req.body);

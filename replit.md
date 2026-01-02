@@ -62,7 +62,7 @@ Key tables:
 
 ### User Roles
 - **Regular Users (User)**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email. See only products from their assigned brands.
-- **Brand Admin (BrandAdmin)**: All regular user access plus can view orders for their assigned brands. Can change order status from Pending to Invoiced only.
+- **Brand Admin (BrandAdmin)**: All regular user access plus can view orders for their assigned brands. Can change order status from Created to Approved only. When approving, their name and approval timestamp are recorded on the order.
 - **Admin Users**: Full access including Products tab, Upload tab (product inventory), Users management, and complete order management with all status transitions.
 
 ### Single-Brand Order Requirement
