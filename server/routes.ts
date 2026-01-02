@@ -878,7 +878,7 @@ export async function registerRoutes(
     }
   });
 
-  // Delete an order (only creator or admin, only when status is Created or Approved)
+  // Delete an order (only creator or admin, only when status is Created)
   app.delete('/api/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -890,10 +890,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order can be deleted (Created or Approved status only)
-      if (!['Created', 'Approved'].includes(order.status)) {
+      // Check if order can be deleted (Created status only)
+      if (order.status !== 'Created') {
         return res.status(400).json({ 
-          message: `Cannot delete order with status "${order.status}". Only Created or Approved orders can be deleted.` 
+          message: `Cannot delete order with status "${order.status}". Only Created orders can be deleted.` 
         });
       }
 

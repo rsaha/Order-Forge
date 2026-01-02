@@ -392,7 +392,7 @@ export default function OrdersPage() {
   });
 
   const canDeleteOrder = (order: Order): boolean => {
-    if (!['Created', 'Approved'].includes(order.status)) return false;
+    if (order.status !== 'Created') return false;
     if (isAdmin) return true;
     return order.userId === user?.id;
   };
