@@ -176,6 +176,13 @@ export default function MobileCartPage({
     (sum, item) => sum + getEffectivePrice(item.product) * item.quantity,
     0
   );
+  
+  // Check if all cart items have PTS (distributorPrice)
+  const allHavePTS = cartItems.length > 0 && cartItems.every(item => {
+    const dp = item.product.distributorPrice;
+    return dp != null && Number(dp) > 0;
+  });
+  
   const discountPercent = orderDetails.proposedDiscount || 0;
   const safeDiscount = Math.min(100, Math.max(0, discountPercent));
   const discountAmount = subtotal * (safeDiscount / 100);
@@ -233,7 +240,12 @@ export default function MobileCartPage({
               
               <footer className="sticky bottom-0 bg-background border-t p-4 space-y-3">
                 <div className="flex justify-between items-center text-lg font-semibold">
-                  <span>Total</span>
+                  <div>
+                    <span>Total</span>
+                    <span className="text-xs text-muted-foreground font-normal ml-1">
+                      ({allHavePTS ? "PTS" : "MRP"})
+                    </span>
+                  </div>
                   <span data-testid="fullpage-text-total">{formatINR(subtotal)}</span>
                 </div>
                 

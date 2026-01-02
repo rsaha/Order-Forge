@@ -90,7 +90,23 @@ export default function OrderTab({
   }, [groupedProducts, currentPage]);
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  
+  // Helper function to get effective price (PTS if available, else MRP)
+  const getEffectivePrice = (product: { price: number; distributorPrice?: number | string | null }): number => {
+    if (product.distributorPrice) {
+      const dp = Number(product.distributorPrice);
+      if (!isNaN(dp) && dp > 0) return dp;
+    }
+    return product.price;
+  };
+  
+  const cartTotal = cart.reduce((sum, item) => sum + getEffectivePrice(item.product) * item.quantity, 0);
+  
+  // Check if all cart items have PTS (distributorPrice)
+  const allHavePTS = cart.length > 0 && cart.every(item => {
+    const dp = item.product.distributorPrice;
+    return dp != null && Number(dp) > 0;
+  });
   
   const cartQuantityMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -240,7 +256,12 @@ export default function OrderTab({
               </div>
               
               <div className="flex justify-between items-center pt-3 mt-3 border-t font-medium">
-                <span>Total</span>
+                <div>
+                  <span>Total</span>
+                  <span className="text-xs text-muted-foreground font-normal ml-1">
+                    ({allHavePTS ? "PTS" : "MRP"})
+                  </span>
+                </div>
                 <span data-testid="text-cart-total">{formatINR(cartTotal)}</span>
               </div>
             </Card>
