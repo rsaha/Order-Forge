@@ -84,18 +84,25 @@ export default function ParsedOrderReview({
   const matchedItems = items.filter(item => item.matchedProduct);
   const unmatchedItems = items.filter(item => !item.matchedProduct);
   
+  // Helper to get effective price (PTS if available, else MRP)
+  const getEffectivePrice = (product: MatchedProduct): number => {
+    if (product.distributorPrice != null) {
+      const dp = Number(product.distributorPrice);
+      if (!isNaN(dp) && dp > 0) return dp;
+    }
+    return Number(product.price);
+  };
+  
   // Check if all matched items have PTS (distributorPrice)
-  const allHavePTS = matchedItems.every(item => 
-    item.matchedProduct?.distributorPrice != null && item.matchedProduct.distributorPrice > 0
-  );
+  const allHavePTS = matchedItems.every(item => {
+    if (!item.matchedProduct) return false;
+    const dp = item.matchedProduct.distributorPrice;
+    return dp != null && Number(dp) > 0;
+  });
   
   const total = matchedItems.reduce((sum, item) => {
     if (item.matchedProduct) {
-      // Use distributorPrice (PTS) if available, otherwise MRP
-      const effectivePrice = item.matchedProduct.distributorPrice != null && item.matchedProduct.distributorPrice > 0
-        ? item.matchedProduct.distributorPrice
-        : item.matchedProduct.price;
-      return sum + effectivePrice * item.quantity;
+      return sum + getEffectivePrice(item.matchedProduct) * item.quantity;
     }
     return sum;
   }, 0);
@@ -238,13 +245,9 @@ export default function ParsedOrderReview({
                           {item.matchedProduct.sku}
                         </p>
                         <p className="text-sm font-medium mt-1">
-                          {formatINR(
-                            item.matchedProduct.distributorPrice != null && item.matchedProduct.distributorPrice > 0
-                              ? item.matchedProduct.distributorPrice
-                              : item.matchedProduct.price
-                          )} each
+                          {formatINR(getEffectivePrice(item.matchedProduct))} each
                           <span className="text-xs text-muted-foreground ml-1">
-                            ({item.matchedProduct.distributorPrice != null && item.matchedProduct.distributorPrice > 0 ? "PTS" : "MRP"})
+                            ({item.matchedProduct.distributorPrice != null && Number(item.matchedProduct.distributorPrice) > 0 ? "PTS" : "MRP"})
                           </span>
                         </p>
                       </div>
