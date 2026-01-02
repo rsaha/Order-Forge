@@ -103,3 +103,66 @@ Key tables:
 - `SESSION_SECRET`: Secret for session encryption
 - `REPL_ID`: Automatically provided by Replit
 - `ISSUER_URL`: OIDC issuer (defaults to Replit's OIDC endpoint)
+
+## User Guide
+
+### Getting Started
+1. Log in using your Replit account
+2. You'll be assigned a role by an Admin: User, Brand Admin, or Admin
+3. Navigate using the sidebar to access different features
+
+### Orders Page
+The Orders page displays orders organized by status using color-coded horizontal tabs:
+
+#### Status Tabs
+- **Created** (Blue): New orders waiting for approval
+- **Approved** (Green): Orders approved and ready for invoicing
+- **Invoiced** (Purple): Orders with invoice details added
+- **Dispatched** (Orange): Orders shipped and in transit
+- **Delivered** (Teal): Successfully delivered orders
+- **Cancelled** (Gray): Cancelled orders
+
+Each tab shows a badge with the count of orders in that status.
+
+#### Order Visibility by Role
+- **Regular Users**: See only orders they created themselves
+- **Brand Admins**: See all orders for their assigned brands
+- **Admins**: See all orders across all brands
+
+#### Table Columns by Status
+Different information is shown depending on the status tab:
+- **Created/Approved**: Date, Party, Created/Approved By, Brand, Notes, Total
+- **Invoiced**: Date, Party, Invoice #, Invoice Date, Order Value, Delivery Co.
+- **Dispatched**: Date, Party, Invoice #, Dispatch By, Cases, Order Value, Est. Delivery, Delivery Co.
+- **Delivered**: Date, Party, Invoice #, Delivered On, Order Value, On Time indicator
+- **Cancelled**: Date, Party, Brand, Total
+
+#### Filters
+- **Date Filter**: Filter by Today, Last 7 Days, or All Time
+- **Brand Filter**: Filter by specific brand (visible on larger screens)
+- **Delivery Company Filter**: Filter by delivery company (visible on larger screens)
+
+### Creating Orders
+1. Go to the Order tab
+2. Search for products by name or SKU
+3. Add items to your cart (all items must be from the same brand)
+4. Enter party name and delivery notes
+5. Submit the order
+
+### Importing Orders from Text
+1. Go to the Import tab
+2. Paste order text (e.g., from a message or email)
+3. The system matches products by name or SKU
+4. Review matched items and adjust quantities
+5. Add matched items to cart
+
+### Order Status Workflow
+1. **Created**: Order is submitted
+2. **Approved**: Brand Admin or Admin approves the order (approval tracked with name and timestamp)
+3. **Invoiced**: Admin adds invoice number and date
+4. **Dispatched**: Admin adds dispatch details (Dispatch By, Cases, Est. Delivery)
+5. **Delivered**: Order is marked as delivered with actual delivery date
+6. **Cancelled**: Order is cancelled (only from Created or Approved status)
+
+### WhatsApp Sharing
+Click the message icon on any order to generate and share order details via WhatsApp. The message format changes based on order status.
