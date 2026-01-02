@@ -1009,6 +1009,7 @@ export async function registerRoutes(
             name: matchedProduct.name,
             brand: matchedProduct.brand,
             price: Number(matchedProduct.price),
+            distributorPrice: matchedProduct.distributorPrice ? Number(matchedProduct.distributorPrice) : null,
           } : null,
         };
       });

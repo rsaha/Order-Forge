@@ -23,6 +23,7 @@ interface MatchedProduct {
   name: string;
   brand: string;
   price: number;
+  distributorPrice?: number | null;
 }
 
 interface ParsedItem {
@@ -40,6 +41,7 @@ interface Product {
   name: string;
   brand: string;
   price: string | number;
+  distributorPrice?: string | number | null;
   stock: number;
 }
 
@@ -80,9 +82,18 @@ export default function ParsedOrderReview({
   const matchedItems = items.filter(item => item.matchedProduct);
   const unmatchedItems = items.filter(item => !item.matchedProduct);
   
+  // Check if all matched items have PTS (distributorPrice)
+  const allHavePTS = matchedItems.every(item => 
+    item.matchedProduct?.distributorPrice != null && item.matchedProduct.distributorPrice > 0
+  );
+  
   const total = matchedItems.reduce((sum, item) => {
     if (item.matchedProduct) {
-      return sum + item.matchedProduct.price * item.quantity;
+      // Use distributorPrice (PTS) if available, otherwise MRP
+      const effectivePrice = item.matchedProduct.distributorPrice != null && item.matchedProduct.distributorPrice > 0
+        ? item.matchedProduct.distributorPrice
+        : item.matchedProduct.price;
+      return sum + effectivePrice * item.quantity;
     }
     return sum;
   }, 0);
@@ -132,6 +143,7 @@ export default function ParsedOrderReview({
       name: product.name,
       brand: product.brand,
       price: Number(product.price),
+      distributorPrice: product.distributorPrice ? Number(product.distributorPrice) : null,
     });
     setEditingIndex(null);
     setProductSearch("");
@@ -224,7 +236,14 @@ export default function ParsedOrderReview({
                           {item.matchedProduct.sku}
                         </p>
                         <p className="text-sm font-medium mt-1">
-                          {formatINR(item.matchedProduct.price)} each
+                          {formatINR(
+                            item.matchedProduct.distributorPrice != null && item.matchedProduct.distributorPrice > 0
+                              ? item.matchedProduct.distributorPrice
+                              : item.matchedProduct.price
+                          )} each
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({item.matchedProduct.distributorPrice != null && item.matchedProduct.distributorPrice > 0 ? "PTS" : "MRP"})
+                          </span>
                         </p>
                       </div>
                     ) : (
@@ -301,9 +320,14 @@ export default function ParsedOrderReview({
             <span className="text-muted-foreground">
               {matchedItems.length} of {items.length} item(s) matched
             </span>
-            <span className="font-semibold text-lg" data-testid="text-parsed-total">
-              {formatINR(total)}
-            </span>
+            <div className="text-right">
+              <span className="font-semibold text-lg" data-testid="text-parsed-total">
+                {formatINR(total)}
+              </span>
+              <p className="text-xs text-muted-foreground">
+                {allHavePTS ? "Order Value (PTS)" : "Order Value (MRP)"}
+              </p>
+            </div>
           </div>
           
           <Button
