@@ -17,6 +17,7 @@ interface ParsedItem {
   rawText: string;
   productRef: string;
   quantity: number;
+  freeQuantity: number;
   matchedProduct: {
     id: string;
     sku: string;

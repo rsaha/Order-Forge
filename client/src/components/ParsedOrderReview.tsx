@@ -30,6 +30,7 @@ interface ParsedItem {
   productRef: string;
   size?: string;
   quantity: number;
+  freeQuantity: number;
   matchedProduct: MatchedProduct | null;
 }
 
@@ -49,7 +50,7 @@ interface ParsedOrderReviewProps {
   brandFilter?: string;
   isAdmin?: boolean;
   onPartyNameChange: (name: string) => void;
-  onUpdateQuantity: (index: number, quantity: number) => void;
+  onUpdateQuantity: (index: number, quantity: number, freeQuantity?: number) => void;
   onUpdateProduct: (index: number, product: MatchedProduct | null) => void;
   onRemoveItem: (index: number) => void;
   onAddToCart: () => void;
@@ -244,23 +245,37 @@ export default function ParsedOrderReview({
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
-                      className="w-16 h-8 text-center"
-                      data-testid={`input-quantity-${index}`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onRemoveItem(index)}
-                      data-testid={`button-remove-${index}`}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
+                        className="w-14 h-8 text-center text-sm"
+                        title="Quantity"
+                        data-testid={`input-quantity-${index}`}
+                      />
+                      <span className="text-muted-foreground text-sm">+</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={item.freeQuantity || 0}
+                        onChange={(e) => onUpdateQuantity(index, item.quantity, parseInt(e.target.value) || 0)}
+                        className="w-14 h-8 text-center text-sm"
+                        title="Free Quantity"
+                        data-testid={`input-free-quantity-${index}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onRemoveItem(index)}
+                        data-testid={`button-remove-${index}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <span className="text-xs text-muted-foreground text-center">Qty + Free</span>
                   </div>
                 </div>
               </div>

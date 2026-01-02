@@ -940,29 +940,46 @@ export async function registerRoutes(
         lines.push(...parts);
       }
       
-      const parsedItems: Array<{rawText: string; productRef: string; quantity: number}> = [];
+      const parsedItems: Array<{rawText: string; productRef: string; quantity: number; freeQuantity: number}> = [];
       
       for (const line of lines) {
         // Structure: Product Name, Optional Size, then Qty (with possible punctuation before qty)
-        // Examples: "L.S Belt 2", "Knee Cap - 3", "Product Name x 5", "Product Large Size -3", "Item.5"
-        // Match quantity at the end, with optional punctuation/separators before it
-        const qtyMatch = line.match(/^(.+?)[\s\-x.:;]+(\d+)\s*(?:case|cse|pcs|pc|units?)?$/i) ||
-                         line.match(/^(.+?)\s+(\d+)$/i) ||
-                         line.match(/^(.+?)\.(\d+)$/i);
+        // Can include free quantity in format: "Qty + FreeQty" or "Qty+FreeQty"
+        // Examples: "Bentfix 1300+130", "Pea plus 300 + 30", "Etobix T 60", "Item.5"
         
-        if (qtyMatch) {
+        // First try to match quantity + free quantity pattern (e.g., "1300+130" or "300 + 30")
+        const qtyFreeMatch = line.match(/^(.+?)[\s\-x.:;]*(\d+)\s*\+\s*(\d+)\s*(?:case|cse|pcs|pc|units?)?\.?$/i) ||
+                             line.match(/^(.+?)\s+(\d+)\s*\+\s*(\d+)\.?$/i);
+        
+        if (qtyFreeMatch) {
           parsedItems.push({
             rawText: line,
-            productRef: qtyMatch[1].trim(),
-            quantity: parseInt(qtyMatch[2]) || 1,
+            productRef: qtyFreeMatch[1].trim(),
+            quantity: parseInt(qtyFreeMatch[2]) || 1,
+            freeQuantity: parseInt(qtyFreeMatch[3]) || 0,
           });
-        } else if (line.length > 0) {
-          // No quantity found, assume 1
-          parsedItems.push({
-            rawText: line,
-            productRef: line,
-            quantity: 1,
-          });
+        } else {
+          // Try regular quantity pattern without free qty
+          const qtyMatch = line.match(/^(.+?)[\s\-x.:;]+(\d+)\s*(?:case|cse|pcs|pc|units?)?\.?$/i) ||
+                           line.match(/^(.+?)\s+(\d+)\.?$/i) ||
+                           line.match(/^(.+?)\.(\d+)$/i);
+          
+          if (qtyMatch) {
+            parsedItems.push({
+              rawText: line,
+              productRef: qtyMatch[1].trim(),
+              quantity: parseInt(qtyMatch[2]) || 1,
+              freeQuantity: 0,
+            });
+          } else if (line.length > 0) {
+            // No quantity found, assume 1
+            parsedItems.push({
+              rawText: line,
+              productRef: line,
+              quantity: 1,
+              freeQuantity: 0,
+            });
+          }
         }
       }
 

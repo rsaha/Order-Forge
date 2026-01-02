@@ -36,6 +36,7 @@ interface ParsedItem {
   productRef: string;
   size?: string;
   quantity: number;
+  freeQuantity: number;
   matchedProduct: {
     id: string;
     sku: string;
@@ -508,9 +509,15 @@ export default function Home() {
     setParsedItems(items);
   }, []);
 
-  const handleUpdateParsedQuantity = useCallback((index: number, quantity: number) => {
+  const handleUpdateParsedQuantity = useCallback((index: number, quantity: number, freeQuantity?: number) => {
     setParsedItems(prev => 
-      prev.map((item, i) => i === index ? { ...item, quantity } : item)
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        if (freeQuantity !== undefined) {
+          return { ...item, freeQuantity };
+        }
+        return { ...item, quantity };
+      })
     );
   }, []);
 
@@ -559,7 +566,11 @@ export default function Home() {
             if (existingItem) {
               return prevCart.map(ci =>
                 ci.product.id === product.id
-                  ? { ...ci, quantity: ci.quantity + item.quantity }
+                  ? { 
+                      ...ci, 
+                      quantity: ci.quantity + item.quantity,
+                      freeQuantity: (ci.freeQuantity || 0) + (item.freeQuantity || 0)
+                    }
                   : ci
               );
             }
@@ -573,7 +584,7 @@ export default function Home() {
                 stock: product.stock,
               }, 
               quantity: item.quantity,
-              freeQuantity: 0
+              freeQuantity: item.freeQuantity || 0
             }];
           });
         }
