@@ -83,6 +83,10 @@ export default function Home() {
     proposedDiscount: 0,
   });
   
+  // Party verification state
+  const [partyVerificationStatus, setPartyVerificationStatus] = useState<"idle" | "verifying" | "verified" | "not_found">("idle");
+  const [verifiedPartyName, setVerifiedPartyName] = useState<string>("");
+  
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [createdOrder, setCreatedOrder] = useState<any>(null);
@@ -421,6 +425,40 @@ export default function Home() {
   }, [cart, orderDetails]);
 
   const [isSendingOrder, setIsSendingOrder] = useState(false);
+
+  // Verify party name against external API
+  const verifyPartyName = useCallback(async (name: string) => {
+    if (!name.trim()) {
+      setPartyVerificationStatus("idle");
+      setVerifiedPartyName("");
+      return;
+    }
+    
+    setPartyVerificationStatus("verifying");
+    try {
+      const response = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name.trim())}`, {
+        credentials: "include",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.verified || data.found || data.exists) {
+          setPartyVerificationStatus("verified");
+          setVerifiedPartyName(data.name || name.trim());
+        } else {
+          setPartyVerificationStatus("not_found");
+          setVerifiedPartyName("");
+        }
+      } else {
+        setPartyVerificationStatus("not_found");
+        setVerifiedPartyName("");
+      }
+    } catch (error) {
+      console.error("Party verification error:", error);
+      setPartyVerificationStatus("not_found");
+      setVerifiedPartyName("");
+    }
+  }, []);
 
   const handleSendOrder = useCallback(async () => {
     if (cart.length === 0) {

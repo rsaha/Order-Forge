@@ -3,6 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, XCircle, Loader2, Search } from "lucide-react";
 
 export interface OrderDetails {
   partyName: string;
@@ -12,11 +14,15 @@ export interface OrderDetails {
   proposedDiscount: number;
 }
 
+export type PartyVerificationStatus = "idle" | "verifying" | "verified" | "not_found";
+
 interface OrderDetailsFormProps {
   orderDetails: OrderDetails;
   onOrderDetailsChange: (details: OrderDetails) => void;
   readOnly?: boolean;
   cartBrand?: string | null;
+  partyVerificationStatus?: PartyVerificationStatus;
+  onVerifyParty?: (name: string) => void;
 }
 
 const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"];
@@ -39,6 +45,8 @@ export default function OrderDetailsForm({
   onOrderDetailsChange,
   readOnly = false,
   cartBrand,
+  partyVerificationStatus = "idle",
+  onVerifyParty,
 }: OrderDetailsFormProps) {
   const deliveryOptions = getDeliveryOptionsForBrand(cartBrand);
   
@@ -103,14 +111,44 @@ export default function OrderDetailsForm({
       <div className="space-y-3">
         <div className="space-y-1.5">
           <Label htmlFor="partyName">Party Name</Label>
-          <Input
-            id="partyName"
-            placeholder="Customer/Party name"
-            value={orderDetails.partyName}
-            onChange={(e) => updateOrderDetail("partyName", e.target.value)}
-            className="h-10"
-            data-testid="input-party-name"
-          />
+          <div className="flex gap-2">
+            <Input
+              id="partyName"
+              placeholder="Customer/Party name"
+              value={orderDetails.partyName}
+              onChange={(e) => updateOrderDetail("partyName", e.target.value)}
+              className="h-10 flex-1"
+              data-testid="input-party-name"
+            />
+            {onVerifyParty && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onVerifyParty(orderDetails.partyName)}
+                disabled={!orderDetails.partyName.trim() || partyVerificationStatus === "verifying"}
+                data-testid="button-verify-party"
+              >
+                {partyVerificationStatus === "verifying" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                <span className="ml-1">Verify</span>
+              </Button>
+            )}
+          </div>
+          {partyVerificationStatus === "verified" && (
+            <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400" data-testid="text-party-verified">
+              <CheckCircle className="w-4 h-4" />
+              <span>Verified</span>
+            </div>
+          )}
+          {partyVerificationStatus === "not_found" && (
+            <div className="flex items-center gap-1.5 text-sm text-destructive" data-testid="text-party-not-found">
+              <XCircle className="w-4 h-4" />
+              <span>Party not found - please verify the name</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-1.5">
