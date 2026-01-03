@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { type CartItemData } from "./CartItem";
 import { type OrderDetails } from "./OrderSummary";
-import OrderDetailsForm from "./OrderDetailsForm";
+import OrderDetailsForm, { type PartyVerificationStatus } from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
 
 function getEffectivePrice(product: Product): number {
@@ -29,6 +29,8 @@ interface CartPanelProps {
   onClearCart: () => void;
   onSendOrder: () => void;
   isSending?: boolean;
+  partyVerificationStatus?: PartyVerificationStatus;
+  onVerifyParty?: (name: string) => void;
 }
 
 type PanelStep = "cart" | "details";
@@ -170,7 +172,9 @@ export default function CartPanel({
   onRemoveItem,
   onClearCart,
   onSendOrder,
-  isSending = false
+  isSending = false,
+  partyVerificationStatus = "idle",
+  onVerifyParty,
 }: CartPanelProps) {
   const [step, setStep] = useState<PanelStep>("cart");
   
@@ -199,7 +203,8 @@ export default function CartPanel({
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.length;
   const totalUnits = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
+  const isElmericBrand = cartBrand === "Elmeric";
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified");
 
   const handleClose = () => {
     setStep("cart");
@@ -299,6 +304,8 @@ export default function CartPanel({
                     orderDetails={orderDetails}
                     onOrderDetailsChange={onOrderDetailsChange}
                     cartBrand={cartBrand}
+                    partyVerificationStatus={partyVerificationStatus}
+                    onVerifyParty={onVerifyParty}
                   />
                 </div>
               </ScrollArea>
@@ -321,6 +328,9 @@ export default function CartPanel({
                 
                 {!orderDetails.partyName.trim() && (
                   <p className="text-sm text-destructive">Party name required</p>
+                )}
+                {orderDetails.partyName.trim() && !isElmericBrand && partyVerificationStatus !== "verified" && (
+                  <p className="text-sm text-destructive">Party must be verified before submitting</p>
                 )}
                 
                 <Button

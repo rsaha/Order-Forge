@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { type OrderDetails } from "./OrderSummary";
-import OrderDetailsForm from "./OrderDetailsForm";
+import OrderDetailsForm, { type PartyVerificationStatus } from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
 
 function getEffectivePrice(product: Product): number {
@@ -39,6 +39,8 @@ interface MobileCartDrawerProps {
   onClearCart: () => void;
   onSendOrder: () => void;
   isSending?: boolean;
+  partyVerificationStatus?: PartyVerificationStatus;
+  onVerifyParty?: (name: string) => void;
 }
 
 type DrawerStep = "cart" | "details";
@@ -180,7 +182,9 @@ export default function MobileCartDrawer({
   onRemoveItem,
   onClearCart,
   onSendOrder,
-  isSending = false
+  isSending = false,
+  partyVerificationStatus = "idle",
+  onVerifyParty,
 }: MobileCartDrawerProps) {
   const [step, setStep] = useState<DrawerStep>("cart");
   
@@ -208,7 +212,8 @@ export default function MobileCartDrawer({
   const discountAmount = subtotal * (safeDiscount / 100);
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
+  const isElmericBrand = cartBrand === "Elmeric";
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified");
 
   const handleClose = () => {
     setStep("cart");
@@ -306,6 +311,8 @@ export default function MobileCartDrawer({
                   orderDetails={orderDetails}
                   onOrderDetailsChange={onOrderDetailsChange}
                   cartBrand={cartBrand}
+                  partyVerificationStatus={partyVerificationStatus}
+                  onVerifyParty={onVerifyParty}
                 />
               </div>
             </div>
@@ -328,6 +335,9 @@ export default function MobileCartDrawer({
               
               {!orderDetails.partyName.trim() && (
                 <p className="text-sm text-destructive">Party name required</p>
+              )}
+              {orderDetails.partyName.trim() && !isElmericBrand && partyVerificationStatus !== "verified" && (
+                <p className="text-sm text-destructive">Party must be verified before submitting</p>
               )}
               
               <Button

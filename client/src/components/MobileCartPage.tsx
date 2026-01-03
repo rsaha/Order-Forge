@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Trash2, Minus, Plus, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { type OrderDetails } from "./OrderSummary";
-import OrderDetailsForm from "./OrderDetailsForm";
+import OrderDetailsForm, { type PartyVerificationStatus } from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
 import type { CartItemData } from "./CartItem";
 
@@ -27,6 +27,8 @@ interface MobileCartPageProps {
   onSendOrder: () => void;
   onClose: () => void;
   isSending?: boolean;
+  partyVerificationStatus?: PartyVerificationStatus;
+  onVerifyParty?: (name: string) => void;
 }
 
 type PageStep = "cart" | "details";
@@ -166,7 +168,9 @@ export default function MobileCartPage({
   onClearCart,
   onSendOrder,
   onClose,
-  isSending = false
+  isSending = false,
+  partyVerificationStatus = "idle",
+  onVerifyParty,
 }: MobileCartPageProps) {
   const [step, setStep] = useState<PageStep>("cart");
 
@@ -188,7 +192,8 @@ export default function MobileCartPage({
   const discountAmount = subtotal * (safeDiscount / 100);
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
+  const isElmericBrand = cartBrand === "Elmeric";
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified");
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col" data-testid="fullpage-cart">
@@ -281,6 +286,8 @@ export default function MobileCartPage({
               orderDetails={orderDetails}
               onOrderDetailsChange={onOrderDetailsChange}
               cartBrand={cartBrand}
+              partyVerificationStatus={partyVerificationStatus}
+              onVerifyParty={onVerifyParty}
             />
           </main>
           
@@ -302,6 +309,9 @@ export default function MobileCartPage({
             
             {!orderDetails.partyName.trim() && (
               <p className="text-sm text-destructive">Party name required</p>
+            )}
+            {orderDetails.partyName.trim() && !isElmericBrand && partyVerificationStatus !== "verified" && (
+              <p className="text-sm text-destructive">Party must be verified before submitting</p>
             )}
             
             <Button

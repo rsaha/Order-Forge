@@ -87,6 +87,16 @@ export default function Home() {
   const [partyVerificationStatus, setPartyVerificationStatus] = useState<"idle" | "verifying" | "verified" | "not_found">("idle");
   const [verifiedPartyName, setVerifiedPartyName] = useState<string>("");
   
+  // Wrapper to reset verification when party name changes
+  const handleOrderDetailsChange = useCallback((newDetails: typeof orderDetails) => {
+    // Reset verification if party name changed
+    if (newDetails.partyName !== orderDetails.partyName) {
+      setPartyVerificationStatus("idle");
+      setVerifiedPartyName("");
+    }
+    setOrderDetails(newDetails);
+  }, [orderDetails.partyName]);
+  
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [createdOrder, setCreatedOrder] = useState<any>(null);
@@ -531,6 +541,8 @@ export default function Home() {
         specialNotes: "",
         proposedDiscount: 0,
       });
+      setPartyVerificationStatus("idle");
+      setVerifiedPartyName("");
       setIsCartOpen(false);
     } catch (error: any) {
       toast({
@@ -933,7 +945,7 @@ export default function Home() {
         <MobileCartPage
           cartItems={cart}
           orderDetails={orderDetails}
-          onOrderDetailsChange={setOrderDetails}
+          onOrderDetailsChange={handleOrderDetailsChange}
           onQuantityChange={handleQuantityChange}
           onFreeQuantityChange={handleFreeQuantityChange}
           onRemoveItem={handleRemoveItem}
@@ -946,10 +958,14 @@ export default function Home() {
               specialNotes: "",
               proposedDiscount: 0,
             });
+            setPartyVerificationStatus("idle");
+            setVerifiedPartyName("");
           }}
           onSendOrder={handleSendOrder}
           onClose={() => setIsCartOpen(false)}
           isSending={isSendingOrder}
+          partyVerificationStatus={partyVerificationStatus}
+          onVerifyParty={verifyPartyName}
         />
       ) : isMobile ? (
         <MobileCartDrawer
@@ -957,7 +973,7 @@ export default function Home() {
           onClose={() => setIsCartOpen(false)}
           cartItems={cart}
           orderDetails={orderDetails}
-          onOrderDetailsChange={setOrderDetails}
+          onOrderDetailsChange={handleOrderDetailsChange}
           onQuantityChange={handleQuantityChange}
           onFreeQuantityChange={handleFreeQuantityChange}
           onRemoveItem={handleRemoveItem}
@@ -970,9 +986,13 @@ export default function Home() {
               specialNotes: "",
               proposedDiscount: 0,
             });
+            setPartyVerificationStatus("idle");
+            setVerifiedPartyName("");
           }}
           onSendOrder={handleSendOrder}
           isSending={isSendingOrder}
+          partyVerificationStatus={partyVerificationStatus}
+          onVerifyParty={verifyPartyName}
         />
       ) : (
         <CartPanel
@@ -980,7 +1000,7 @@ export default function Home() {
           onClose={() => setIsCartOpen(false)}
           cartItems={cart}
           orderDetails={orderDetails}
-          onOrderDetailsChange={setOrderDetails}
+          onOrderDetailsChange={handleOrderDetailsChange}
           onQuantityChange={handleQuantityChange}
           onFreeQuantityChange={handleFreeQuantityChange}
           onRemoveItem={handleRemoveItem}
@@ -993,9 +1013,13 @@ export default function Home() {
               specialNotes: "",
               proposedDiscount: 0,
             });
+            setPartyVerificationStatus("idle");
+            setVerifiedPartyName("");
           }}
           onSendOrder={handleSendOrder}
           isSending={isSendingOrder}
+          partyVerificationStatus={partyVerificationStatus}
+          onVerifyParty={verifyPartyName}
         />
       )}
 
