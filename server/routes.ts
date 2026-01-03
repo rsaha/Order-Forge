@@ -503,7 +503,7 @@ export async function registerRoutes(
       }
       
       // Call external API to verify party name
-      const externalApiUrl = `https://apiforcollection-production.up.railway.app/Loopdebtors?Search=${encodeURIComponent(searchTerm.trim())}`;
+      const externalApiUrl = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(searchTerm.trim())}`;
       
       const apiKey = process.env.CASHDESK_API_KEY;
       if (!apiKey) {
