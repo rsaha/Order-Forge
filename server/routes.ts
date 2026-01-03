@@ -514,6 +514,8 @@ export async function registerRoutes(
         });
       }
       
+      console.log(`Calling debtor API: ${externalApiUrl}`);
+      
       const externalResponse = await fetch(externalApiUrl, {
         method: 'GET',
         headers: {
@@ -522,6 +524,9 @@ export async function registerRoutes(
         },
       });
       
+      const responseText = await externalResponse.text();
+      console.log(`Debtor API response status: ${externalResponse.status}, body: ${responseText.substring(0, 500)}`);
+      
       if (!externalResponse.ok) {
         console.error(`External debtor API returned status: ${externalResponse.status}`);
         return res.status(502).json({ 
@@ -529,8 +534,6 @@ export async function registerRoutes(
           message: "Failed to verify party with external service" 
         });
       }
-      
-      const responseText = await externalResponse.text();
       
       // Handle empty response
       if (!responseText || responseText.trim() === '') {
