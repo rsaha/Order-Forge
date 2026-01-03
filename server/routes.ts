@@ -505,10 +505,20 @@ export async function registerRoutes(
       // Call external API to verify party name
       const externalApiUrl = `https://apiforcollection-production.up.railway.app/Loopdebtors?Search=${encodeURIComponent(searchTerm.trim())}`;
       
+      const apiKey = process.env.CASHDESK_API_KEY;
+      if (!apiKey) {
+        console.error("CASHDESK_API_KEY not configured");
+        return res.status(500).json({ 
+          verified: false, 
+          message: "API key not configured for party verification" 
+        });
+      }
+      
       const externalResponse = await fetch(externalApiUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
         },
       });
       
