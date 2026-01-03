@@ -144,9 +144,14 @@ export default function OrderDetailsForm({
             </div>
           )}
           {partyVerificationStatus === "not_found" && (
-            <div className="flex items-center gap-1.5 text-sm text-destructive" data-testid="text-party-not-found">
-              <XCircle className="w-4 h-4" />
-              <span>Party not found - please verify the name</span>
+            <div className="space-y-1 text-sm text-destructive" data-testid="text-party-not-found">
+              <div className="flex items-center gap-1.5">
+                <XCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Party name didn't match.</span>
+              </div>
+              <p className="text-muted-foreground ml-5">
+                Contact Surojit to add the party and then submit the order.
+              </p>
             </div>
           )}
         </div>
