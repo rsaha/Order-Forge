@@ -490,6 +490,112 @@ export async function registerRoutes(
     }
   });
 
+  // Verify party name against external debtor API
+  app.get('/api/verify/debtor', isAuthenticated, async (req: any, res) => {
+    try {
+      const searchTerm = req.query.name as string;
+      
+      if (!searchTerm || searchTerm.trim().length < 2) {
+        return res.status(400).json({ 
+          verified: false, 
+          message: "Search term must be at least 2 characters" 
+        });
+      }
+      
+      // Call external API to verify party name
+      const externalApiUrl = `https://apiforcollection-production.up.railway.app/Loopdebtors?Search=${encodeURIComponent(searchTerm.trim())}`;
+      
+      const externalResponse = await fetch(externalApiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!externalResponse.ok) {
+        console.error(`External debtor API returned status: ${externalResponse.status}`);
+        return res.status(502).json({ 
+          verified: false, 
+          message: "Failed to verify party with external service" 
+        });
+      }
+      
+      const responseText = await externalResponse.text();
+      
+      // Handle empty response
+      if (!responseText || responseText.trim() === '') {
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Party not found in database" 
+        });
+      }
+      
+      // Check for "not found" text response from external API
+      const notFoundMessages = [
+        "couldn't find",
+        "could not find",
+        "no results",
+        "not found",
+        "search criteria"
+      ];
+      
+      const lowerText = responseText.toLowerCase();
+      const isNotFoundMessage = notFoundMessages.some(msg => lowerText.includes(msg));
+      
+      if (isNotFoundMessage) {
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Party not found in database" 
+        });
+      }
+      
+      // Try to parse as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        // If it's not JSON and not a "not found" message, treat as unknown
+        console.error("Failed to parse debtor API response:", responseText.substring(0, 200));
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Unexpected response from verification service" 
+        });
+      }
+      
+      // Check if we have any results
+      // The API might return an array of debtors or a single object
+      const hasResults = Array.isArray(data) 
+        ? data.length > 0 
+        : (data && typeof data === 'object' && (data.found || data.exists || data.count > 0 || (Object.keys(data).length > 0 && !data.error && !data.message)));
+      
+      if (hasResults) {
+        // Extract the first match if it's an array
+        const match = Array.isArray(data) ? data[0] : data;
+        return res.json({ 
+          verified: true, 
+          found: true,
+          name: match.Name || match.name || searchTerm.trim(),
+          data: match
+        });
+      } else {
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Party not found in database" 
+        });
+      }
+    } catch (error) {
+      console.error("Error verifying debtor:", error);
+      res.status(500).json({ 
+        verified: false, 
+        message: "Error verifying party name" 
+      });
+    }
+  });
+
   // Get available brand and delivery company options
   app.get('/api/options', isAuthenticated, async (req: any, res) => {
     try {
