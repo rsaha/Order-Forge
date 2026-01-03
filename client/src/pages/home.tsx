@@ -84,7 +84,7 @@ export default function Home() {
   });
   
   // Party verification state
-  const [partyVerificationStatus, setPartyVerificationStatus] = useState<"idle" | "verifying" | "verified" | "not_found">("idle");
+  const [partyVerificationStatus, setPartyVerificationStatus] = useState<"idle" | "verifying" | "verified" | "not_found" | "error">("idle");
   const [verifiedPartyName, setVerifiedPartyName] = useState<string>("");
   
   // Wrapper to reset verification when party name changes
@@ -460,12 +460,15 @@ export default function Home() {
           setVerifiedPartyName("");
         }
       } else {
-        setPartyVerificationStatus("not_found");
+        // API error (401, 502, etc.) - show warning but allow order submission
+        console.warn("Party verification API returned error status:", response.status);
+        setPartyVerificationStatus("error");
         setVerifiedPartyName("");
       }
     } catch (error) {
       console.error("Party verification error:", error);
-      setPartyVerificationStatus("not_found");
+      // Network error - show warning but allow order submission
+      setPartyVerificationStatus("error");
       setVerifiedPartyName("");
     }
   }, []);

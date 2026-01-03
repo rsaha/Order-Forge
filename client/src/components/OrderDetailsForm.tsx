@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Loader2, Search } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Search, AlertTriangle } from "lucide-react";
 
 export interface OrderDetails {
   partyName: string;
@@ -14,7 +14,7 @@ export interface OrderDetails {
   proposedDiscount: number;
 }
 
-export type PartyVerificationStatus = "idle" | "verifying" | "verified" | "not_found";
+export type PartyVerificationStatus = "idle" | "verifying" | "verified" | "not_found" | "error";
 
 interface OrderDetailsFormProps {
   orderDetails: OrderDetails;
@@ -151,6 +151,17 @@ export default function OrderDetailsForm({
               </div>
               <p className="text-muted-foreground ml-5">
                 Contact Surojit to add the party and then submit the order.
+              </p>
+            </div>
+          )}
+          {partyVerificationStatus === "error" && (
+            <div className="space-y-1 text-sm text-amber-600 dark:text-amber-400" data-testid="text-party-verify-error">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>Could not verify party name.</span>
+              </div>
+              <p className="text-muted-foreground ml-5">
+                Verification service unavailable. You can still submit the order.
               </p>
             </div>
           )}

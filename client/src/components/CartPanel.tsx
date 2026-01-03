@@ -204,7 +204,8 @@ export default function CartPanel({
   const itemCount = cartItems.length;
   const totalUnits = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const isElmericBrand = cartBrand === "Elmeric";
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified");
+  // Allow order when: Elmeric brand (no verification needed), verified, or verification service failed (error)
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
 
   const handleClose = () => {
     setStep("cart");

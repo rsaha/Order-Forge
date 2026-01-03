@@ -193,7 +193,8 @@ export default function MobileCartPage({
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const isElmericBrand = cartBrand === "Elmeric";
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified");
+  // Allow order when: Elmeric brand (no verification needed), verified, or verification service failed (error)
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col" data-testid="fullpage-cart">
