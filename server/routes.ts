@@ -134,6 +134,25 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
   products: T[],
   threshold: number = 0.5
 ): T | null {
+  const normalizedQuery = normalizeText(query);
+  
+  // FIRST PASS: Check for exact SKU+SIZE matches before fuzzy matching
+  // This handles cases like query "F-01-M" matching product with sku="F-01" and size="M"
+  for (const product of products) {
+    if (product.size) {
+      const skuWithSizeDash = normalizeText(`${product.sku}-${product.size}`);
+      const skuWithSizeSpace = normalizeText(`${product.sku} ${product.size}`);
+      if (normalizedQuery === skuWithSizeDash || normalizedQuery === skuWithSizeSpace) {
+        return product; // Exact match on SKU+SIZE - return immediately
+      }
+    }
+    // Also check exact SKU match
+    if (normalizedQuery === normalizeText(product.sku)) {
+      return product;
+    }
+  }
+  
+  // SECOND PASS: Fuzzy matching
   let bestMatch: T | null = null;
   let bestScore = threshold;
   
