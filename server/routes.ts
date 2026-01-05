@@ -129,7 +129,7 @@ function calculateSimilarity(query: string, target: string): number {
   return matchRatio * avgScore;
 }
 
-function findBestMatch<T extends { sku: string; name: string; aliases?: string | null; alias1?: string | null; alias2?: string | null }>(
+function findBestMatch<T extends { sku: string; name: string; size?: string | null; aliases?: string | null; alias1?: string | null; alias2?: string | null }>(
   query: string,
   products: T[],
   threshold: number = 0.5
@@ -140,6 +140,17 @@ function findBestMatch<T extends { sku: string; name: string; aliases?: string |
   for (const product of products) {
     const skuScore = calculateSimilarity(query, product.sku);
     const nameScore = calculateSimilarity(query, product.name);
+    
+    // Also check SKU+SIZE combinations (e.g., query "F-01-M" should match product with sku="F-01" and size="M")
+    let skuSizeScore = 0;
+    if (product.size) {
+      const skuWithSize = `${product.sku}-${product.size}`;
+      const skuWithSizeSpace = `${product.sku} ${product.size}`;
+      skuSizeScore = Math.max(
+        calculateSimilarity(query, skuWithSize),
+        calculateSimilarity(query, skuWithSizeSpace)
+      );
+    }
     let aliasScore = 0;
     
     // Check alias1 and alias2 first (exact match gets priority)
@@ -176,7 +187,7 @@ function findBestMatch<T extends { sku: string; name: string; aliases?: string |
       }
     }
     
-    const score = Math.max(skuScore, nameScore, aliasScore);
+    const score = Math.max(skuScore, nameScore, skuSizeScore, aliasScore);
     
     if (score > bestScore) {
       bestScore = score;
