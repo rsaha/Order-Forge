@@ -1052,11 +1052,98 @@ export async function registerRoutes(
       const partyName = allLines.length > 0 ? allLines[0] : "";
       const productLines = allLines.slice(1); // Skip first line for product parsing
       
-      // Further split by comma/semicolon for product lines
+      // Helper function to check if a line matches multi-size pattern and expand it
+      // Returns null if no pattern match, otherwise returns expanded items
+      const tryExpandMultiSizePattern = (line: string): string[] | null => {
+        // Check if line looks like multi-size pattern with commas
+        // Must have: base SKU, then size-qty pairs separated by commas
+        // Examples: "F-01 M-3p,L-3p,S-3p" or "F-10-M-5p,S-2p,L-2p"
+        
+        if (!line.includes(',')) {
+          return null; // No commas, not a multi-size pattern
+        }
+        
+        // Pattern 1: "SKU SIZE-QTYp,SIZE-QTYp,..." (with space between SKU and first size)
+        // e.g., "F-01 M-3p,L-3p,S-3p"
+        const spaceSeparated = line.match(/^([A-Z0-9\-]+)\s+([A-Z]{1,3})-?(\d+)p?(.*)$/i);
+        
+        if (spaceSeparated) {
+          const baseSku = spaceSeparated[1];
+          const firstSize = spaceSeparated[2].toUpperCase();
+          const firstQty = spaceSeparated[3];
+          const rest = spaceSeparated[4];
+          
+          // Verify rest contains comma-separated size-qty pairs
+          const remaining = rest.split(',').map(s => s.trim()).filter(s => s);
+          const validRemaining = remaining.every(part => /^([A-Z]{1,3})-?(\d+)p?$/i.test(part));
+          
+          if (remaining.length > 0 && validRemaining) {
+            // Output format: "SKU-SIZE QTY" which the existing parser can handle
+            const results: string[] = [`${baseSku}-${firstSize} ${firstQty}`];
+            
+            for (const part of remaining) {
+              const match = part.match(/^([A-Z]{1,3})-?(\d+)p?$/i);
+              if (match) {
+                results.push(`${baseSku}-${match[1].toUpperCase()} ${match[2]}`);
+              }
+            }
+            
+            return results;
+          }
+        }
+        
+        // Pattern 2: "SKU-SIZE-QTYp,SIZE-QTYp,..." (connected by dashes)
+        // e.g., "F-10-M-5p,S-2p,L-2p" or "B-02-M-5p,S-2p,L-2p"
+        const dashSeparated = line.match(/^([A-Z0-9]+(?:-[A-Z0-9]+)*?)-([A-Z]{1,3})-(\d+)p?(.*)$/i);
+        
+        if (dashSeparated) {
+          const baseSku = dashSeparated[1];
+          const firstSize = dashSeparated[2].toUpperCase();
+          const firstQty = dashSeparated[3];
+          const rest = dashSeparated[4];
+          
+          // Verify rest contains comma-separated size-qty pairs
+          const remaining = rest.split(',').map(s => s.trim()).filter(s => s);
+          const validRemaining = remaining.every(part => /^([A-Z]{1,3})-?(\d+)p?$/i.test(part));
+          
+          if (remaining.length > 0 && validRemaining) {
+            // Output format: "SKU-SIZE QTY" which the existing parser can handle
+            const results: string[] = [`${baseSku}-${firstSize} ${firstQty}`];
+            
+            for (const part of remaining) {
+              const match = part.match(/^([A-Z]{1,3})-?(\d+)p?$/i);
+              if (match) {
+                results.push(`${baseSku}-${match[1].toUpperCase()} ${match[2]}`);
+              }
+            }
+            
+            return results;
+          }
+        }
+        
+        // No multi-size pattern found
+        return null;
+      };
+      
+      // Process product lines - try multi-size expansion first, then fall back to comma split
       const lines: string[] = [];
       for (const line of productLines) {
-        const parts = line.split(/[,;]+/).map((p: string) => p.trim()).filter((p: string) => p);
-        lines.push(...parts);
+        // First split by semicolon for multiple products on same line
+        const semicolonParts = line.split(/;+/).map((p: string) => p.trim()).filter((p: string) => p);
+        
+        for (const part of semicolonParts) {
+          // Try to expand as multi-size pattern first
+          const expanded = tryExpandMultiSizePattern(part);
+          
+          if (expanded) {
+            // Multi-size pattern matched and expanded
+            lines.push(...expanded);
+          } else {
+            // Not a multi-size pattern - use original comma/semicolon splitting
+            const commaParts = part.split(/,+/).map((p: string) => p.trim()).filter((p: string) => p);
+            lines.push(...commaParts);
+          }
+        }
       }
       
       const parsedItems: Array<{rawText: string; productRef: string; quantity: number; freeQuantity: number}> = [];
@@ -1079,9 +1166,11 @@ export async function registerRoutes(
           });
         } else {
           // Try regular quantity pattern without free qty
+          // Added pattern for trailing "p" like "A-27-UNI-5p" or "F-10-M-5P"
           const qtyMatch = line.match(/^(.+?)[\s\-x.:;]+(\d+)\s*(?:case|cse|pcs|pc|units?)?\.?$/i) ||
                            line.match(/^(.+?)\s+(\d+)\.?$/i) ||
-                           line.match(/^(.+?)\.(\d+)$/i);
+                           line.match(/^(.+?)\.(\d+)$/i) ||
+                           line.match(/^(.+?)-(\d+)[pP]$/i);
           
           if (qtyMatch) {
             parsedItems.push({
