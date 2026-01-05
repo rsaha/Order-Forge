@@ -782,6 +782,7 @@ export default function OrdersPage() {
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Approved By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Approved At</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -795,6 +796,7 @@ export default function OrdersPage() {
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
@@ -807,6 +809,7 @@ export default function OrdersPage() {
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
@@ -821,7 +824,10 @@ export default function OrdersPage() {
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch On</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Delivered On</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium hidden lg:table-cell">On Time?</th>
@@ -833,6 +839,7 @@ export default function OrdersPage() {
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Brand</th>
                         <th className="text-right p-2 font-medium">Total</th>
                         <th className="text-center p-2 font-medium"></th>
@@ -870,6 +877,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.approvedBy || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
@@ -888,6 +896,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
@@ -905,6 +914,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
                             <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
@@ -924,11 +934,29 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 text-center hidden lg:table-cell">
-                              {order.deliveredOnTime === true ? <CheckCircle className="w-4 h-4 text-green-600 mx-auto" /> : order.deliveredOnTime === false ? <XCircle className="w-4 h-4 text-red-600 mx-auto" /> : "-"}
+                              {(() => {
+                                if (!order.estimatedDeliveryDate || !order.actualDeliveryDate) {
+                                  return <span className="text-muted-foreground">-</span>;
+                                }
+                                const estDate = new Date(order.estimatedDeliveryDate);
+                                const actDate = new Date(order.actualDeliveryDate);
+                                estDate.setHours(0, 0, 0, 0);
+                                actDate.setHours(0, 0, 0, 0);
+                                if (actDate < estDate) {
+                                  return <span className="text-green-600 dark:text-green-400 font-medium">Early</span>;
+                                } else if (actDate.getTime() === estDate.getTime()) {
+                                  return <span className="text-blue-600 dark:text-blue-400 font-medium">On Time</span>;
+                                } else {
+                                  return <span className="text-red-600 dark:text-red-400 font-medium">Late</span>;
+                                }
+                              })()}
                             </td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
@@ -943,6 +971,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
