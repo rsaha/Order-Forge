@@ -1654,5 +1654,72 @@ export async function registerRoutes(
     }
   });
 
+  // Create new Customer account (Admin only)
+  app.post('/api/admin/customers', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const admin = await storage.getUser(adminId);
+      if (!admin?.isAdmin && admin?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { email, firstName, lastName, partyName, brands, deliveryCompanies } = req.body;
+
+      if (!email || !email.trim()) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      if (!partyName || !partyName.trim()) {
+        return res.status(400).json({ message: "Party name is required" });
+      }
+
+      // Check if user with this email already exists (handles both Replit Auth users and manually created customers)
+      const existingUser = await storage.getUserByEmail(email.toLowerCase().trim());
+      if (existingUser) {
+        return res.status(400).json({ message: "A user with this email already exists" });
+      }
+
+      // Generate a unique ID for the customer (using email hash for consistency)
+      const crypto = await import('crypto');
+      const customerId = crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex');
+
+      // Create the customer user
+      const customerData = {
+        id: customerId,
+        email: email.toLowerCase().trim(),
+        firstName: firstName?.trim() || null,
+        lastName: lastName?.trim() || null,
+        profileImageUrl: null,
+        isAdmin: false,
+        role: "Customer" as const,
+        partyName: partyName.trim(),
+      };
+
+      const newCustomer = await storage.upsertUser(customerData);
+
+      // Set brand access if provided
+      if (brands && Array.isArray(brands) && brands.length > 0) {
+        await storage.setUserBrandAccess(customerId, brands);
+      }
+
+      // Set delivery company access if provided
+      if (deliveryCompanies && Array.isArray(deliveryCompanies) && deliveryCompanies.length > 0) {
+        await storage.setUserDeliveryCompanyAccess(customerId, deliveryCompanies);
+      }
+
+      // Return the customer with their access info
+      const brandAccess = await storage.getUserBrandAccess(customerId);
+      const deliveryCompanyAccess = await storage.getUserDeliveryCompanyAccess(customerId);
+
+      res.status(201).json({
+        ...newCustomer,
+        brandAccess,
+        deliveryCompanyAccess,
+      });
+    } catch (error: any) {
+      console.error("Error creating customer:", error);
+      res.status(500).json({ message: error.message || "Failed to create customer" });
+    }
+  });
+
   return httpServer;
 }

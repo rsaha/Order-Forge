@@ -16,8 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2, 
-  ChevronDown, ChevronRight, Pencil, X, Check
+  ChevronDown, ChevronRight, Pencil, X, Check, Plus
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +63,15 @@ export default function UsersPage() {
     BrandAdmin: true,
     User: true,
     Customer: true,
+  });
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    email: "",
+    firstName: "",
+    lastName: "",
+    partyName: "",
+    brands: [] as string[],
+    deliveryCompanies: [] as string[],
   });
 
   const isAdmin = user?.isAdmin === true;
@@ -175,6 +185,28 @@ export default function UsersPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to delete user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const createCustomerMutation = useMutation({
+    mutationFn: async (data: typeof newCustomer) => {
+      return apiRequest("POST", "/api/admin/customers", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setShowAddCustomerModal(false);
+      setNewCustomer({
+        email: "",
+        firstName: "",
+        lastName: "",
+        partyName: "",
+        brands: [],
+        deliveryCompanies: [],
+      });
+      toast({ title: "Customer created successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create customer", description: error.message, variant: "destructive" });
     },
   });
 
@@ -627,6 +659,10 @@ export default function UsersPage() {
             <Badge variant="outline" className="ml-auto">
               {users.length} users
             </Badge>
+            <Button size="sm" onClick={() => setShowAddCustomerModal(true)} data-testid="button-add-customer">
+              <Plus className="w-4 h-4 mr-1" />
+              Add Customer
+            </Button>
           </div>
         </div>
 
@@ -678,6 +714,129 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showAddCustomerModal} onOpenChange={setShowAddCustomerModal}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer-email">Email *</Label>
+              <Input
+                id="customer-email"
+                type="email"
+                placeholder="customer@example.com"
+                value={newCustomer.email}
+                onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
+                data-testid="input-customer-email"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="customer-first-name">First Name</Label>
+                <Input
+                  id="customer-first-name"
+                  placeholder="First name"
+                  value={newCustomer.firstName}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, firstName: e.target.value }))}
+                  data-testid="input-customer-first-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer-last-name">Last Name</Label>
+                <Input
+                  id="customer-last-name"
+                  placeholder="Last name"
+                  value={newCustomer.lastName}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, lastName: e.target.value }))}
+                  data-testid="input-customer-last-name"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-party-name">Party Name *</Label>
+              <Input
+                id="customer-party-name"
+                placeholder="Business or party name"
+                value={newCustomer.partyName}
+                onChange={(e) => setNewCustomer(prev => ({ ...prev, partyName: e.target.value }))}
+                data-testid="input-customer-party-name"
+              />
+              <p className="text-xs text-muted-foreground">This will be auto-filled when the customer creates orders</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Allowed Brands</Label>
+              <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                {brandRecords.filter(b => b.isActive).map((brand) => (
+                  <div key={brand.id} className="flex items-center gap-1">
+                    <Checkbox
+                      id={`new-customer-brand-${brand.id}`}
+                      checked={newCustomer.brands.includes(brand.name)}
+                      onCheckedChange={(checked) => {
+                        setNewCustomer(prev => ({
+                          ...prev,
+                          brands: checked
+                            ? [...prev.brands, brand.name]
+                            : prev.brands.filter(b => b !== brand.name)
+                        }));
+                      }}
+                    />
+                    <Label htmlFor={`new-customer-brand-${brand.id}`} className="text-sm cursor-pointer">
+                      {brand.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Allowed Delivery Companies</Label>
+              <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                {DELIVERY_COMPANIES.map((company) => (
+                  <div key={company} className="flex items-center gap-1">
+                    <Checkbox
+                      id={`new-customer-delivery-${company}`}
+                      checked={newCustomer.deliveryCompanies.includes(company)}
+                      onCheckedChange={(checked) => {
+                        setNewCustomer(prev => ({
+                          ...prev,
+                          deliveryCompanies: checked
+                            ? [...prev.deliveryCompanies, company]
+                            : prev.deliveryCompanies.filter(c => c !== company)
+                        }));
+                      }}
+                    />
+                    <Label htmlFor={`new-customer-delivery-${company}`} className="text-sm cursor-pointer">
+                      {company}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddCustomerModal(false)}
+              data-testid="button-cancel-add-customer"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createCustomerMutation.mutate(newCustomer)}
+              disabled={!newCustomer.email.trim() || !newCustomer.partyName.trim() || createCustomerMutation.isPending}
+              data-testid="button-save-customer"
+            >
+              {createCustomerMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="w-4 h-4 mr-2" />
+              )}
+              Create Customer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
