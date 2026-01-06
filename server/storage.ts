@@ -165,8 +165,12 @@ export class DatabaseStorage implements IStorage {
         // Get existing brand access for this user
         const existingBrandAccess = await db.select().from(userBrandAccess).where(eq(userBrandAccess.userId, oldId));
         
+        // Get existing delivery company access for this user
+        const existingDeliveryCompanyAccess = await db.select().from(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, oldId));
+        
         // Delete old FK references
         await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, oldId));
+        await db.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, oldId));
         
         // Update orders to point to new ID (orders don't have unique constraint issues)
         await db.update(orders).set({ userId: newId }).where(eq(orders.userId, oldId));
@@ -182,12 +186,16 @@ export class DatabaseStorage implements IStorage {
             lastName: userData.lastName || existingByEmail.lastName || null,
             isAdmin: existingByEmail.isAdmin,
             role: existingByEmail.role,
+            partyName: existingByEmail.partyName,
           })
           .returning();
         
         // Recreate FK references with new user ID
         for (const access of existingBrandAccess) {
           await db.insert(userBrandAccess).values({ userId: newId, brand: access.brand }).onConflictDoNothing();
+        }
+        for (const access of existingDeliveryCompanyAccess) {
+          await db.insert(userDeliveryCompanyAccess).values({ userId: newId, deliveryCompany: access.deliveryCompany }).onConflictDoNothing();
         }
         
         return newUser;
