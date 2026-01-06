@@ -36,6 +36,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Package,
   Calendar,
   Truck,
@@ -45,6 +50,7 @@ import {
   XCircle,
   Loader2,
   ChevronLeft,
+  ChevronDown,
   AlertCircle,
   Download,
   Plus,
@@ -1060,6 +1066,22 @@ export default function OrdersPage() {
                   </div>
                 )}
               </div>
+
+              {selectedOrder.importText && (
+                <Collapsible className="border rounded-md" data-testid="collapsible-import-text">
+                  <CollapsibleTrigger className="flex items-center justify-between w-full p-3 text-sm font-medium hover-elevate">
+                    <span>Original Import Text</span>
+                    <ChevronDown className="w-4 h-4 transition-transform duration-200 [&[data-state=open]>svg]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="p-3 pt-0">
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted p-2 rounded max-h-40 overflow-y-auto" data-testid="text-import-original">
+                        {selectedOrder.importText}
+                      </pre>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
 
               <div className="border rounded-md">
                 <div className="p-3 border-b bg-muted/50 flex justify-between items-center gap-2">

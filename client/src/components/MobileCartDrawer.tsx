@@ -41,6 +41,8 @@ interface MobileCartDrawerProps {
   isSending?: boolean;
   partyVerificationStatus?: PartyVerificationStatus;
   onVerifyParty?: (name: string) => void;
+  isCustomer?: boolean;
+  allowedDeliveryCompanies?: string[];
 }
 
 type DrawerStep = "cart" | "details";
@@ -185,6 +187,8 @@ export default function MobileCartDrawer({
   isSending = false,
   partyVerificationStatus = "idle",
   onVerifyParty,
+  isCustomer = false,
+  allowedDeliveryCompanies,
 }: MobileCartDrawerProps) {
   const [step, setStep] = useState<DrawerStep>("cart");
   
@@ -213,8 +217,8 @@ export default function MobileCartDrawer({
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const isElmericBrand = cartBrand === "Elmeric";
-  // Allow order when: Elmeric brand (no verification needed), verified, or verification service failed (error)
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
+  // Allow order when: Customer role (no verification), Elmeric brand (no verification needed), verified, or verification service failed (error)
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
 
   const handleClose = () => {
     setStep("cart");
@@ -314,6 +318,8 @@ export default function MobileCartDrawer({
                   cartBrand={cartBrand}
                   partyVerificationStatus={partyVerificationStatus}
                   onVerifyParty={onVerifyParty}
+                  isCustomer={isCustomer}
+                  allowedDeliveryCompanies={allowedDeliveryCompanies}
                 />
               </div>
             </div>

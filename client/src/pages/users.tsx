@@ -38,7 +38,10 @@ import { USER_ROLES } from "@shared/schema";
 
 interface UserWithBrands extends User {
   brandAccess: string[];
+  deliveryCompanyAccess?: string[];
 }
+
+const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -50,10 +53,15 @@ export default function UsersPage() {
   const [editingFirstName, setEditingFirstName] = useState("");
   const [editingLastName, setEditingLastName] = useState("");
   const [userToDelete, setUserToDelete] = useState<UserWithBrands | null>(null);
+  const [editingDeliveryCompaniesUserId, setEditingDeliveryCompaniesUserId] = useState<string | null>(null);
+  const [editingDeliveryCompanies, setEditingDeliveryCompanies] = useState<string[]>([]);
+  const [editingPartyNameUserId, setEditingPartyNameUserId] = useState<string | null>(null);
+  const [editingPartyName, setEditingPartyName] = useState("");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     Admin: true,
     BrandAdmin: true,
     User: true,
+    Customer: true,
   });
 
   const isAdmin = user?.isAdmin === true;
@@ -72,6 +80,7 @@ export default function UsersPage() {
       Admin: [],
       BrandAdmin: [],
       User: [],
+      Customer: [],
     };
     
     users.forEach((u) => {
@@ -124,6 +133,34 @@ export default function UsersPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to update brand access", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateDeliveryCompaniesMutation = useMutation({
+    mutationFn: async ({ userId, deliveryCompanies }: { userId: string; deliveryCompanies: string[] }) => {
+      return apiRequest("PUT", `/api/users/${userId}/delivery-company-access`, { deliveryCompanies });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingDeliveryCompaniesUserId(null);
+      toast({ title: "Delivery company access updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update delivery companies", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updatePartyNameMutation = useMutation({
+    mutationFn: async ({ userId, partyName }: { userId: string; partyName: string }) => {
+      return apiRequest("PATCH", `/api/admin/users/${userId}/party-name`, { partyName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingPartyNameUserId(null);
+      toast({ title: "Party name updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update party name", description: error.message, variant: "destructive" });
     },
   });
 
@@ -189,6 +226,50 @@ export default function UsersPage() {
     setEditingBrands([]);
   };
 
+  const handleEditDeliveryCompanies = (userId: string, currentDeliveryCompanies: string[]) => {
+    setEditingDeliveryCompaniesUserId(userId);
+    setEditingDeliveryCompanies([...currentDeliveryCompanies]);
+  };
+
+  const handleDeliveryCompanyToggle = (company: string) => {
+    setEditingDeliveryCompanies(prev =>
+      prev.includes(company) ? prev.filter(c => c !== company) : [...prev, company]
+    );
+  };
+
+  const handleSaveDeliveryCompanies = () => {
+    if (editingDeliveryCompaniesUserId) {
+      updateDeliveryCompaniesMutation.mutate({ 
+        userId: editingDeliveryCompaniesUserId, 
+        deliveryCompanies: editingDeliveryCompanies 
+      });
+    }
+  };
+
+  const handleCancelDeliveryCompaniesEdit = () => {
+    setEditingDeliveryCompaniesUserId(null);
+    setEditingDeliveryCompanies([]);
+  };
+
+  const handleEditPartyName = (u: UserWithBrands) => {
+    setEditingPartyNameUserId(u.id);
+    setEditingPartyName(u.partyName || "");
+  };
+
+  const handleSavePartyName = () => {
+    if (editingPartyNameUserId) {
+      updatePartyNameMutation.mutate({ 
+        userId: editingPartyNameUserId, 
+        partyName: editingPartyName.trim() 
+      });
+    }
+  };
+
+  const handleCancelPartyNameEdit = () => {
+    setEditingPartyNameUserId(null);
+    setEditingPartyName("");
+  };
+
   const toggleSection = (role: string) => {
     setExpandedSections(prev => ({ ...prev, [role]: !prev[role] }));
   };
@@ -199,6 +280,8 @@ export default function UsersPage() {
         return <ShieldCheck className="w-4 h-4 text-destructive" />;
       case "BrandAdmin":
         return <Shield className="w-4 h-4 text-yellow-600 dark:text-yellow-500" />;
+      case "Customer":
+        return <UserIcon className="w-4 h-4 text-green-600 dark:text-green-500" />;
       default:
         return <UserIcon className="w-4 h-4 text-muted-foreground" />;
     }
@@ -208,6 +291,7 @@ export default function UsersPage() {
     switch (role) {
       case "Admin": return "destructive";
       case "BrandAdmin": return "secondary";
+      case "Customer": return "default";
       default: return "outline";
     }
   };
@@ -238,6 +322,8 @@ export default function UsersPage() {
   const renderUserRow = (u: UserWithBrands) => {
     const isEditingName = editingNameUserId === u.id;
     const isEditingBrands = editingBrandsUserId === u.id;
+    const isEditingPartyName = editingPartyNameUserId === u.id;
+    const isEditingDeliveryCompanies = editingDeliveryCompaniesUserId === u.id;
 
     return (
       <div 
@@ -387,6 +473,104 @@ export default function UsersPage() {
             </div>
           )}
         </div>
+
+        {u.role === "Customer" && (
+          <>
+            <div className="flex items-center gap-2 ml-9">
+              <span className="text-xs text-muted-foreground">Party Name:</span>
+              {isEditingPartyName ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={editingPartyName}
+                    onChange={(e) => setEditingPartyName(e.target.value)}
+                    placeholder="Party name"
+                    className="text-sm w-48"
+                    data-testid={`input-party-name-${u.id}`}
+                  />
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={handleSavePartyName}
+                    disabled={updatePartyNameMutation.isPending}
+                    data-testid={`button-save-party-name-${u.id}`}
+                  >
+                    {updatePartyNameMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancelPartyNameEdit} data-testid={`button-cancel-party-name-${u.id}`}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm" data-testid={`text-party-name-${u.id}`}>
+                    {u.partyName || <span className="text-muted-foreground">Not set</span>}
+                  </span>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => handleEditPartyName(u)}
+                    className="opacity-60"
+                    data-testid={`button-edit-party-name-${u.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 ml-9">
+              <span className="text-xs text-muted-foreground">Delivery Companies:</span>
+              {isEditingDeliveryCompanies ? (
+                <div className="flex flex-wrap items-center gap-1">
+                  {DELIVERY_COMPANIES.map((company) => (
+                    <Badge
+                      key={company}
+                      variant={editingDeliveryCompanies.includes(company) ? "default" : "outline"}
+                      className="text-xs cursor-pointer"
+                      onClick={() => handleDeliveryCompanyToggle(company)}
+                      data-testid={`badge-delivery-${u.id}-${company.toLowerCase()}`}
+                    >
+                      {company}
+                    </Badge>
+                  ))}
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={handleSaveDeliveryCompanies}
+                    disabled={updateDeliveryCompaniesMutation.isPending}
+                    data-testid={`button-save-delivery-${u.id}`}
+                  >
+                    {updateDeliveryCompaniesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancelDeliveryCompaniesEdit} data-testid={`button-cancel-delivery-${u.id}`}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1">
+                  {(u.deliveryCompanyAccess && u.deliveryCompanyAccess.length > 0) ? (
+                    u.deliveryCompanyAccess.map((company) => (
+                      <Badge key={company} variant="secondary" className="text-xs">
+                        {company}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">None</span>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => handleEditDeliveryCompanies(u.id, u.deliveryCompanyAccess || [])}
+                    className="opacity-60"
+                    data-testid={`button-edit-delivery-${u.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -461,6 +645,7 @@ export default function UsersPage() {
                 {renderRoleSection("Admin", usersByRole.Admin)}
                 {renderRoleSection("BrandAdmin", usersByRole.BrandAdmin)}
                 {renderRoleSection("User", usersByRole.User)}
+                {renderRoleSection("Customer", usersByRole.Customer)}
               </>
             )}
           </div>

@@ -29,7 +29,7 @@ interface ParsedItem {
 }
 
 interface ImportOrderProps {
-  onItemsParsed: (partyName: string, items: ParsedItem[]) => void;
+  onItemsParsed: (partyName: string, items: ParsedItem[], originalText: string) => void;
   availableBrands?: string[];
   selectedBrand?: string;
   onBrandChange?: (brand: string) => void;
@@ -78,13 +78,13 @@ export default function ImportOrder({ onItemsParsed, availableBrands = [], selec
       const data = await response.json();
       
       if (data.items && data.items.length > 0) {
-        onItemsParsed(data.partyName || "", data.items);
+        onItemsParsed(data.partyName || "", data.items, text);
         toast({
           title: "Order parsed",
           description: `Party: ${data.partyName || "Not specified"} - Found ${data.items.length} items`,
         });
       } else if (data.partyName) {
-        onItemsParsed(data.partyName, []);
+        onItemsParsed(data.partyName, [], text);
         toast({
           title: "Party name found",
           description: `Party: ${data.partyName} - No product items found`,

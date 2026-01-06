@@ -74,6 +74,7 @@ export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [partyName, setPartyName] = useState("");
+  const [importText, setImportText] = useState("");
   const [importBrandFilter, setImportBrandFilter] = useState<string>("all");
   const [orderDetails, setOrderDetails] = useState({
     partyName: "",
@@ -114,6 +115,7 @@ export default function Home() {
   });
   
   const isAdmin = user?.isAdmin === true;
+  const isCustomer = user?.role === "Customer";
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -124,6 +126,21 @@ export default function Home() {
     queryKey: ["/api/products/by-brand"],
     retry: false,
   });
+  
+  // Fetch delivery company access for Customer role
+  const { data: deliveryCompanyAccess } = useQuery<{ deliveryCompanies: string[] }>({
+    queryKey: ["/api/users", user?.id, "delivery-company-access"],
+    enabled: isCustomer && !!user?.id,
+  });
+  
+  const allowedDeliveryCompanies = isCustomer ? deliveryCompanyAccess?.deliveryCompanies : undefined;
+  
+  // Auto-populate party name for Customer role
+  useEffect(() => {
+    if (isCustomer && user?.partyName && !orderDetails.partyName) {
+      setOrderDetails(prev => ({ ...prev, partyName: user.partyName || "" }));
+    }
+  }, [isCustomer, user?.partyName, orderDetails.partyName]);
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -506,6 +523,7 @@ export default function Home() {
           deliveryNote: orderDetails.deliveryNotes || null,
           deliveryCompany: orderDetails.deliveryCompany || "Guided",
           specialNotes: orderDetails.specialNotes || null,
+          importText: importText || null,
         }),
         credentials: "include",
       });
@@ -547,6 +565,9 @@ export default function Home() {
       setPartyVerificationStatus("idle");
       setVerifiedPartyName("");
       setIsCartOpen(false);
+      setImportText("");
+      setParsedItems([]);
+      setPartyName("");
     } catch (error: any) {
       toast({
         title: "Order failed",
@@ -556,11 +577,12 @@ export default function Home() {
     } finally {
       setIsSendingOrder(false);
     }
-  }, [cart, orderDetails, toast]);
+  }, [cart, orderDetails, toast, importText]);
 
-  const handleParsedItems = useCallback((name: string, items: ParsedItem[]) => {
+  const handleParsedItems = useCallback((name: string, items: ParsedItem[], originalText: string) => {
     setPartyName(name);
     setParsedItems(items);
+    setImportText(originalText);
   }, []);
 
   const handleUpdateParsedQuantity = useCallback((index: number, quantity: number, freeQuantity?: number) => {
@@ -955,7 +977,7 @@ export default function Home() {
           onClearCart={() => {
             setCart([]);
             setOrderDetails({
-              partyName: "",
+              partyName: isCustomer && user?.partyName ? user.partyName : "",
               deliveryCompany: "Guided",
               deliveryNotes: "",
               specialNotes: "",
@@ -969,6 +991,8 @@ export default function Home() {
           isSending={isSendingOrder}
           partyVerificationStatus={partyVerificationStatus}
           onVerifyParty={verifyPartyName}
+          isCustomer={isCustomer}
+          allowedDeliveryCompanies={allowedDeliveryCompanies}
         />
       ) : isMobile ? (
         <MobileCartDrawer
@@ -983,7 +1007,7 @@ export default function Home() {
           onClearCart={() => {
             setCart([]);
             setOrderDetails({
-              partyName: "",
+              partyName: isCustomer && user?.partyName ? user.partyName : "",
               deliveryCompany: "Guided",
               deliveryNotes: "",
               specialNotes: "",
@@ -996,6 +1020,8 @@ export default function Home() {
           isSending={isSendingOrder}
           partyVerificationStatus={partyVerificationStatus}
           onVerifyParty={verifyPartyName}
+          isCustomer={isCustomer}
+          allowedDeliveryCompanies={allowedDeliveryCompanies}
         />
       ) : (
         <CartPanel
@@ -1010,7 +1036,7 @@ export default function Home() {
           onClearCart={() => {
             setCart([]);
             setOrderDetails({
-              partyName: "",
+              partyName: isCustomer && user?.partyName ? user.partyName : "",
               deliveryCompany: "Guided",
               deliveryNotes: "",
               specialNotes: "",
@@ -1023,6 +1049,8 @@ export default function Home() {
           isSending={isSendingOrder}
           partyVerificationStatus={partyVerificationStatus}
           onVerifyParty={verifyPartyName}
+          isCustomer={isCustomer}
+          allowedDeliveryCompanies={allowedDeliveryCompanies}
         />
       )}
 

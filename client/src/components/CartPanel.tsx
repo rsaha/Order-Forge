@@ -31,6 +31,8 @@ interface CartPanelProps {
   isSending?: boolean;
   partyVerificationStatus?: PartyVerificationStatus;
   onVerifyParty?: (name: string) => void;
+  isCustomer?: boolean;
+  allowedDeliveryCompanies?: string[];
 }
 
 type PanelStep = "cart" | "details";
@@ -175,6 +177,8 @@ export default function CartPanel({
   isSending = false,
   partyVerificationStatus = "idle",
   onVerifyParty,
+  isCustomer = false,
+  allowedDeliveryCompanies,
 }: CartPanelProps) {
   const [step, setStep] = useState<PanelStep>("cart");
   
@@ -204,8 +208,8 @@ export default function CartPanel({
   const itemCount = cartItems.length;
   const totalUnits = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const isElmericBrand = cartBrand === "Elmeric";
-  // Allow order when: Elmeric brand (no verification needed), verified, or verification service failed (error)
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
+  // Allow order when: Customer role (no verification), Elmeric brand (no verification needed), verified, or verification service failed (error)
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
 
   const handleClose = () => {
     setStep("cart");
@@ -307,6 +311,8 @@ export default function CartPanel({
                     cartBrand={cartBrand}
                     partyVerificationStatus={partyVerificationStatus}
                     onVerifyParty={onVerifyParty}
+                    isCustomer={isCustomer}
+                    allowedDeliveryCompanies={allowedDeliveryCompanies}
                   />
                 </div>
               </ScrollArea>
@@ -330,7 +336,7 @@ export default function CartPanel({
                 {!orderDetails.partyName.trim() && (
                   <p className="text-sm text-destructive">Party name required</p>
                 )}
-                {orderDetails.partyName.trim() && !isElmericBrand && partyVerificationStatus !== "verified" && (
+                {orderDetails.partyName.trim() && !isCustomer && !isElmericBrand && partyVerificationStatus !== "verified" && (
                   <p className="text-sm text-destructive">Party must be verified before submitting</p>
                 )}
                 

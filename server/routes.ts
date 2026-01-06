@@ -520,6 +520,78 @@ export async function registerRoutes(
     }
   });
 
+  // Get user's delivery company access
+  app.get('/api/users/:userId/delivery-company-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const requestingUserId = req.user.claims.sub;
+      const requestingUser = await storage.getUser(requestingUserId);
+      const targetUserId = req.params.userId;
+      
+      if (!requestingUser?.isAdmin && requestingUserId !== targetUserId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const deliveryCompanies = await storage.getUserDeliveryCompanyAccess(targetUserId);
+      res.json({ deliveryCompanies });
+    } catch (error) {
+      console.error("Error fetching delivery company access:", error);
+      res.status(500).json({ message: "Failed to fetch delivery company access" });
+    }
+  });
+
+  // Set user's delivery company access (Admin only)
+  app.put('/api/users/:userId/delivery-company-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can manage delivery company access" });
+      }
+
+      const targetUserId = req.params.userId;
+      const { deliveryCompanies } = req.body;
+      
+      if (!Array.isArray(deliveryCompanies)) {
+        return res.status(400).json({ message: "Delivery companies must be an array" });
+      }
+      
+      // Validate against known delivery companies
+      const validDeliveryCompanies = deliveryCompanies.filter((dc: string) => 
+        ["Guided", "Xmaple", "Elmeric"].includes(dc)
+      );
+      await storage.setUserDeliveryCompanyAccess(targetUserId, validDeliveryCompanies);
+      
+      res.json({ message: "Delivery company access updated", deliveryCompanies: validDeliveryCompanies });
+    } catch (error) {
+      console.error("Error setting delivery company access:", error);
+      res.status(500).json({ message: "Failed to set delivery company access" });
+    }
+  });
+
+  // Update user's party name (Admin only - for Customer role)
+  app.patch('/api/admin/users/:id/party-name', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.id;
+      const { partyName } = req.body;
+      
+      const updatedUser = await storage.updateUserPartyName(targetUserId, partyName || null);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user party name:", error);
+      res.status(500).json({ message: "Failed to update party name" });
+    }
+  });
+
   // Verify party name against external debtor API
   app.get('/api/verify/debtor', isAuthenticated, async (req: any, res) => {
     try {
@@ -660,7 +732,7 @@ export async function registerRoutes(
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { items, whatsappPhone, email, total, partyName, deliveryNote, deliveryCompany, brand, specialNotes } = req.body;
+      const { items, whatsappPhone, email, total, partyName, deliveryNote, deliveryCompany, brand, specialNotes, importText } = req.body;
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: "No items in order" });
@@ -702,6 +774,7 @@ export async function registerRoutes(
         deliveryNote: deliveryNote || null,
         deliveryCompany: deliveryCompany || "Guided",
         specialNotes: specialNotes || null,
+        importText: importText || null,
         status: "Created",
       });
 
@@ -1272,15 +1345,16 @@ export async function registerRoutes(
 
       const allUsers = await storage.getAllUsers();
       
-      // Get brand access for each user
-      const usersWithBrands = await Promise.all(
+      // Get brand access and delivery company access for each user
+      const usersWithAccess = await Promise.all(
         allUsers.map(async (u) => {
           const brands = await storage.getUserBrandAccess(u.id);
-          return { ...u, brandAccess: brands };
+          const deliveryCompanies = await storage.getUserDeliveryCompanyAccess(u.id);
+          return { ...u, brandAccess: brands, deliveryCompanyAccess: deliveryCompanies };
         })
       );
       
-      res.json(usersWithBrands);
+      res.json(usersWithAccess);
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });

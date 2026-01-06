@@ -2,6 +2,7 @@ import {
   users,
   products,
   userBrandAccess,
+  userDeliveryCompanyAccess,
   orders,
   orderItems,
   brands,
@@ -11,6 +12,8 @@ import {
   type InsertProduct,
   type UserBrandAccess,
   type InsertUserBrandAccess,
+  type UserDeliveryCompanyAccess,
+  type InsertUserDeliveryCompanyAccess,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -44,6 +47,11 @@ export interface IStorage {
   getUserBrandAccess(userId: string): Promise<string[]>;
   setUserBrandAccess(userId: string, brands: string[]): Promise<void>;
   getUserProductsByBrand(userId: string, isAdmin: boolean): Promise<Product[]>;
+  
+  // User-Delivery Company access operations
+  getUserDeliveryCompanyAccess(userId: string): Promise<string[]>;
+  setUserDeliveryCompanyAccess(userId: string, deliveryCompanies: string[]): Promise<void>;
+  updateUserPartyName(userId: string, partyName: string | null): Promise<User | undefined>;
   
   // Order operations
   createOrder(order: InsertOrder): Promise<Order>;
@@ -311,6 +319,35 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(products).where(inArray(products.brand, allowedBrands));
   }
 
+  // User-Delivery Company access operations
+  async getUserDeliveryCompanyAccess(userId: string): Promise<string[]> {
+    const access = await db
+      .select({ deliveryCompany: userDeliveryCompanyAccess.deliveryCompany })
+      .from(userDeliveryCompanyAccess)
+      .where(eq(userDeliveryCompanyAccess.userId, userId));
+    return access.map(a => a.deliveryCompany);
+  }
+
+  async setUserDeliveryCompanyAccess(userId: string, deliveryCompanies: string[]): Promise<void> {
+    await db.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, userId));
+    if (deliveryCompanies.length === 0) return;
+    
+    const entries = deliveryCompanies.map(deliveryCompany => ({
+      userId,
+      deliveryCompany,
+    }));
+    await db.insert(userDeliveryCompanyAccess).values(entries);
+  }
+
+  async updateUserPartyName(userId: string, partyName: string | null): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ partyName, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
   // Order operations
   async createOrder(order: InsertOrder): Promise<Order> {
     const [newOrder] = await db.insert(orders).values(order).returning();
@@ -399,6 +436,7 @@ export class DatabaseStorage implements IStorage {
       deliveredOnTime: orders.deliveredOnTime,
       approvedBy: orders.approvedBy,
       approvedAt: orders.approvedAt,
+      importText: orders.importText,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
       createdByEmail: users.email,
@@ -444,6 +482,7 @@ export class DatabaseStorage implements IStorage {
       deliveredOnTime: orders.deliveredOnTime,
       approvedBy: orders.approvedBy,
       approvedAt: orders.approvedAt,
+      importText: orders.importText,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
       createdByEmail: users.email,
@@ -576,6 +615,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.deliveredOnTime !== undefined) updateData.deliveredOnTime = updates.deliveredOnTime;
     if (updates.approvedBy !== undefined) updateData.approvedBy = updates.approvedBy;
     if (updates.approvedAt !== undefined) updateData.approvedAt = updates.approvedAt ? new Date(updates.approvedAt) : null;
+    if (updates.importText !== undefined) updateData.importText = updates.importText;
 
     if (Object.keys(updateData).length === 0) {
       return this.getOrderById(id);

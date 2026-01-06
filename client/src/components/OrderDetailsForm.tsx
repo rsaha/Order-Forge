@@ -23,6 +23,8 @@ interface OrderDetailsFormProps {
   cartBrand?: string | null;
   partyVerificationStatus?: PartyVerificationStatus;
   onVerifyParty?: (name: string) => void;
+  isCustomer?: boolean;
+  allowedDeliveryCompanies?: string[];
 }
 
 const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"];
@@ -47,8 +49,14 @@ export default function OrderDetailsForm({
   cartBrand,
   partyVerificationStatus = "idle",
   onVerifyParty,
+  isCustomer = false,
+  allowedDeliveryCompanies,
 }: OrderDetailsFormProps) {
-  const deliveryOptions = getDeliveryOptionsForBrand(cartBrand);
+  // For Customers, use their allowed delivery companies, otherwise use brand-based options
+  const brandDeliveryOptions = getDeliveryOptionsForBrand(cartBrand);
+  const deliveryOptions = isCustomer && allowedDeliveryCompanies && allowedDeliveryCompanies.length > 0
+    ? brandDeliveryOptions.filter(dc => allowedDeliveryCompanies.includes(dc))
+    : brandDeliveryOptions;
   
   const updateOrderDetail = (field: keyof OrderDetails, value: string) => {
     onOrderDetailsChange({ ...orderDetails, [field]: value });
@@ -119,8 +127,9 @@ export default function OrderDetailsForm({
               onChange={(e) => updateOrderDetail("partyName", e.target.value)}
               className="h-10 flex-1"
               data-testid="input-party-name"
+              disabled={isCustomer}
             />
-            {onVerifyParty && (
+            {onVerifyParty && !isCustomer && (
               <Button
                 type="button"
                 variant="outline"
@@ -186,24 +195,26 @@ export default function OrderDetailsForm({
           </Select>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="proposedDiscount">Proposed Discount % (Optional)</Label>
-          <Input
-            id="proposedDiscount"
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            placeholder="0"
-            value={orderDetails.proposedDiscount === 0 ? "0" : orderDetails.proposedDiscount || ""}
-            onChange={(e) => {
-              const value = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-              onOrderDetailsChange({ ...orderDetails, proposedDiscount: value });
-            }}
-            className="h-10"
-            data-testid="input-proposed-discount"
-          />
-        </div>
+        {!isCustomer && (
+          <div className="space-y-1.5">
+            <Label htmlFor="proposedDiscount">Proposed Discount % (Optional)</Label>
+            <Input
+              id="proposedDiscount"
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              placeholder="0"
+              value={orderDetails.proposedDiscount === 0 ? "0" : orderDetails.proposedDiscount || ""}
+              onChange={(e) => {
+                const value = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+                onOrderDetailsChange({ ...orderDetails, proposedDiscount: value });
+              }}
+              className="h-10"
+              data-testid="input-proposed-discount"
+            />
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <Label htmlFor="deliveryNotes">Delivery Notes (Optional)</Label>
@@ -217,17 +228,19 @@ export default function OrderDetailsForm({
           />
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="specialNotes">Special Notes (Optional)</Label>
-          <Textarea
-            id="specialNotes"
-            placeholder="Any special requirements..."
-            value={orderDetails.specialNotes}
-            onChange={(e) => updateOrderDetail("specialNotes", e.target.value)}
-            className="min-h-[60px] resize-none"
-            data-testid="input-special-notes"
-          />
-        </div>
+        {!isCustomer && (
+          <div className="space-y-1.5">
+            <Label htmlFor="specialNotes">Special Notes (Optional)</Label>
+            <Textarea
+              id="specialNotes"
+              placeholder="Any special requirements..."
+              value={orderDetails.specialNotes}
+              onChange={(e) => updateOrderDetail("specialNotes", e.target.value)}
+              className="min-h-[60px] resize-none"
+              data-testid="input-special-notes"
+            />
+          </div>
+        )}
       </div>
     </Card>
   );

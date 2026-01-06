@@ -26,7 +26,7 @@ export const sessions = pgTable(
 );
 
 // User roles
-export const USER_ROLES = ["User", "BrandAdmin", "Admin"] as const;
+export const USER_ROLES = ["Customer", "User", "BrandAdmin", "Admin"] as const;
 export type UserRole = typeof USER_ROLES[number];
 
 // User storage table - required for Replit Auth
@@ -38,6 +38,7 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   isAdmin: boolean("is_admin").default(false),
   role: varchar("role").default("User"),
+  partyName: varchar("party_name"), // For Customer role - auto-populated party name
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -90,6 +91,16 @@ export const userBrandAccess = pgTable("user_brand_access", {
   index("idx_user_brand_access_user").on(table.userId),
 ]);
 
+// User-Delivery Company access - which delivery companies each user (especially Customers) can use
+export const userDeliveryCompanyAccess = pgTable("user_delivery_company_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  deliveryCompany: varchar("delivery_company").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_user_delivery_company_access_user").on(table.userId),
+]);
+
 // Orders table
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -117,6 +128,7 @@ export const orders = pgTable("orders", {
   deliveredOnTime: boolean("delivered_on_time"),
   approvedBy: varchar("approved_by"),
   approvedAt: timestamp("approved_at"),
+  importText: text("import_text"), // Original pasted text from Import tab
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -139,6 +151,13 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const userBrandAccessRelations = relations(userBrandAccess, ({ one }) => ({
   user: one(users, {
     fields: [userBrandAccess.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userDeliveryCompanyAccessRelations = relations(userDeliveryCompanyAccess, ({ one }) => ({
+  user: one(users, {
+    fields: [userDeliveryCompanyAccess.userId],
     references: [users.id],
   }),
 }));
@@ -169,6 +188,7 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
+export const insertUserDeliveryCompanyAccessSchema = createInsertSchema(userDeliveryCompanyAccess).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
@@ -194,6 +214,7 @@ export const updateOrderSchema = z.object({
   deliveredOnTime: z.boolean().nullable().optional(),
   approvedBy: z.string().nullable().optional(),
   approvedAt: z.string().nullable().optional(),
+  importText: z.string().nullable().optional(),
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
@@ -220,6 +241,8 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type UserBrandAccess = typeof userBrandAccess.$inferSelect;
 export type InsertUserBrandAccess = z.infer<typeof insertUserBrandAccessSchema>;
+export type UserDeliveryCompanyAccess = typeof userDeliveryCompanyAccess.$inferSelect;
+export type InsertUserDeliveryCompanyAccess = z.infer<typeof insertUserDeliveryCompanyAccessSchema>;
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
