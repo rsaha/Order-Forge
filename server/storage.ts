@@ -244,6 +244,8 @@ export class DatabaseStorage implements IStorage {
   async deleteUser(userId: string): Promise<boolean> {
     // Delete user's brand access
     await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, userId));
+    // Delete user's delivery company access
+    await db.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, userId));
     // Delete the user
     const result = await db.delete(users).where(eq(users.id, userId));
     return result.rowCount !== null && result.rowCount > 0;
