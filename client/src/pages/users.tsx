@@ -142,6 +142,8 @@ export default function UsersPage() {
       toast({ title: "Brand access updated" });
     },
     onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingBrandsUserId(null);
       toast({ title: "Failed to update brand access", description: error.message, variant: "destructive" });
     },
   });
@@ -156,6 +158,8 @@ export default function UsersPage() {
       toast({ title: "Delivery company access updated" });
     },
     onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingDeliveryCompaniesUserId(null);
       toast({ title: "Failed to update delivery companies", description: error.message, variant: "destructive" });
     },
   });

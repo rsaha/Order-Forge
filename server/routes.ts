@@ -503,6 +503,12 @@ export async function registerRoutes(
       const targetUserId = req.params.userId;
       const { brands } = req.body;
       
+      // Check if target user exists
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found. Please refresh the page to see the latest user list." });
+      }
+      
       if (!Array.isArray(brands)) {
         return res.status(400).json({ message: "Brands must be an array" });
       }
@@ -550,6 +556,12 @@ export async function registerRoutes(
 
       const targetUserId = req.params.userId;
       const { deliveryCompanies } = req.body;
+      
+      // Check if target user exists
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found. Please refresh the page to see the latest user list." });
+      }
       
       if (!Array.isArray(deliveryCompanies)) {
         return res.status(400).json({ message: "Delivery companies must be an array" });
