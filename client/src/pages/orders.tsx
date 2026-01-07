@@ -868,7 +868,7 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
-                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
@@ -888,7 +888,7 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
-                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
