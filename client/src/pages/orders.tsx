@@ -779,7 +779,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
-                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
@@ -793,7 +793,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Approved At</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
-                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
