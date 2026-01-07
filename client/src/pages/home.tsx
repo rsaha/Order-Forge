@@ -1057,7 +1057,7 @@ export default function Home() {
       {/* Floating Cart Button for Mobile */}
       {isMobile && (
         <FloatingCartButton
-          itemCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+          itemCount={cart.reduce((sum, item) => sum + item.quantity + (item.freeQuantity || 0), 0)}
           onClick={() => setIsCartOpen(true)}
         />
       )}

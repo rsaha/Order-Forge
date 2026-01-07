@@ -89,7 +89,7 @@ export default function OrderTab({
     return groupedProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [groupedProducts, currentPage]);
 
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity + (item.freeQuantity || 0), 0);
   
   // Helper function to get effective price (PTS if available, else MRP)
   const getEffectivePrice = (product: { price: number; distributorPrice?: number | string | null }): number => {

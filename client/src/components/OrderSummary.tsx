@@ -42,7 +42,7 @@ export default function OrderSummary({
   const safeDiscount = Math.min(100, Math.max(0, discountPercent));
   const discountAmount = subtotal * (safeDiscount / 100);
   const finalTotal = subtotal - discountAmount;
-  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity + (item.freeQuantity || 0), 0);
 
   const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "";
 

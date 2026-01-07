@@ -94,7 +94,7 @@ function MobileCartItem({
               size="icon"
               variant="ghost"
               className="rounded-r-none"
-              onClick={() => onQuantityChange(item.product.id, Math.max(1, item.quantity - 1))}
+              onClick={() => onQuantityChange(item.product.id, Math.max(0, item.quantity - 1))}
               data-testid={`mobile-button-decrease-${item.product.id}`}
             >
               <Minus className="w-4 h-4" />
@@ -104,13 +104,13 @@ function MobileCartItem({
               value={item.quantity}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 1) {
+                if (!isNaN(val) && val >= 0) {
                   onQuantityChange(item.product.id, val);
                 }
               }}
               onFocus={(e) => e.target.select()}
               className="w-14 h-9 text-center text-sm font-medium border-0 border-x rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              min={1}
+              min={0}
               data-testid={`mobile-input-quantity-${item.product.id}`}
             />
             <Button
@@ -215,7 +215,7 @@ export default function MobileCartDrawer({
   const safeDiscount = Math.min(100, Math.max(0, discountPercent));
   const discountAmount = subtotal * (safeDiscount / 100);
   const finalTotal = subtotal - discountAmount;
-  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity + (item.freeQuantity || 0), 0);
   const isElmericBrand = cartBrand === "Elmeric";
   // Allow order when: Customer role (no verification), Elmeric brand (no verification needed), verified, or verification service failed (error)
   const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");

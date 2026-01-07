@@ -1074,8 +1074,10 @@ export async function registerRoutes(
 
       // Validate all products exist and are from the same brand as the order
       for (const item of items) {
-        if (!item.productId || !item.quantity || item.quantity < 1) {
-          return res.status(400).json({ message: "Each item must have productId and quantity > 0" });
+        const qty = item.quantity ?? 0;
+        const freeQty = item.freeQuantity ?? 0;
+        if (!item.productId || (qty < 1 && freeQty < 1)) {
+          return res.status(400).json({ message: "Each item must have productId and either quantity > 0 or free quantity > 0" });
         }
         const product = await storage.getProduct(item.productId);
         if (!product) {
