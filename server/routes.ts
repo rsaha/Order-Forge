@@ -1141,7 +1141,8 @@ export async function registerRoutes(
       
       if (user?.role === 'BrandAdmin' && order.brand) {
         const brandAccess = await storage.getUserBrandAccess(userId);
-        isBrandAdmin = brandAccess.includes(order.brand);
+        // Case-insensitive brand comparison
+        isBrandAdmin = brandAccess.some(b => b.toLowerCase() === order.brand!.toLowerCase());
       }
 
       if (!isOwner && !isAdmin && !isBrandAdmin) {
@@ -1199,7 +1200,8 @@ export async function registerRoutes(
       
       if (user?.role === 'BrandAdmin' && order.brand) {
         const brandAccess = await storage.getUserBrandAccess(userId);
-        isBrandAdmin = brandAccess.includes(order.brand);
+        // Case-insensitive brand comparison
+        isBrandAdmin = brandAccess.some(b => b.toLowerCase() === order.brand!.toLowerCase());
       }
 
       if (!isOwner && !isAdmin && !isBrandAdmin) {
@@ -1314,8 +1316,12 @@ export async function registerRoutes(
         return null;
       };
 
-      // Get all products for matching
+      // Get all products and brands for matching and validation
       const allProducts = await storage.getAllProducts();
+      const allBrands = await storage.getAllBrands();
+      const activeBrandNames = allBrands
+        .filter(b => b.isActive)
+        .map(b => b.name.toLowerCase());
       
       // Group rows by order (Party Name + Brand + Invoice Number)
       const orderGroups = new Map<string, {
@@ -1390,43 +1396,66 @@ export async function registerRoutes(
 
       // Create orders
       let createdCount = 0;
+      let skippedCount = 0;
+      const skippedReasons: string[] = [];
+      
       for (const [_, group] of orderGroups) {
-        if (group.items.length === 0) continue;
+        // Validate brand exists and is active
+        if (!activeBrandNames.includes(group.brand.toLowerCase())) {
+          skippedCount++;
+          skippedReasons.push(`Brand "${group.brand}" not found or inactive`);
+          continue;
+        }
+        
+        // Filter items to only those with matched products (productId is required in schema)
+        const validItems = group.items.filter(item => item.productId !== null);
+        
+        if (validItems.length === 0) {
+          skippedCount++;
+          skippedReasons.push(`No matching products found for order ${group.invoiceNumber}`);
+          continue;
+        }
 
-        // Calculate total
-        const total = group.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+        // Calculate total using numeric values
+        const total = validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
 
-        // Create the order
+        // Create the order with Invoiced status
         const order = await storage.createOrder({
           userId,
           partyName: group.partyName,
           brand: group.brand,
-          status: 'Invoiced',
-          total: total.toString(),
+          status: 'Invoiced' as const,
+          total: total.toFixed(2),
           specialNotes: group.notes || null,
           deliveryCompany: group.deliveryCompany || null,
           invoiceNumber: group.invoiceNumber,
           invoiceDate: group.invoiceDate,
-          actualOrderValue: total.toString(),
-        }, user);
+          actualOrderValue: total.toFixed(2),
+        });
 
-        // Add order items
-        for (const item of group.items) {
-          await storage.addOrderItem({
-            orderId: order.id,
-            productId: item.productId,
-            productName: item.productName,
-            productSku: item.sku,
-            quantity: item.quantity,
-            freeQuantity: item.freeQuantity,
-            unitPrice: item.unitPrice.toString(),
-          });
-        }
+        // Create order items in batch
+        const orderItemsData = validItems.map(item => ({
+          orderId: order.id,
+          productId: item.productId!,
+          quantity: item.quantity,
+          freeQuantity: item.freeQuantity,
+          unitPrice: item.unitPrice.toFixed(2),
+        }));
+
+        await storage.createOrderItems(orderItemsData);
 
         createdCount++;
       }
 
-      res.json({ count: createdCount, message: `Imported ${createdCount} orders` });
+      const message = skippedCount > 0 
+        ? `Imported ${createdCount} orders. ${skippedCount} orders skipped.`
+        : `Imported ${createdCount} orders`;
+      res.json({ 
+        count: createdCount, 
+        skipped: skippedCount, 
+        message,
+        ...(skippedReasons.length > 0 && { skippedReasons: skippedReasons.slice(0, 5) })
+      });
     } catch (error) {
       console.error("Error importing orders:", error);
       res.status(500).json({ message: "Failed to import orders" });
