@@ -1327,6 +1327,7 @@ export async function registerRoutes(
       const orderGroups = new Map<string, {
         partyName: string;
         brand: string;
+        netAmount: number;
         items: Array<{ productId: string | null; productName: string; quantity: number; freeQuantity: number; unitPrice: number }>;
       }>();
 
@@ -1340,6 +1341,7 @@ export async function registerRoutes(
         const qty = parseInt(row[1]) || 0;
         const freeQty = parseInt(row[2]) || 0;
         const amount = parseFloat(row[3]) || 0;
+        const netAmount = parseFloat(row[4]) || 0; // Net Amount column
 
         // Skip "All Customers" summary
         if (nameField.toLowerCase().includes('all customers')) continue;
@@ -1351,11 +1353,12 @@ export async function registerRoutes(
         const customerMatch = nameField.match(customerPattern);
         if (customerMatch) {
           currentCustomer = nameField;
-          // Initialize order group for this customer
+          // Initialize order group for this customer with net amount from customer row
           if (!orderGroups.has(currentCustomer)) {
             orderGroups.set(currentCustomer, {
               partyName: customerMatch[1].trim(),
               brand: requestedBrand,
+              netAmount: netAmount, // Customer's total net amount
               items: [],
             });
           }
@@ -1441,7 +1444,7 @@ export async function registerRoutes(
           deliveryCompany: null,
           invoiceNumber: null,
           invoiceDate: null,
-          actualOrderValue: null,
+          actualOrderValue: group.netAmount > 0 ? group.netAmount.toFixed(2) : null,
         });
 
         // Create order items
