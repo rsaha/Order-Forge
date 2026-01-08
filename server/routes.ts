@@ -1431,12 +1431,12 @@ export async function registerRoutes(
         // Generate invoice number from date + customer
         const invoiceNumber = `IMP-${Date.now().toString(36).toUpperCase()}`;
 
-        // Create the order with Created status (not Invoiced, since no real invoice)
+        // Create the order with Invoiced status for imported orders
         const order = await storage.createOrder({
           userId,
           partyName: group.partyName,
           brand: group.brand,
-          status: 'Created' as const,
+          status: 'Invoiced' as const,
           total: total.toFixed(2),
           specialNotes: unmatchedItems.length > 0 
             ? `Unmatched products: ${unmatchedItems.map(i => i.productName).join(', ')}`
