@@ -14,6 +14,7 @@ interface OrderWithItems extends Order {
     firstName?: string | null;
     lastName?: string | null;
   };
+  createdByName?: string | null;
 }
 
 function formatCurrency(value: string | number): string {
@@ -29,8 +30,8 @@ function formatDate(date: Date | string | null | undefined): string {
 
 export function generateOrderCreatedMessage(order: OrderWithItems): string {
   const creatorName = order.user
-    ? [order.user.firstName, order.user.lastName].filter(Boolean).join(" ") || "Unknown"
-    : "Unknown";
+    ? [order.user.firstName, order.user.lastName].filter(Boolean).join(" ") || order.createdByName || "Unknown"
+    : order.createdByName || "Unknown";
 
   let message = `*New Order Created*\n`;
   message += `━━━━━━━━━━━━━━━━━━\n`;
