@@ -1114,6 +1114,113 @@ export async function registerRoutes(
     }
   });
 
+  // Update an order item (quantity/freeQuantity) - only when status is Created or Approved
+  app.patch('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const { orderId, itemId } = req.params;
+      const { quantity, freeQuantity } = req.body;
+      
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Check if order is editable (Created or Approved status)
+      if (!['Created', 'Approved'].includes(order.status)) {
+        return res.status(400).json({ 
+          message: `Cannot modify order with status "${order.status}". Only Created or Approved orders can be modified.` 
+        });
+      }
+
+      // Check permissions: user owns the order, or is admin, or is brand admin for the brand
+      const isOwner = order.userId === userId;
+      const isAdmin = user?.isAdmin === true;
+      let isBrandAdmin = false;
+      
+      if (user?.role === 'BrandAdmin' && order.brand) {
+        const brandAccess = await storage.getUserBrandAccess(userId);
+        isBrandAdmin = brandAccess.includes(order.brand);
+      }
+
+      if (!isOwner && !isAdmin && !isBrandAdmin) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+
+      // Validate quantities
+      const qty = quantity ?? 0;
+      const freeQty = freeQuantity ?? 0;
+      if (qty < 0 || freeQty < 0) {
+        return res.status(400).json({ message: "Quantities cannot be negative" });
+      }
+      if (qty === 0 && freeQty === 0) {
+        return res.status(400).json({ message: "Either quantity or free quantity must be greater than 0. Use delete to remove the item." });
+      }
+
+      const updatedItem = await storage.updateOrderItem(itemId, qty, freeQty);
+      if (!updatedItem) {
+        return res.status(404).json({ message: "Order item not found" });
+      }
+
+      // Recalculate order total
+      const updatedOrder = await storage.recalculateOrderTotal(orderId);
+
+      res.json({ item: updatedItem, order: updatedOrder });
+    } catch (error) {
+      console.error("Error updating order item:", error);
+      res.status(500).json({ message: "Failed to update order item" });
+    }
+  });
+
+  // Delete an order item - only when status is Created or Approved
+  app.delete('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const { orderId, itemId } = req.params;
+      
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Check if order is editable (Created or Approved status)
+      if (!['Created', 'Approved'].includes(order.status)) {
+        return res.status(400).json({ 
+          message: `Cannot modify order with status "${order.status}". Only Created or Approved orders can be modified.` 
+        });
+      }
+
+      // Check permissions: user owns the order, or is admin, or is brand admin for the brand
+      const isOwner = order.userId === userId;
+      const isAdmin = user?.isAdmin === true;
+      let isBrandAdmin = false;
+      
+      if (user?.role === 'BrandAdmin' && order.brand) {
+        const brandAccess = await storage.getUserBrandAccess(userId);
+        isBrandAdmin = brandAccess.includes(order.brand);
+      }
+
+      if (!isOwner && !isAdmin && !isBrandAdmin) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+
+      const result = await storage.deleteOrderItem(itemId);
+      if (!result.deleted) {
+        return res.status(404).json({ message: "Order item not found" });
+      }
+
+      // Recalculate order total
+      const updatedOrder = await storage.recalculateOrderTotal(orderId);
+
+      res.json({ message: "Item deleted", order: updatedOrder });
+    } catch (error) {
+      console.error("Error deleting order item:", error);
+      res.status(500).json({ message: "Failed to delete order item" });
+    }
+  });
+
   // Delete an order (only creator or admin, only when status is Created)
   app.delete('/api/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
@@ -1150,6 +1257,179 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting order:", error);
       res.status(500).json({ message: "Failed to delete order" });
+    }
+  });
+
+  // Import orders from Excel file (admin only)
+  app.post('/api/admin/orders/import', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Parse Excel file
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+      if (rows.length === 0) {
+        return res.status(400).json({ message: "Excel file is empty" });
+      }
+
+      // Helper to find column value (case-insensitive)
+      const getCol = (row: any, names: string[]): string => {
+        for (const key of Object.keys(row)) {
+          const normalizedKey = key.toLowerCase().replace(/[^a-z]/g, '');
+          for (const name of names) {
+            const normalizedName = name.toLowerCase().replace(/[^a-z]/g, '');
+            if (normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey)) {
+              return String(row[key] || '').trim();
+            }
+          }
+        }
+        return '';
+      };
+
+      const getNumCol = (row: any, names: string[]): number => {
+        const val = getCol(row, names);
+        return parseInt(val) || 0;
+      };
+
+      const getDateCol = (row: any, names: string[]): string | null => {
+        const val = getCol(row, names);
+        if (!val) return null;
+        // Try to parse various date formats
+        const date = new Date(val);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+        return null;
+      };
+
+      // Get all products for matching
+      const allProducts = await storage.getAllProducts();
+      
+      // Group rows by order (Party Name + Brand + Invoice Number)
+      const orderGroups = new Map<string, {
+        partyName: string;
+        brand: string;
+        invoiceNumber: string;
+        invoiceDate: string | null;
+        deliveryCompany: string;
+        notes: string;
+        items: Array<{ productId: string | null; productName: string; sku: string; quantity: number; freeQuantity: number; unitPrice: number }>;
+      }>();
+
+      for (const row of rows) {
+        const partyName = getCol(row, ['party', 'partyname', 'customer', 'customername', 'name']);
+        const brand = getCol(row, ['brand']);
+        const invoiceNumber = getCol(row, ['invoice', 'invoicenumber', 'invoiceno', 'inv']);
+        const invoiceDate = getDateCol(row, ['invoicedate', 'invdate', 'date']);
+        const deliveryCompany = getCol(row, ['delivery', 'deliverycompany', 'transport']);
+        const notes = getCol(row, ['notes', 'specialnotes', 'remark', 'remarks']);
+        
+        const productName = getCol(row, ['product', 'productname', 'item', 'itemname']);
+        const sku = getCol(row, ['sku', 'productsku', 'skuid', 'code']);
+        const quantity = getNumCol(row, ['qty', 'quantity', 'pcs', 'pieces']);
+        const freeQuantity = getNumCol(row, ['free', 'freequantity', 'freeqty', 'bonus']);
+        const unitPrice = parseFloat(getCol(row, ['price', 'unitprice', 'rate', 'mrp']) || '0') || 0;
+
+        if (!partyName || !brand || !invoiceNumber) {
+          continue; // Skip rows without required fields
+        }
+
+        const orderKey = `${partyName}|${brand}|${invoiceNumber}`;
+        
+        if (!orderGroups.has(orderKey)) {
+          orderGroups.set(orderKey, {
+            partyName,
+            brand,
+            invoiceNumber,
+            invoiceDate,
+            deliveryCompany,
+            notes,
+            items: [],
+          });
+        }
+
+        // Try to match product
+        let matchedProduct = null;
+        if (sku) {
+          matchedProduct = allProducts.find(p => 
+            p.sku?.toLowerCase() === sku.toLowerCase() && 
+            p.brand?.toLowerCase() === brand.toLowerCase()
+          );
+        }
+        if (!matchedProduct && productName) {
+          matchedProduct = allProducts.find(p => 
+            p.name?.toLowerCase() === productName.toLowerCase() && 
+            p.brand?.toLowerCase() === brand.toLowerCase()
+          );
+        }
+
+        const group = orderGroups.get(orderKey)!;
+        if (quantity > 0 || freeQuantity > 0) {
+          group.items.push({
+            productId: matchedProduct?.id || null,
+            productName: matchedProduct?.name || productName,
+            sku: matchedProduct?.sku || sku,
+            quantity,
+            freeQuantity,
+            unitPrice: matchedProduct?.price ? parseFloat(matchedProduct.price) : unitPrice,
+          });
+        }
+      }
+
+      // Create orders
+      let createdCount = 0;
+      for (const [_, group] of orderGroups) {
+        if (group.items.length === 0) continue;
+
+        // Calculate total
+        const total = group.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+
+        // Create the order
+        const order = await storage.createOrder({
+          userId,
+          partyName: group.partyName,
+          brand: group.brand,
+          status: 'Invoiced',
+          total: total.toString(),
+          specialNotes: group.notes || null,
+          deliveryCompany: group.deliveryCompany || null,
+          invoiceNumber: group.invoiceNumber,
+          invoiceDate: group.invoiceDate,
+          actualOrderValue: total.toString(),
+        }, user);
+
+        // Add order items
+        for (const item of group.items) {
+          await storage.addOrderItem({
+            orderId: order.id,
+            productId: item.productId,
+            productName: item.productName,
+            productSku: item.sku,
+            quantity: item.quantity,
+            freeQuantity: item.freeQuantity,
+            unitPrice: item.unitPrice.toString(),
+          });
+        }
+
+        createdCount++;
+      }
+
+      res.json({ count: createdCount, message: `Imported ${createdCount} orders` });
+    } catch (error) {
+      console.error("Error importing orders:", error);
+      res.status(500).json({ message: "Failed to import orders" });
     }
   });
 

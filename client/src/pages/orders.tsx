@@ -60,6 +60,10 @@ import {
   MessageCircle,
   Filter,
   Send,
+  Pencil,
+  Check,
+  X,
+  Upload,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -208,8 +212,11 @@ export default function OrdersPage() {
     actualOrderValue: "",
     deliveredOnTime: false,
   });
-  const [orderItems, setOrderItems] = useState<Array<{ productName?: string | null; size?: string | null; quantity: number; freeQuantity?: number; unitPrice: string }>>([]);
+  const [orderItems, setOrderItems] = useState<Array<{ id: string; productName?: string | null; size?: string | null; quantity: number; freeQuantity?: number; unitPrice: string }>>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemQty, setEditingItemQty] = useState<number>(0);
+  const [editingItemFreeQty, setEditingItemFreeQty] = useState<number>(0);
   
   const [showAddItems, setShowAddItems] = useState(false);
   const [addItemsSearch, setAddItemsSearch] = useState("");
@@ -217,6 +224,9 @@ export default function OrdersPage() {
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [orderToShare, setOrderToShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
   const [pendingWhatsAppShare, setPendingWhatsAppShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -394,6 +404,57 @@ export default function OrdersPage() {
     onError: (error: Error) => {
       toast({ title: "Failed to delete order", description: error.message, variant: "destructive" });
       setOrderToDelete(null);
+    },
+  });
+
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ orderId, itemId, quantity, freeQuantity }: { orderId: string; itemId: string; quantity: number; freeQuantity: number }) => {
+      return apiRequest("PATCH", `/api/orders/${orderId}/items/${itemId}`, { quantity, freeQuantity });
+    },
+    onSuccess: async (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "Item updated" });
+      setEditingItemId(null);
+      
+      if (selectedOrder && data.order) {
+        setSelectedOrder({ ...selectedOrder, total: data.order.total });
+        // Refresh order items
+        const endpoint = hasAdminAccess ? `/api/admin/orders/${selectedOrder.id}` : `/api/orders/${selectedOrder.id}`;
+        const res = await fetch(endpoint, { credentials: "include" });
+        if (res.ok) {
+          const orderData = await res.json();
+          setOrderItems(orderData.items || []);
+        }
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update item", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async ({ orderId, itemId }: { orderId: string; itemId: string }) => {
+      return apiRequest("DELETE", `/api/orders/${orderId}/items/${itemId}`);
+    },
+    onSuccess: async (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "Item removed" });
+      
+      if (selectedOrder && data.order) {
+        setSelectedOrder({ ...selectedOrder, total: data.order.total });
+        // Refresh order items
+        const endpoint = hasAdminAccess ? `/api/admin/orders/${selectedOrder.id}` : `/api/orders/${selectedOrder.id}`;
+        const res = await fetch(endpoint, { credentials: "include" });
+        if (res.ok) {
+          const orderData = await res.json();
+          setOrderItems(orderData.items || []);
+        }
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to remove item", description: error.message, variant: "destructive" });
     },
   });
 
@@ -635,6 +696,129 @@ export default function OrdersPage() {
     });
   };
 
+  const handleExportOrders = async () => {
+    // Export filtered orders to Excel
+    const ordersToExport = filteredOrders;
+    if (ordersToExport.length === 0) {
+      toast({ title: "No orders to export", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Fetch items for each order
+      const ordersWithItems = await Promise.all(
+        ordersToExport.map(async (order) => {
+          const endpoint = hasAdminAccess 
+            ? `/api/admin/orders/${order.id}` 
+            : `/api/orders/${order.id}`;
+          const res = await fetch(endpoint, { credentials: "include" });
+          if (res.ok) {
+            const data = await res.json();
+            return { order, items: data.items || [] };
+          }
+          return { order, items: [] };
+        })
+      );
+
+      // Create worksheet data
+      const wsData: any[][] = [
+        ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Notes", "Delivery Company", "Invoice #", "Invoice Date"]
+      ];
+
+      ordersWithItems.forEach(({ order, items }) => {
+        items.forEach((item: any, idx: number) => {
+          wsData.push([
+            new Date(order.createdAt).toLocaleDateString(),
+            order.id,
+            order.partyName || "",
+            order.brand || "",
+            order.status,
+            order.createdByName || order.createdByEmail || "",
+            item.productName || "",
+            item.size || "",
+            item.quantity,
+            item.freeQuantity || 0,
+            Number(item.unitPrice) || 0,
+            (item.quantity * Number(item.unitPrice)) || 0,
+            idx === 0 ? Number(order.total) || 0 : "",
+            idx === 0 ? order.specialNotes || "" : "",
+            idx === 0 ? order.deliveryCompany || "" : "",
+            idx === 0 ? order.invoiceNumber || "" : "",
+            idx === 0 ? order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "" : ""
+          ]);
+        });
+        // If no items, still add order row
+        if (items.length === 0) {
+          wsData.push([
+            new Date(order.createdAt).toLocaleDateString(),
+            order.id,
+            order.partyName || "",
+            order.brand || "",
+            order.status,
+            order.createdByName || order.createdByEmail || "",
+            "",
+            "",
+            0,
+            0,
+            0,
+            0,
+            Number(order.total) || 0,
+            order.specialNotes || "",
+            order.deliveryCompany || "",
+            order.invoiceNumber || "",
+            order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : ""
+          ]);
+        }
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Orders");
+      
+      // Generate filename with filters
+      const filterParts = [statusFilter.toLowerCase()];
+      if (brandFilter !== "all") filterParts.push(brandFilter);
+      if (dateRange !== "all") filterParts.push(dateRange);
+      const filename = `orders_${filterParts.join("_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      
+      XLSX.writeFile(wb, filename);
+      toast({ title: `Exported ${ordersWithItems.length} orders` });
+    } catch (error) {
+      toast({ title: "Export failed", description: String(error), variant: "destructive" });
+    }
+  };
+
+  const handleImportOrders = async () => {
+    if (!importFile) return;
+    
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+      
+      const res = await fetch("/api/admin/orders/import", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Import failed");
+      }
+      
+      const result = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      toast({ title: `Imported ${result.count} orders successfully` });
+      setShowImportDialog(false);
+      setImportFile(null);
+    } catch (error) {
+      toast({ title: "Import failed", description: String(error), variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -676,15 +860,37 @@ export default function OrdersPage() {
           </div>
 
           {hasAdminAccess && (
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkWhatsApp(true)}
-              className="gap-2"
-              data-testid="button-bulk-whatsapp"
-            >
-              <Send className="w-4 h-4" />
-              Bulk WhatsApp
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleExportOrders}
+                className="gap-2"
+                data-testid="button-export-orders"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowImportDialog(true)}
+                  className="gap-2"
+                  data-testid="button-import-orders"
+                >
+                  <Upload className="w-4 h-4" />
+                  Import
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkWhatsApp(true)}
+                className="gap-2"
+                data-testid="button-bulk-whatsapp"
+              >
+                <Send className="w-4 h-4" />
+                Bulk WhatsApp
+              </Button>
+            </div>
           )}
         </div>
 
@@ -1105,7 +1311,7 @@ export default function OrdersPage() {
                     </Button>
                   )}
                 </div>
-                <div className="max-h-40 overflow-y-auto">
+                <div className="max-h-60 overflow-y-auto">
                   {loadingItems ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -1116,23 +1322,123 @@ export default function OrdersPage() {
                     </div>
                   ) : (
                     <div className="divide-y">
-                      {orderItems.map((item, idx) => (
-                        <div key={idx} className="px-3 py-2 flex justify-between items-center text-sm">
-                          <div>
-                            <span className="font-medium">{item.productName || "Unknown Product"}</span>
-                            {item.size && item.size !== "Uni" && (
-                              <span className="text-muted-foreground ml-2">({item.size})</span>
+                      {orderItems.map((item) => {
+                        const canEdit = isOrderEditable(selectedOrder) && (
+                          selectedOrder?.userId === user?.id || isAdmin || isBrandAdmin
+                        );
+                        const isEditing = editingItemId === item.id;
+                        
+                        return (
+                          <div key={item.id} className="px-3 py-2 text-sm">
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium">{item.productName || "Unknown Product"}</span>
+                                {item.size && item.size !== "Uni" && (
+                                  <span className="text-muted-foreground ml-2">({item.size})</span>
+                                )}
+                              </div>
+                              {!isEditing && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">x{item.quantity}</span>
+                                  {item.freeQuantity && item.freeQuantity > 0 && (
+                                    <span className="text-xs text-green-600 dark:text-green-400">+{item.freeQuantity} free</span>
+                                  )}
+                                  <span className="min-w-16 text-right">{formatINR(Number(item.unitPrice) * item.quantity)}</span>
+                                  {canEdit && (
+                                    <div className="flex items-center gap-0">
+                                      <Button 
+                                        size="icon" 
+                                        variant="ghost" 
+                                        className="h-7 w-7"
+                                        onClick={() => {
+                                          setEditingItemId(item.id);
+                                          setEditingItemQty(item.quantity);
+                                          setEditingItemFreeQty(item.freeQuantity || 0);
+                                        }}
+                                        data-testid={`button-edit-item-${item.id}`}
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </Button>
+                                      <Button 
+                                        size="icon" 
+                                        variant="ghost"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => {
+                                          if (selectedOrder && confirm("Remove this item from the order?")) {
+                                            deleteItemMutation.mutate({ orderId: selectedOrder.id, itemId: item.id });
+                                          }
+                                        }}
+                                        disabled={deleteItemMutation.isPending}
+                                        data-testid={`button-delete-item-${item.id}`}
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {isEditing && (
+                              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  <Label className="text-xs text-muted-foreground">Qty:</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingItemQty}
+                                    onChange={(e) => setEditingItemQty(parseInt(e.target.value) || 0)}
+                                    className="w-16 h-8"
+                                    data-testid={`input-edit-qty-${item.id}`}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Label className="text-xs text-muted-foreground">Free:</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingItemFreeQty}
+                                    onChange={(e) => setEditingItemFreeQty(parseInt(e.target.value) || 0)}
+                                    className="w-16 h-8"
+                                    data-testid={`input-edit-free-qty-${item.id}`}
+                                  />
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-8"
+                                  onClick={() => {
+                                    if (selectedOrder) {
+                                      if (editingItemQty === 0 && editingItemFreeQty === 0) {
+                                        toast({ title: "Either quantity or free quantity must be greater than 0", variant: "destructive" });
+                                        return;
+                                      }
+                                      updateItemMutation.mutate({
+                                        orderId: selectedOrder.id,
+                                        itemId: item.id,
+                                        quantity: editingItemQty,
+                                        freeQuantity: editingItemFreeQty,
+                                      });
+                                    }
+                                  }}
+                                  disabled={updateItemMutation.isPending}
+                                  data-testid={`button-save-item-${item.id}`}
+                                >
+                                  {updateItemMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8"
+                                  onClick={() => setEditingItemId(null)}
+                                  data-testid={`button-cancel-edit-item-${item.id}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-muted-foreground">x{item.quantity}</span>
-                            {item.freeQuantity && item.freeQuantity > 0 && (
-                              <span className="text-xs text-green-600 dark:text-green-400">+{item.freeQuantity} free</span>
-                            )}
-                            <span>{formatINR(Number(item.unitPrice) * item.quantity)}</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1871,6 +2177,75 @@ export default function OrdersPage() {
           <div className="flex justify-end pt-4 border-t">
             <Button variant="outline" onClick={() => setShowBulkWhatsApp(false)} data-testid="button-close-bulk">
               Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showImportDialog} onOpenChange={(open) => {
+        setShowImportDialog(open);
+        if (!open) setImportFile(null);
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Import Orders
+            </DialogTitle>
+            <DialogDescription>
+              Upload an Excel file to import pre-invoiced orders. Orders will be created in "Invoiced" status.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                className="hidden"
+                id="import-file-input"
+                data-testid="input-import-file"
+              />
+              <label htmlFor="import-file-input" className="cursor-pointer">
+                <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {importFile ? importFile.name : "Click to select Excel file"}
+                </p>
+              </label>
+            </div>
+            
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p className="font-medium">Required columns:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li>Party Name</li>
+                <li>Brand</li>
+                <li>Invoice Number</li>
+                <li>Invoice Date</li>
+                <li>Product Name or SKU</li>
+                <li>Quantity</li>
+              </ul>
+              <p className="mt-2">Optional: Unit Price, Free Qty, Delivery Company, Notes</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowImportDialog(false)} data-testid="button-cancel-import">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleImportOrders} 
+              disabled={!importFile || isImporting}
+              data-testid="button-confirm-import"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                "Import"
+              )}
             </Button>
           </div>
         </DialogContent>

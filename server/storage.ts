@@ -64,6 +64,9 @@ export interface IStorage {
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrder(id: string, updates: UpdateOrder): Promise<Order | undefined>;
   appendItemsToOrder(orderId: string, items: InsertOrderItem[], discountPercent?: number): Promise<Order | undefined>;
+  updateOrderItem(itemId: string, quantity: number, freeQuantity: number): Promise<OrderItem | undefined>;
+  deleteOrderItem(itemId: string): Promise<{ deleted: boolean; orderId?: string }>;
+  recalculateOrderTotal(orderId: string): Promise<Order | undefined>;
   deleteOrder(id: string): Promise<boolean>;
   getBulkOrderSummary(filters: OrderFilters): Promise<BulkOrderSummary[]>;
   getOrderAnalytics(filters?: OrderFilters): Promise<OrderAnalytics>;
@@ -666,6 +669,50 @@ export class DatabaseStorage implements IStorage {
     
     // Apply discount if provided
     const discount = discountPercent ?? Number(order.discountPercent || 0);
+    const newTotal = subtotal * (1 - discount / 100);
+    
+    // Update order total
+    const [updated] = await db.update(orders)
+      .set({ total: String(newTotal) })
+      .where(eq(orders.id, orderId))
+      .returning();
+    
+    return updated;
+  }
+
+  async updateOrderItem(itemId: string, quantity: number, freeQuantity: number): Promise<OrderItem | undefined> {
+    const [updated] = await db.update(orderItems)
+      .set({ quantity, freeQuantity })
+      .where(eq(orderItems.id, itemId))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrderItem(itemId: string): Promise<{ deleted: boolean; orderId?: string }> {
+    // First get the item to know the orderId
+    const [item] = await db.select().from(orderItems).where(eq(orderItems.id, itemId));
+    if (!item) return { deleted: false };
+    
+    const result = await db.delete(orderItems).where(eq(orderItems.id, itemId)).returning();
+    return { deleted: result.length > 0, orderId: item.orderId };
+  }
+
+  async recalculateOrderTotal(orderId: string): Promise<Order | undefined> {
+    const order = await this.getOrderById(orderId);
+    if (!order) return undefined;
+    
+    // Recalculate total from all items
+    const allItems = await db.select({
+      quantity: orderItems.quantity,
+      unitPrice: orderItems.unitPrice,
+    }).from(orderItems).where(eq(orderItems.orderId, orderId));
+    
+    const subtotal = allItems.reduce((sum, item) => {
+      return sum + (Number(item.unitPrice) * item.quantity);
+    }, 0);
+    
+    // Apply existing discount
+    const discount = Number(order.discountPercent || 0);
     const newTotal = subtotal * (1 - discount / 100);
     
     // Update order total
