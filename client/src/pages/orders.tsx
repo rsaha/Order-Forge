@@ -776,9 +776,9 @@ export default function OrdersPage() {
                     {statusFilter === "Created" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
@@ -788,11 +788,11 @@ export default function OrdersPage() {
                     {statusFilter === "Approved" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Approved By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Approved At</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
@@ -802,9 +802,9 @@ export default function OrdersPage() {
                     {statusFilter === "Invoiced" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
@@ -816,9 +816,9 @@ export default function OrdersPage() {
                     {statusFilter === "Dispatched" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
@@ -832,9 +832,9 @@ export default function OrdersPage() {
                     {statusFilter === "Delivered" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch On</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
@@ -848,9 +848,9 @@ export default function OrdersPage() {
                     {statusFilter === "Cancelled" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
-                        <th className="text-left p-2 font-medium hidden md:table-cell">Brand</th>
                         <th className="text-right p-2 font-medium">Total</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
@@ -868,9 +868,9 @@ export default function OrdersPage() {
                         {statusFilter === "Created" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -886,11 +886,11 @@ export default function OrdersPage() {
                         {statusFilter === "Approved" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.approvedBy || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -905,9 +905,9 @@ export default function OrdersPage() {
                         {statusFilter === "Invoiced" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
@@ -924,9 +924,9 @@ export default function OrdersPage() {
                         {statusFilter === "Dispatched" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
                             <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
@@ -945,9 +945,9 @@ export default function OrdersPage() {
                         {statusFilter === "Delivered" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
@@ -983,9 +983,9 @@ export default function OrdersPage() {
                         {statusFilter === "Cancelled" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
-                            <td className="p-2 hidden md:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
