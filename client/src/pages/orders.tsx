@@ -226,6 +226,7 @@ export default function OrdersPage() {
   const [pendingWhatsAppShare, setPendingWhatsAppShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importBrand, setImportBrand] = useState<string>("Biostige");
   const [isImporting, setIsImporting] = useState(false);
 
   const isAdmin = user?.isAdmin || false;
@@ -789,12 +790,13 @@ export default function OrdersPage() {
   };
 
   const handleImportOrders = async () => {
-    if (!importFile) return;
+    if (!importFile || !importBrand) return;
     
     setIsImporting(true);
     try {
       const formData = new FormData();
       formData.append("file", importFile);
+      formData.append("brand", importBrand);
       
       const res = await fetch("/api/admin/orders/import", {
         method: "POST",
@@ -2184,7 +2186,10 @@ export default function OrdersPage() {
 
       <Dialog open={showImportDialog} onOpenChange={(open) => {
         setShowImportDialog(open);
-        if (!open) setImportFile(null);
+        if (!open) {
+          setImportFile(null);
+          setImportBrand("Biostige");
+        }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2193,11 +2198,27 @@ export default function OrdersPage() {
               Import Orders
             </DialogTitle>
             <DialogDescription>
-              Upload an Excel file to import pre-invoiced orders. Orders will be created in "Invoiced" status.
+              Upload a customer-wise sales summary Excel file. Orders will be created for each customer.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Brand</label>
+              <Select value={importBrand} onValueChange={setImportBrand}>
+                <SelectTrigger data-testid="select-import-brand">
+                  <SelectValue placeholder="Select brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  {brands.map((brand) => (
+                    <SelectItem key={brand.id} value={brand.name}>
+                      {brand.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="border-2 border-dashed rounded-lg p-6 text-center">
               <input
                 type="file"
@@ -2216,16 +2237,15 @@ export default function OrdersPage() {
             </div>
             
             <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-medium">Required columns:</p>
+              <p className="font-medium">Supported format:</p>
+              <p>Customer-wise sales summary with columns:</p>
               <ul className="list-disc list-inside space-y-0.5">
-                <li>Party Name</li>
-                <li>Brand</li>
-                <li>Invoice Number</li>
-                <li>Invoice Date</li>
-                <li>Product Name or SKU</li>
-                <li>Quantity</li>
+                <li>Name To Display (Customer/Product)</li>
+                <li>Qty (Unit1)</li>
+                <li>Free Qty (Unit1)</li>
+                <li>Amount</li>
               </ul>
-              <p className="mt-2">Optional: Unit Price, Free Qty, Delivery Company, Notes</p>
+              <p className="mt-2 text-amber-600">Products are matched by name to your catalog.</p>
             </div>
           </div>
 
@@ -2235,7 +2255,7 @@ export default function OrdersPage() {
             </Button>
             <Button 
               onClick={handleImportOrders} 
-              disabled={!importFile || isImporting}
+              disabled={!importFile || !importBrand || isImporting}
               data-testid="button-confirm-import"
             >
               {isImporting ? (

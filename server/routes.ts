@@ -1263,6 +1263,7 @@ export async function registerRoutes(
   });
 
   // Import orders from Excel file (admin only)
+  // Supports customer-wise sales summary format with hierarchical structure
   app.post('/api/admin/orders/import', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1276,122 +1277,132 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      // Parse Excel file
+      // Parse Excel file as array of arrays to handle header rows
       const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-      if (rows.length === 0) {
-        return res.status(400).json({ message: "Excel file is empty" });
+      if (rawRows.length < 10) {
+        return res.status(400).json({ message: "Excel file has insufficient data" });
       }
 
-      // Helper to find column value (case-insensitive)
-      const getCol = (row: any, names: string[]): string => {
-        for (const key of Object.keys(row)) {
-          const normalizedKey = key.toLowerCase().replace(/[^a-z]/g, '');
-          for (const name of names) {
-            const normalizedName = name.toLowerCase().replace(/[^a-z]/g, '');
-            if (normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey)) {
-              return String(row[key] || '').trim();
-            }
-          }
-        }
-        return '';
-      };
+      // Get brand from request body or detect from file
+      const requestedBrand = req.body?.brand || 'Biostige';
 
-      const getNumCol = (row: any, names: string[]): number => {
-        const val = getCol(row, names);
-        return parseInt(val) || 0;
-      };
-
-      const getDateCol = (row: any, names: string[]): string | null => {
-        const val = getCol(row, names);
-        if (!val) return null;
-        // Try to parse various date formats
-        const date = new Date(val);
-        if (!isNaN(date.getTime())) {
-          return date.toISOString().split('T')[0];
-        }
-        return null;
-      };
-
-      // Get all products and brands for matching and validation
+      // Get all products and brands for matching
       const allProducts = await storage.getAllProducts();
       const allBrands = await storage.getAllBrands();
       const activeBrandNames = allBrands
         .filter(b => b.isActive)
         .map(b => b.name.toLowerCase());
+
+      // Validate brand
+      if (!activeBrandNames.includes(requestedBrand.toLowerCase())) {
+        return res.status(400).json({ message: `Brand "${requestedBrand}" not found or inactive` });
+      }
+
+      // Find header row (contains "Name To Display" or similar)
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+        const row = rawRows[i];
+        if (row && row[0] && String(row[0]).toLowerCase().includes('name')) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        return res.status(400).json({ message: "Could not find header row in Excel file" });
+      }
+
+      // Parse data rows - structure: Customer row followed by product rows
+      const dataRows = rawRows.slice(headerRowIndex + 1);
       
-      // Group rows by order (Party Name + Brand + Invoice Number)
+      // Customer-wise sales format: 
+      // - Customer rows have location in parentheses like "ANJALI MEDISALES(DHANBAD)"
+      // - Product rows have product names, some with codes like "(1000081)"
+      // - Skip "All Customers" summary row
+      
       const orderGroups = new Map<string, {
         partyName: string;
         brand: string;
-        invoiceNumber: string;
-        invoiceDate: string | null;
-        deliveryCompany: string;
-        notes: string;
-        items: Array<{ productId: string | null; productName: string; sku: string; quantity: number; freeQuantity: number; unitPrice: number }>;
+        items: Array<{ productId: string | null; productName: string; quantity: number; freeQuantity: number; unitPrice: number }>;
       }>();
 
-      for (const row of rows) {
-        const partyName = getCol(row, ['party', 'partyname', 'customer', 'customername', 'name']);
-        const brand = getCol(row, ['brand']);
-        const invoiceNumber = getCol(row, ['invoice', 'invoicenumber', 'invoiceno', 'inv']);
-        const invoiceDate = getDateCol(row, ['invoicedate', 'invdate', 'date']);
-        const deliveryCompany = getCol(row, ['delivery', 'deliverycompany', 'transport']);
-        const notes = getCol(row, ['notes', 'specialnotes', 'remark', 'remarks']);
-        
-        const productName = getCol(row, ['product', 'productname', 'item', 'itemname']);
-        const sku = getCol(row, ['sku', 'productsku', 'skuid', 'code']);
-        const quantity = getNumCol(row, ['qty', 'quantity', 'pcs', 'pieces']);
-        const freeQuantity = getNumCol(row, ['free', 'freequantity', 'freeqty', 'bonus']);
-        const unitPrice = parseFloat(getCol(row, ['price', 'unitprice', 'rate', 'mrp']) || '0') || 0;
+      let currentCustomer: string | null = null;
+      const customerPattern = /^([A-Z][A-Z\s&.']+)\(([A-Z]+)\)$/i; // Matches "NAME(LOCATION)"
 
-        if (!partyName || !brand || !invoiceNumber) {
-          continue; // Skip rows without required fields
+      for (const row of dataRows) {
+        if (!row || !row[0]) continue;
+        
+        const nameField = String(row[0]).trim();
+        const qty = parseInt(row[1]) || 0;
+        const freeQty = parseInt(row[2]) || 0;
+        const amount = parseFloat(row[3]) || 0;
+
+        // Skip "All Customers" summary
+        if (nameField.toLowerCase().includes('all customers')) continue;
+        
+        // Skip rows with zero or negative quantities
+        if (qty <= 0 && freeQty <= 0) continue;
+
+        // Check if this is a customer row (has location in parentheses at end)
+        const customerMatch = nameField.match(customerPattern);
+        if (customerMatch) {
+          currentCustomer = nameField;
+          // Initialize order group for this customer
+          if (!orderGroups.has(currentCustomer)) {
+            orderGroups.set(currentCustomer, {
+              partyName: customerMatch[1].trim(),
+              brand: requestedBrand,
+              items: [],
+            });
+          }
+          continue; // Customer rows are just headers, don't add as items
         }
 
-        const orderKey = `${partyName}|${brand}|${invoiceNumber}`;
-        
-        if (!orderGroups.has(orderKey)) {
-          orderGroups.set(orderKey, {
-            partyName,
-            brand,
-            invoiceNumber,
-            invoiceDate,
-            deliveryCompany,
-            notes,
-            items: [],
-          });
+        // This is a product row
+        if (!currentCustomer) continue;
+
+        // Extract product code if present (e.g., "(1000081)")
+        let productName = nameField;
+        let productCode = '';
+        const codeMatch = nameField.match(/\((\d+)\)$/);
+        if (codeMatch) {
+          productCode = codeMatch[1];
+          productName = nameField.replace(/\s*\(\d+\)$/, '').trim();
         }
 
-        // Try to match product
-        let matchedProduct = null;
-        if (sku) {
+        // Calculate unit price from amount and quantity
+        const unitPrice = qty > 0 ? amount / qty : 0;
+
+        // Try to match product - fuzzy match by name
+        let matchedProduct = allProducts.find(p => {
+          if (p.brand?.toLowerCase() !== requestedBrand.toLowerCase()) return false;
+          const pName = p.name?.toLowerCase() || '';
+          const searchName = productName.toLowerCase();
+          // Match if product name contains the search term or vice versa
+          return pName.includes(searchName) || searchName.includes(pName) ||
+                 pName.split(' ').some(word => searchName.includes(word) && word.length > 3);
+        });
+
+        // If no match by name, try by SKU/code
+        if (!matchedProduct && productCode) {
           matchedProduct = allProducts.find(p => 
-            p.sku?.toLowerCase() === sku.toLowerCase() && 
-            p.brand?.toLowerCase() === brand.toLowerCase()
+            p.brand?.toLowerCase() === requestedBrand.toLowerCase() &&
+            p.sku?.includes(productCode)
           );
         }
-        if (!matchedProduct && productName) {
-          matchedProduct = allProducts.find(p => 
-            p.name?.toLowerCase() === productName.toLowerCase() && 
-            p.brand?.toLowerCase() === brand.toLowerCase()
-          );
-        }
 
-        const group = orderGroups.get(orderKey)!;
-        if (quantity > 0 || freeQuantity > 0) {
-          group.items.push({
-            productId: matchedProduct?.id || null,
-            productName: matchedProduct?.name || productName,
-            sku: matchedProduct?.sku || sku,
-            quantity,
-            freeQuantity,
-            unitPrice: matchedProduct?.price ? parseFloat(matchedProduct.price) : unitPrice,
-          });
-        }
+        const group = orderGroups.get(currentCustomer)!;
+        group.items.push({
+          productId: matchedProduct?.id || null,
+          productName: matchedProduct?.name || productName,
+          quantity: qty,
+          freeQuantity: freeQty,
+          unitPrice: matchedProduct?.price ? parseFloat(matchedProduct.price) : unitPrice,
+        });
       }
 
       // Create orders
@@ -1399,41 +1410,41 @@ export async function registerRoutes(
       let skippedCount = 0;
       const skippedReasons: string[] = [];
       
-      for (const [_, group] of orderGroups) {
-        // Validate brand exists and is active
-        if (!activeBrandNames.includes(group.brand.toLowerCase())) {
-          skippedCount++;
-          skippedReasons.push(`Brand "${group.brand}" not found or inactive`);
-          continue;
-        }
-        
-        // Filter items to only those with matched products (productId is required in schema)
+      for (const [customerKey, group] of orderGroups) {
+        // Filter items to only those with matched products
         const validItems = group.items.filter(item => item.productId !== null);
+        const unmatchedItems = group.items.filter(item => item.productId === null);
         
         if (validItems.length === 0) {
           skippedCount++;
-          skippedReasons.push(`No matching products found for order ${group.invoiceNumber}`);
+          const unmatchedNames = unmatchedItems.map(i => i.productName).join(', ');
+          skippedReasons.push(`${group.partyName}: No matching products (tried: ${unmatchedNames})`);
           continue;
         }
 
-        // Calculate total using numeric values
+        // Calculate total
         const total = validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
 
-        // Create the order with Invoiced status
+        // Generate invoice number from date + customer
+        const invoiceNumber = `IMP-${Date.now().toString(36).toUpperCase()}`;
+
+        // Create the order with Created status (not Invoiced, since no real invoice)
         const order = await storage.createOrder({
           userId,
           partyName: group.partyName,
           brand: group.brand,
-          status: 'Invoiced' as const,
+          status: 'Created' as const,
           total: total.toFixed(2),
-          specialNotes: group.notes || null,
-          deliveryCompany: group.deliveryCompany || null,
-          invoiceNumber: group.invoiceNumber,
-          invoiceDate: group.invoiceDate,
-          actualOrderValue: total.toFixed(2),
+          specialNotes: unmatchedItems.length > 0 
+            ? `Unmatched products: ${unmatchedItems.map(i => i.productName).join(', ')}`
+            : null,
+          deliveryCompany: null,
+          invoiceNumber: null,
+          invoiceDate: null,
+          actualOrderValue: null,
         });
 
-        // Create order items in batch
+        // Create order items
         const orderItemsData = validItems.map(item => ({
           orderId: order.id,
           productId: item.productId!,
@@ -1445,10 +1456,14 @@ export async function registerRoutes(
         await storage.createOrderItems(orderItemsData);
 
         createdCount++;
+        
+        if (unmatchedItems.length > 0) {
+          skippedReasons.push(`${group.partyName}: ${unmatchedItems.length} products unmatched`);
+        }
       }
 
-      const message = skippedCount > 0 
-        ? `Imported ${createdCount} orders. ${skippedCount} orders skipped.`
+      const message = skippedCount > 0 || skippedReasons.length > 0
+        ? `Imported ${createdCount} orders. ${skippedCount} skipped.`
         : `Imported ${createdCount} orders`;
       res.json({ 
         count: createdCount, 
