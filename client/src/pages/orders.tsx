@@ -227,6 +227,7 @@ export default function OrdersPage() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importBrand, setImportBrand] = useState<string>("Biostige");
+  const [importInvoiceDate, setImportInvoiceDate] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
 
   const isAdmin = user?.isAdmin || false;
@@ -797,6 +798,9 @@ export default function OrdersPage() {
       const formData = new FormData();
       formData.append("file", importFile);
       formData.append("brand", importBrand);
+      if (importInvoiceDate) {
+        formData.append("invoiceDate", importInvoiceDate);
+      }
       
       const res = await fetch("/api/admin/orders/import", {
         method: "POST",
@@ -2189,6 +2193,7 @@ export default function OrdersPage() {
         if (!open) {
           setImportFile(null);
           setImportBrand("Biostige");
+          setImportInvoiceDate("");
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -2217,6 +2222,16 @@ export default function OrdersPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Invoice Date</label>
+              <Input
+                type="date"
+                value={importInvoiceDate}
+                onChange={(e) => setImportInvoiceDate(e.target.value)}
+                data-testid="input-import-invoice-date"
+              />
             </div>
 
             <div className="border-2 border-dashed rounded-lg p-6 text-center">

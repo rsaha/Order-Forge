@@ -1287,8 +1287,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Excel file has insufficient data" });
       }
 
-      // Get brand from request body or detect from file
+      // Get brand and invoice date from request body
       const requestedBrand = req.body?.brand || 'Biostige';
+      const invoiceDate = req.body?.invoiceDate || null;
 
       // Get all products and brands for matching
       const allProducts = await storage.getAllProducts();
@@ -1443,7 +1444,7 @@ export async function registerRoutes(
             : null,
           deliveryCompany: null,
           invoiceNumber: null,
-          invoiceDate: null,
+          invoiceDate: invoiceDate,
           actualOrderValue: group.netAmount > 0 ? group.netAmount.toFixed(2) : null,
         });
 
