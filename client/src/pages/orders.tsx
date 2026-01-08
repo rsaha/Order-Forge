@@ -698,7 +698,7 @@ export default function OrdersPage() {
 
   const handleExportOrders = async () => {
     // Export filtered orders to Excel
-    const ordersToExport = filteredOrders;
+    const ordersToExport = orders;
     if (ordersToExport.length === 0) {
       toast({ title: "No orders to export", variant: "destructive" });
       return;
