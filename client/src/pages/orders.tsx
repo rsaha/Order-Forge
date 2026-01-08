@@ -1369,6 +1369,43 @@ export default function OrdersPage() {
                     </Button>
                   </div>
                 </>
+              ) : isBrandAdmin && selectedOrder.status === "Created" ? (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-md bg-muted/50 border">
+                    <p className="text-sm text-muted-foreground">
+                      Review this order and approve it to proceed with fulfillment.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedOrder(null)}
+                      data-testid="button-cancel-approve"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        updateMutation.mutate(
+                          { id: selectedOrder.id, updates: { status: "Approved" } },
+                          { onSuccess: () => setSelectedOrder(null) }
+                        );
+                      }}
+                      disabled={updateMutation.isPending}
+                      data-testid="button-approve-order"
+                    >
+                      {updateMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Approving...
+                        </>
+                      ) : (
+                        "Approve Order"
+                      )}
+                    </Button>
+                  </div>
+                </div>
               ) : isBrandAdmin && selectedOrder.status === "Approved" ? (
                 <div className="space-y-4">
                   <div className="p-3 rounded-md bg-muted/50 border">
