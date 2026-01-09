@@ -417,23 +417,44 @@ export class DatabaseStorage implements IStorage {
       conditions.push(or(dateRangeCondition, activeCondition));
     } else if (filters?.fromDate || filters?.toDate) {
       // Use status-specific date fields for filtering
-      // Dispatched orders: filter by dispatchDate
-      // Delivered orders: filter by actualDeliveryDate
+      // Dispatched orders: filter by dispatchDate (fallback to createdAt)
+      // Delivered orders: filter by actualDeliveryDate (fallback to dispatchDate, invoiceDate, createdAt)
       // Other statuses: filter by createdAt
-      let dateField = orders.createdAt;
-      if (filters?.status === 'Dispatched') {
-        dateField = orders.dispatchDate;
-      } else if (filters?.status === 'Delivered') {
-        dateField = orders.actualDeliveryDate;
-      }
       
-      if (filters?.fromDate) {
-        conditions.push(gte(dateField, filters.fromDate));
-      }
-      if (filters?.toDate) {
-        const endOfDay = new Date(filters.toDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        conditions.push(lte(dateField, endOfDay));
+      if (filters?.status === 'Delivered') {
+        // For Delivered orders, use COALESCE to fallback through date fields
+        const deliveredDateField = sql`COALESCE(${orders.actualDeliveryDate}, ${orders.dispatchDate}, ${orders.invoiceDate}, ${orders.createdAt})`;
+        
+        if (filters?.fromDate) {
+          conditions.push(sql`${deliveredDateField} >= ${filters.fromDate}`);
+        }
+        if (filters?.toDate) {
+          const endOfDay = new Date(filters.toDate);
+          endOfDay.setHours(23, 59, 59, 999);
+          conditions.push(sql`${deliveredDateField} <= ${endOfDay}`);
+        }
+      } else if (filters?.status === 'Dispatched') {
+        // For Dispatched orders, use COALESCE to fallback to createdAt
+        const dispatchDateField = sql`COALESCE(${orders.dispatchDate}, ${orders.createdAt})`;
+        
+        if (filters?.fromDate) {
+          conditions.push(sql`${dispatchDateField} >= ${filters.fromDate}`);
+        }
+        if (filters?.toDate) {
+          const endOfDay = new Date(filters.toDate);
+          endOfDay.setHours(23, 59, 59, 999);
+          conditions.push(sql`${dispatchDateField} <= ${endOfDay}`);
+        }
+      } else {
+        // Other statuses use createdAt
+        if (filters?.fromDate) {
+          conditions.push(gte(orders.createdAt, filters.fromDate));
+        }
+        if (filters?.toDate) {
+          const endOfDay = new Date(filters.toDate);
+          endOfDay.setHours(23, 59, 59, 999);
+          conditions.push(lte(orders.createdAt, endOfDay));
+        }
       }
     }
     
