@@ -2188,33 +2188,70 @@ export default function OrdersPage() {
                       size="sm"
                       className="gap-2"
                       onClick={() => {
-                        const formatDateFn = (dateStr: string | null) => {
-                          if (!dateStr) return null;
-                          return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                        const formatDateFn = (dateVal: string | Date | null | undefined): string => {
+                          if (!dateVal) return "N/A";
+                          const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
+                          return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
                         };
-                        const selectedDateFormatted = formatDateFn(bulkDate) || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                        const formatCurrencyFn = (value: string | number | null | undefined): string => {
+                          const num = typeof value === "string" ? parseFloat(value) : (value || 0);
+                          return `₹${num.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        };
                         
-                        const orderLines = group.orders.map(o => {
-                          let line = `- ${o.partyName || "Unknown"}: ${formatINR(o.actualOrderValue || o.total)}`;
-                          if (o.dispatchBy || o.deliveryCompany) {
-                            line += `\n  Transport: ${o.dispatchBy || o.deliveryCompany}`;
+                        const orderMessages = group.orders.map(o => {
+                          if (bulkType === "dispatched") {
+                            let msg = `*Order Dispatched*\n`;
+                            msg += `━━━━━━━━━━━━━━━━━━\n\n`;
+                            msg += `*Party:* ${o.partyName || "N/A"}\n`;
+                            msg += `*Brand:* ${group.brand}\n`;
+                            if (o.dispatchDate) {
+                              msg += `*Dispatch Date:* ${formatDateFn(o.dispatchDate)}\n`;
+                            }
+                            msg += `*Actual Order Value:* ${formatCurrencyFn(o.actualOrderValue || o.total)}\n\n`;
+                            if (o.deliveryAddress) {
+                              msg += `*Delivery Address:*\n${o.deliveryAddress}\n\n`;
+                            }
+                            if (group.deliveryCompany) {
+                              msg += `*Transport:* ${group.deliveryCompany}\n`;
+                            }
+                            if (o.cases) {
+                              msg += `*No. of Cases:* ${o.cases}\n`;
+                            }
+                            if (o.estimatedDeliveryDate) {
+                              msg += `*Estimated Delivery:* ${formatDateFn(o.estimatedDeliveryDate)}\n`;
+                            }
+                            return msg;
+                          } else {
+                            let msg = `*Order Delivered*\n`;
+                            msg += `━━━━━━━━━━━━━━━━━━\n\n`;
+                            msg += `*Party:* ${o.partyName || "N/A"}\n`;
+                            if (o.invoiceNumber) {
+                              msg += `*Invoice No:* ${o.invoiceNumber}\n`;
+                            }
+                            if (o.invoiceDate) {
+                              msg += `*Invoice Date:* ${formatDateFn(o.invoiceDate)}\n`;
+                            }
+                            msg += `*Actual Order Value:* ${formatCurrencyFn(o.actualOrderValue || o.total)}\n`;
+                            if (o.cases) {
+                              msg += `*No. of Cases:* ${o.cases}\n`;
+                            }
+                            if (o.dispatchDate) {
+                              msg += `*Dispatch Date:* ${formatDateFn(o.dispatchDate)}\n`;
+                            }
+                            if (o.actualDeliveryDate) {
+                              msg += `*Delivery Date:* ${formatDateFn(o.actualDeliveryDate)}\n`;
+                            }
+                            if (o.deliveredOnTime !== null && o.deliveredOnTime !== undefined) {
+                              msg += `*On Time:* ${o.deliveredOnTime ? "Yes ✓" : "No ✗"}\n`;
+                            }
+                            if (o.deliveryAddress) {
+                              msg += `\n*Delivery Address:*\n${o.deliveryAddress}\n`;
+                            }
+                            return msg;
                           }
-                          if (o.invoiceNumber) {
-                            line += `\n  Inv: ${o.invoiceNumber}`;
-                            if (o.invoiceDate) line += ` (${formatDateFn(o.invoiceDate)})`;
-                          }
-                          if (bulkType === "dispatched" && o.estimatedDeliveryDate) {
-                            line += `\n  ETA: ${formatDateFn(o.estimatedDeliveryDate)}`;
-                          }
-                          if (bulkType === "delivered" && o.deliveredOnTime !== null && o.deliveredOnTime !== undefined) {
-                            line += `\n  On Time: ${o.deliveredOnTime ? "Yes" : "No"}`;
-                          }
-                          return line;
                         }).join("\n\n");
                         
-                        const message = bulkType === "dispatched"
-                          ? `*${group.brand} - Orders Dispatched*\n*Date:* ${selectedDateFormatted}\n\n*Orders:*\n${orderLines}`
-                          : `*${group.brand} - Orders Delivered*\n*Date:* ${selectedDateFormatted}\n\n*Orders:*\n${orderLines}`;
+                        const message = `*${group.brand} - ${group.deliveryCompany}*\n*${group.orders.length} Orders ${bulkType === "dispatched" ? "Dispatched" : "Delivered"}*\n\n${orderMessages}`;
                         
                         const encoded = encodeURIComponent(message);
                         window.open(`https://wa.me/?text=${encoded}`, "_blank");
