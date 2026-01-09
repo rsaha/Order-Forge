@@ -193,6 +193,7 @@ export default function OrdersPage() {
   const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("all");
   const [showBulkWhatsApp, setShowBulkWhatsApp] = useState(false);
   const [bulkType, setBulkType] = useState<"dispatched" | "delivered">("dispatched");
+  const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editFormData, setEditFormData] = useState<OrderEditFormData>({
     status: "Created",
@@ -2118,7 +2119,7 @@ export default function OrdersPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex gap-2 pb-4">
+          <div className="flex flex-wrap items-center gap-2 pb-4">
             <Button
               variant={bulkType === "dispatched" ? "default" : "outline"}
               onClick={() => setBulkType("dispatched")}
@@ -2126,7 +2127,7 @@ export default function OrdersPage() {
               data-testid="button-bulk-dispatched"
             >
               <Truck className="w-4 h-4 mr-2" />
-              Dispatched Today
+              Dispatched
             </Button>
             <Button
               variant={bulkType === "delivered" ? "default" : "outline"}
@@ -2135,8 +2136,20 @@ export default function OrdersPage() {
               data-testid="button-bulk-delivered"
             >
               <CheckCircle className="w-4 h-4 mr-2" />
-              Delivered Today
+              Delivered
             </Button>
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-sm text-muted-foreground">
+                {bulkType === "dispatched" ? "Dispatch" : "Delivery"} Date:
+              </label>
+              <Input
+                type="date"
+                value={bulkDate}
+                onChange={(e) => setBulkDate(e.target.value)}
+                className="w-auto"
+                data-testid="input-bulk-date"
+              />
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
@@ -2159,11 +2172,11 @@ export default function OrdersPage() {
                       size="sm"
                       className="gap-2"
                       onClick={() => {
-                        const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-                        const formatDate = (dateStr: string | null) => {
+                        const formatDateFn = (dateStr: string | null) => {
                           if (!dateStr) return null;
                           return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
                         };
+                        const selectedDateFormatted = formatDateFn(bulkDate) || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
                         
                         const orderLines = group.orders.map(o => {
                           let line = `- ${o.partyName || "Unknown"}: ${formatINR(o.actualOrderValue || o.total)}`;
@@ -2172,17 +2185,20 @@ export default function OrdersPage() {
                           }
                           if (o.invoiceNumber) {
                             line += `\n  Inv: ${o.invoiceNumber}`;
-                            if (o.invoiceDate) line += ` (${formatDate(o.invoiceDate)})`;
+                            if (o.invoiceDate) line += ` (${formatDateFn(o.invoiceDate)})`;
                           }
                           if (bulkType === "dispatched" && o.estimatedDeliveryDate) {
-                            line += `\n  ETA: ${formatDate(o.estimatedDeliveryDate)}`;
+                            line += `\n  ETA: ${formatDateFn(o.estimatedDeliveryDate)}`;
+                          }
+                          if (bulkType === "delivered" && o.deliveredOnTime !== null && o.deliveredOnTime !== undefined) {
+                            line += `\n  On Time: ${o.deliveredOnTime ? "Yes" : "No"}`;
                           }
                           return line;
                         }).join("\n\n");
                         
                         const message = bulkType === "dispatched"
-                          ? `*${group.brand} - Orders Dispatched*\n\n*Orders:*\n${orderLines}`
-                          : `*${group.brand} - Orders Delivered*\n\n*Orders:*\n${orderLines}`;
+                          ? `*${group.brand} - Orders Dispatched*\n*Date:* ${selectedDateFormatted}\n\n*Orders:*\n${orderLines}`
+                          : `*${group.brand} - Orders Delivered*\n*Date:* ${selectedDateFormatted}\n\n*Orders:*\n${orderLines}`;
                         
                         const encoded = encodeURIComponent(message);
                         window.open(`https://wa.me/?text=${encoded}`, "_blank");
