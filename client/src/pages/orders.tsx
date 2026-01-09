@@ -223,6 +223,7 @@ export default function OrdersPage() {
   const [itemsToAdd, setItemsToAdd] = useState<Array<{ product: Product; quantity: number }>>([]);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [orderToShare, setOrderToShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
+  const [shareDate, setShareDate] = useState<string>("");
   const [pendingWhatsAppShare, setPendingWhatsAppShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -605,7 +606,7 @@ export default function OrdersPage() {
     }
   };
 
-  const handleWhatsAppShare = async (order: Order, e: React.MouseEvent) => {
+  const handleWhatsAppShare = async (order: Order, e: React.MouseEvent, customDate?: string) => {
     e.stopPropagation();
     
     try {
@@ -627,6 +628,10 @@ export default function OrdersPage() {
         deliveryCompany: data.deliveryCompany,
         actualOrderValue: data.actualOrderValue,
         cases: data.cases,
+        invoiceNumber: data.invoiceNumber,
+        invoiceDate: data.invoiceDate,
+        dispatchDate: data.dispatchDate,
+        deliveredOnTime: data.deliveredOnTime,
         createdByName: (order as any).createdByName || (order as any).createdByEmail || null,
         items: (data.items || []).map((item: any) => ({
           ...item,
@@ -646,7 +651,7 @@ export default function OrdersPage() {
         messageType = "delivered";
       }
       
-      const message = generateWhatsAppMessage(orderWithItems, messageType);
+      const message = generateWhatsAppMessage(orderWithItems, messageType, customDate);
       openWhatsApp(message, order.whatsappPhone || undefined);
     } catch (error: any) {
       toast({ title: "Failed to share", description: error.message, variant: "destructive" });
@@ -2031,7 +2036,12 @@ export default function OrdersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={!!orderToShare} onOpenChange={(open) => !open && setOrderToShare(null)}>
+      <Dialog open={!!orderToShare} onOpenChange={(open) => {
+          if (!open) {
+            setOrderToShare(null);
+            setShareDate("");
+          }
+        }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2043,16 +2053,35 @@ export default function OrdersPage() {
             </DialogDescription>
           </DialogHeader>
           {orderToShare && (
-            <div className="bg-muted/50 rounded-md p-3 text-sm space-y-1">
-              <p><span className="font-medium">Party:</span> {orderToShare.order.partyName}</p>
-              <p><span className="font-medium">Total:</span> {formatINR(orderToShare.order.total)}</p>
-              <p><span className="font-medium">Status:</span> {orderToShare.status}</p>
+            <div className="space-y-3">
+              <div className="bg-muted/50 rounded-md p-3 text-sm space-y-1">
+                <p><span className="font-medium">Party:</span> {orderToShare.order.partyName}</p>
+                <p><span className="font-medium">Total:</span> {formatINR(orderToShare.order.total)}</p>
+                <p><span className="font-medium">Status:</span> {orderToShare.status}</p>
+              </div>
+              
+              {(orderToShare.status === "Dispatched" || orderToShare.status === "Delivered") && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {orderToShare.status === "Dispatched" ? "Dispatch Date" : "Delivery Date"}
+                  </label>
+                  <Input
+                    type="date"
+                    value={shareDate || new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setShareDate(e.target.value)}
+                    data-testid="input-share-date"
+                  />
+                </div>
+              )}
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="outline"
-              onClick={() => setOrderToShare(null)}
+              onClick={() => {
+                setOrderToShare(null);
+                setShareDate("");
+              }}
               data-testid="button-skip-whatsapp"
             >
               Skip
@@ -2061,8 +2090,10 @@ export default function OrdersPage() {
               onClick={async () => {
                 if (orderToShare) {
                   const e = { stopPropagation: () => {} } as React.MouseEvent;
-                  await handleWhatsAppShare(orderToShare.order, e);
+                  const dateToUse = shareDate || new Date().toISOString().split('T')[0];
+                  await handleWhatsAppShare(orderToShare.order, e, dateToUse);
                   setOrderToShare(null);
+                  setShareDate("");
                 }
               }}
               className="gap-2"

@@ -77,12 +77,19 @@ export function generateOrderCreatedMessage(order: OrderWithItems): string {
   return message;
 }
 
-export function generateDispatchedMessage(order: OrderWithItems): string {
+export function generateDispatchedMessage(order: OrderWithItems, dispatchDate?: string): string {
   let message = `*Order Dispatched*\n`;
   message += `━━━━━━━━━━━━━━━━━━\n\n`;
   
   message += `*Party:* ${order.partyName || "N/A"}\n`;
   message += `*Brand:* ${order.brand}\n`;
+  
+  // Use provided dispatch date or fall back to order's dispatch date
+  const dateToUse = dispatchDate || order.dispatchDate;
+  if (dateToUse) {
+    message += `*Dispatch Date:* ${formatDate(dateToUse)}\n`;
+  }
+  
   message += `*Actual Order Value:* ${formatCurrency(order.actualOrderValue || order.total)}\n\n`;
   
   if (order.deliveryAddress) {
@@ -108,27 +115,44 @@ export function generateDispatchedMessage(order: OrderWithItems): string {
   return message;
 }
 
-export function generateDeliveredMessage(order: OrderWithItems): string {
+export function generateDeliveredMessage(order: OrderWithItems, deliveryDate?: string): string {
   let message = `*Order Delivered*\n`;
   message += `━━━━━━━━━━━━━━━━━━\n\n`;
   
   message += `*Party:* ${order.partyName || "N/A"}\n`;
+  
+  // Add Invoice details
+  if (order.invoiceNumber) {
+    message += `*Invoice No:* ${order.invoiceNumber}\n`;
+  }
+  if (order.invoiceDate) {
+    message += `*Invoice Date:* ${formatDate(order.invoiceDate)}\n`;
+  }
+  
   message += `*Actual Order Value:* ${formatCurrency(order.actualOrderValue || order.total)}\n`;
   
   if (order.cases) {
     message += `*No. of Cases:* ${order.cases}\n`;
   }
   
+  // Add dispatch date
+  if (order.dispatchDate) {
+    message += `*Dispatch Date:* ${formatDate(order.dispatchDate)}\n`;
+  }
+  
+  // Use provided delivery date or fall back to order's actual delivery date
+  const dateToUse = deliveryDate || order.actualDeliveryDate;
+  if (dateToUse) {
+    message += `*Delivery Date:* ${formatDate(dateToUse)}\n`;
+  }
+  
+  // Add on-time status
+  if (order.deliveredOnTime !== null && order.deliveredOnTime !== undefined) {
+    message += `*On Time:* ${order.deliveredOnTime ? "Yes ✓" : "No ✗"}\n`;
+  }
+  
   if (order.deliveryAddress) {
-    message += `*Delivery Address:*\n${order.deliveryAddress}\n\n`;
-  }
-  
-  if (order.actualDeliveryDate) {
-    message += `*Delivery Date:* ${formatDate(order.actualDeliveryDate)}\n`;
-  }
-  
-  if (order.specialNotes) {
-    message += `*Special Notes:* ${order.specialNotes}\n`;
+    message += `\n*Delivery Address:*\n${order.deliveryAddress}\n`;
   }
 
   return message;
@@ -136,14 +160,14 @@ export function generateDeliveredMessage(order: OrderWithItems): string {
 
 export type WhatsAppMessageType = "created" | "dispatched" | "delivered";
 
-export function generateWhatsAppMessage(order: OrderWithItems, type: WhatsAppMessageType): string {
+export function generateWhatsAppMessage(order: OrderWithItems, type: WhatsAppMessageType, customDate?: string): string {
   switch (type) {
     case "created":
       return generateOrderCreatedMessage(order);
     case "dispatched":
-      return generateDispatchedMessage(order);
+      return generateDispatchedMessage(order, customDate);
     case "delivered":
-      return generateDeliveredMessage(order);
+      return generateDeliveredMessage(order, customDate);
     default:
       return generateOrderCreatedMessage(order);
   }
