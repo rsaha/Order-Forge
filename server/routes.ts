@@ -875,7 +875,7 @@ export async function registerRoutes(
       }
       
       // Parse filters from query params
-      const { fromDate, toDate, brand, deliveryCompany } = req.query;
+      const { fromDate, toDate, brand } = req.query;
       
       const filters: any = {};
       
@@ -888,9 +888,7 @@ export async function registerRoutes(
       if (brand && brand !== 'all') {
         filters.brand = brand as string;
       }
-      if (deliveryCompany && deliveryCompany !== 'all') {
-        filters.deliveryCompany = deliveryCompany as string;
-      }
+      
       
       // For BrandAdmin, filter by their assigned brands
       if (user?.role === 'BrandAdmin' && !user.isAdmin) {

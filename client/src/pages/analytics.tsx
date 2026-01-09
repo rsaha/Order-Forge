@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { BrandRecord } from "@shared/schema";
-import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import {
   LineChart,
   Line,
@@ -151,7 +150,6 @@ export default function AnalyticsPage() {
   const [, navigate] = useLocation();
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -162,9 +160,6 @@ export default function AnalyticsPage() {
     
     if (brandFilter !== "all") {
       params.append("brand", brandFilter);
-    }
-    if (deliveryCompanyFilter !== "all") {
-      params.append("deliveryCompany", deliveryCompanyFilter);
     }
     
     if (dateRange === "7days") {
@@ -196,7 +191,7 @@ export default function AnalyticsPage() {
   const queryUrl = `/api/analytics/orders${queryParams ? `?${queryParams}` : ""}`;
 
   const { data: analytics, isLoading, isError } = useQuery<OrderAnalytics>({
-    queryKey: ["/api/analytics/orders", dateRange, brandFilter, deliveryCompanyFilter],
+    queryKey: ["/api/analytics/orders", dateRange, brandFilter],
     queryFn: async () => {
       const res = await fetch(queryUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch analytics");
@@ -304,20 +299,6 @@ export default function AnalyticsPage() {
               </Select>
             </div>
 
-            <div className="flex-1 min-w-[120px]">
-              <Label className="text-sm text-muted-foreground">Delivery Co.</Label>
-              <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
-                <SelectTrigger data-testid="select-delivery-company">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Companies</SelectItem>
-                  {DELIVERY_COMPANY_OPTIONS.map((company) => (
-                    <SelectItem key={company} value={company}>{company}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </Card>
 
