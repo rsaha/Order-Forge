@@ -180,6 +180,7 @@ interface BulkOrderSummary {
     invoiceDate: string | null;
     estimatedDeliveryDate: string | null;
     actualOrderValue: string | null;
+    deliveredOnTime: boolean | null;
   }>;
 }
 

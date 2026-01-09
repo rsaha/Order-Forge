@@ -1414,10 +1414,10 @@ export async function registerRoutes(
       let skippedCount = 0;
       const skippedReasons: string[] = [];
       
-      for (const [customerKey, group] of orderGroups) {
+      for (const [customerKey, group] of Array.from(orderGroups.entries())) {
         // Filter items to only those with matched products
-        const validItems = group.items.filter(item => item.productId !== null);
-        const unmatchedItems = group.items.filter(item => item.productId === null);
+        const validItems = group.items.filter((item: { productId: string | null }) => item.productId !== null);
+        const unmatchedItems = group.items.filter((item: { productId: string | null }) => item.productId === null);
         
         if (validItems.length === 0) {
           skippedCount++;
