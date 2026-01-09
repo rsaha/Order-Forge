@@ -129,12 +129,45 @@ function calculateSimilarity(query: string, target: string): number {
   return matchRatio * avgScore;
 }
 
+// Extract size token from query string
+// Returns the size and the query without the size
+function extractSizeFromQuery(query: string): { size: string | null; queryWithoutSize: string } {
+  const normalizedQuery = query.toUpperCase().trim();
+  
+  // Size patterns to look for - order matters (longer patterns first)
+  const sizePatterns = [
+    'XXL', 'XL', 'XS', 'SHORT', 'LONG', 'LEFT', 'RIGHT', 'UNI', 'ADULT', 'CHILD',
+    'L', 'M', 'S'
+  ];
+  
+  // Check if query ends with a size token (most common case)
+  // e.g., "soft collar with support M" or "soft collar with support - L"
+  for (const size of sizePatterns) {
+    // Pattern: ends with size (possibly with space/dash before)
+    const endPattern = new RegExp(`[\\s\\-]+${size}$`, 'i');
+    if (endPattern.test(normalizedQuery)) {
+      const queryWithoutSize = query.replace(endPattern, '').trim();
+      return { size, queryWithoutSize };
+    }
+    // Also check if it just ends with the size (no separator)
+    if (normalizedQuery.endsWith(` ${size}`)) {
+      const queryWithoutSize = query.slice(0, -(size.length + 1)).trim();
+      return { size, queryWithoutSize };
+    }
+  }
+  
+  return { size: null, queryWithoutSize: query };
+}
+
 function findBestMatch<T extends { sku: string; name: string; size?: string | null; aliases?: string | null; alias1?: string | null; alias2?: string | null }>(
   query: string,
   products: T[],
   threshold: number = 0.5
 ): T | null {
   const normalizedQuery = normalizeText(query);
+  
+  // Extract size from query if present
+  const { size: querySize, queryWithoutSize } = extractSizeFromQuery(query);
   
   // FIRST PASS: Check for exact SKU+SIZE matches before fuzzy matching
   // This handles cases like query "F-01-M" matching product with sku="F-01" and size="M"
@@ -152,13 +185,16 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
     }
   }
   
-  // SECOND PASS: Fuzzy matching
+  // SECOND PASS: Fuzzy matching with size-aware scoring
   let bestMatch: T | null = null;
   let bestScore = threshold;
   
   for (const product of products) {
-    const skuScore = calculateSimilarity(query, product.sku);
-    const nameScore = calculateSimilarity(query, product.name);
+    // Use queryWithoutSize for base matching if we extracted a size
+    const matchQuery = querySize ? queryWithoutSize : query;
+    
+    const skuScore = calculateSimilarity(matchQuery, product.sku);
+    const nameScore = calculateSimilarity(matchQuery, product.name);
     
     // Also check SKU+SIZE combinations (e.g., query "F-01-M" should match product with sku="F-01" and size="M")
     let skuSizeScore = 0;
@@ -174,19 +210,19 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
     
     // Check alias1 and alias2 first (exact match gets priority)
     if (product.alias1) {
-      if (normalizeText(query) === normalizeText(product.alias1)) {
+      if (normalizeText(matchQuery) === normalizeText(product.alias1)) {
         aliasScore = 1;
       } else {
-        const score = calculateSimilarity(query, product.alias1);
+        const score = calculateSimilarity(matchQuery, product.alias1);
         if (score > aliasScore) aliasScore = score;
       }
     }
     
     if (product.alias2 && aliasScore < 1) {
-      if (normalizeText(query) === normalizeText(product.alias2)) {
+      if (normalizeText(matchQuery) === normalizeText(product.alias2)) {
         aliasScore = 1;
       } else {
-        const score = calculateSimilarity(query, product.alias2);
+        const score = calculateSimilarity(matchQuery, product.alias2);
         if (score > aliasScore) aliasScore = score;
       }
     }
@@ -195,18 +231,31 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
     if (product.aliases && aliasScore < 1) {
       const aliasesList = product.aliases.split(',').map(a => a.trim()).filter(a => a);
       for (const alias of aliasesList) {
-        const score = calculateSimilarity(query, alias);
+        const score = calculateSimilarity(matchQuery, alias);
         if (score > aliasScore) {
           aliasScore = score;
         }
-        if (normalizeText(query) === normalizeText(alias)) {
+        if (normalizeText(matchQuery) === normalizeText(alias)) {
           aliasScore = 1;
           break;
         }
       }
     }
     
-    const score = Math.max(skuScore, nameScore, skuSizeScore, aliasScore);
+    let score = Math.max(skuScore, nameScore, skuSizeScore, aliasScore);
+    
+    // Apply size-aware scoring adjustment
+    if (querySize) {
+      const productSize = product.size?.toUpperCase()?.trim() || '';
+      if (productSize === querySize) {
+        // Size matches - boost the score significantly
+        score = Math.min(1, score + 0.2);
+      } else if (productSize && productSize !== querySize) {
+        // Size doesn't match - penalize heavily to prefer matching sizes
+        score = Math.max(0, score - 0.3);
+      }
+      // If product has no size field, don't adjust (might be universal)
+    }
     
     if (score > bestScore) {
       bestScore = score;
