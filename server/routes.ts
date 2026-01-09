@@ -1017,6 +1017,13 @@ export async function registerRoutes(
         req.body.approvedAt = new Date().toISOString();
       }
 
+      // Auto-set actualDeliveryDate when status changes to Delivered
+      if (req.body.status === 'Delivered' && order.status !== 'Delivered') {
+        if (!req.body.actualDeliveryDate) {
+          req.body.actualDeliveryDate = new Date().toISOString().split('T')[0];
+        }
+      }
+
       const parseResult = updateOrderSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ message: "Invalid update data", errors: parseResult.error.errors });

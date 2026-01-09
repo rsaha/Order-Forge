@@ -114,7 +114,9 @@ export interface BulkOrderSummary {
     dispatchBy: string | null;
     invoiceNumber: string | null;
     invoiceDate: Date | null;
+    dispatchDate: Date | null;
     estimatedDeliveryDate: Date | null;
+    actualDeliveryDate: Date | null;
     actualOrderValue: string | null;
     deliveredOnTime: boolean | null;
   }>;
@@ -417,36 +419,29 @@ export class DatabaseStorage implements IStorage {
       conditions.push(or(dateRangeCondition, activeCondition));
     } else if (filters?.fromDate || filters?.toDate) {
       // Use status-specific date fields for filtering
-      // Dispatched orders: filter by dispatchDate (fallback to createdAt)
-      // Delivered orders: filter by actualDeliveryDate (fallback to dispatchDate, invoiceDate, createdAt)
+      // Dispatched orders: filter by dispatchDate
+      // Delivered orders: filter by actualDeliveryDate
       // Other statuses: filter by createdAt
       
-      if (filters?.status === 'Delivered') {
-        // For Delivered orders, use COALESCE to fallback through date fields
-        const deliveredDateField = sql`COALESCE(${orders.actualDeliveryDate}, ${orders.dispatchDate}, ${orders.invoiceDate}, ${orders.createdAt})`;
-        
+      if (filters?.status === 'Dispatched') {
         if (filters?.fromDate) {
-          conditions.push(sql`${deliveredDateField} >= ${filters.fromDate}`);
+          conditions.push(gte(orders.dispatchDate, filters.fromDate));
         }
         if (filters?.toDate) {
           const endOfDay = new Date(filters.toDate);
           endOfDay.setHours(23, 59, 59, 999);
-          conditions.push(sql`${deliveredDateField} <= ${endOfDay}`);
+          conditions.push(lte(orders.dispatchDate, endOfDay));
         }
-      } else if (filters?.status === 'Dispatched') {
-        // For Dispatched orders, use COALESCE to fallback to createdAt
-        const dispatchDateField = sql`COALESCE(${orders.dispatchDate}, ${orders.createdAt})`;
-        
+      } else if (filters?.status === 'Delivered') {
         if (filters?.fromDate) {
-          conditions.push(sql`${dispatchDateField} >= ${filters.fromDate}`);
+          conditions.push(gte(orders.actualDeliveryDate, filters.fromDate));
         }
         if (filters?.toDate) {
           const endOfDay = new Date(filters.toDate);
           endOfDay.setHours(23, 59, 59, 999);
-          conditions.push(sql`${dispatchDateField} <= ${endOfDay}`);
+          conditions.push(lte(orders.actualDeliveryDate, endOfDay));
         }
       } else {
-        // Other statuses use createdAt
         if (filters?.fromDate) {
           conditions.push(gte(orders.createdAt, filters.fromDate));
         }
@@ -564,7 +559,9 @@ export class DatabaseStorage implements IStorage {
         dispatchBy: orders.dispatchBy,
         invoiceNumber: orders.invoiceNumber,
         invoiceDate: orders.invoiceDate,
+        dispatchDate: orders.dispatchDate,
         estimatedDeliveryDate: orders.estimatedDeliveryDate,
+        actualDeliveryDate: orders.actualDeliveryDate,
         actualOrderValue: orders.actualOrderValue,
         deliveredOnTime: orders.deliveredOnTime,
       })
@@ -584,7 +581,9 @@ export class DatabaseStorage implements IStorage {
         dispatchBy: orders.dispatchBy,
         invoiceNumber: orders.invoiceNumber,
         invoiceDate: orders.invoiceDate,
+        dispatchDate: orders.dispatchDate,
         estimatedDeliveryDate: orders.estimatedDeliveryDate,
+        actualDeliveryDate: orders.actualDeliveryDate,
         actualOrderValue: orders.actualOrderValue,
         deliveredOnTime: orders.deliveredOnTime,
       })
@@ -622,7 +621,9 @@ export class DatabaseStorage implements IStorage {
         dispatchBy: order.dispatchBy,
         invoiceNumber: order.invoiceNumber,
         invoiceDate: order.invoiceDate,
+        dispatchDate: order.dispatchDate,
         estimatedDeliveryDate: order.estimatedDeliveryDate,
+        actualDeliveryDate: order.actualDeliveryDate,
         actualOrderValue: order.actualOrderValue,
         deliveredOnTime: order.deliveredOnTime,
       });
