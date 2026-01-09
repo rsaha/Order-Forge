@@ -97,6 +97,11 @@ export interface TimeBucketMetric {
   deliveredCount: number;
 }
 
+export interface CreatorTimeBucket {
+  date: string;
+  [creatorName: string]: string | number; // date is string, counts are numbers
+}
+
 export interface OrderAnalytics {
   // Overall KPIs (excluding Created and Invoiced)
   approved: StatusMetric;
@@ -111,6 +116,9 @@ export interface OrderAnalytics {
   };
   // Time-series data
   timeSeries: TimeBucketMetric[];
+  // Orders by creator over time
+  creatorSeries: CreatorTimeBucket[];
+  creatorNames: string[];
   // Bucket type used
   bucketType: 'daily' | 'weekly' | 'monthly';
 }
@@ -802,28 +810,31 @@ export class DatabaseStorage implements IStorage {
   async getOrderAnalytics(filters?: OrderFilters): Promise<OrderAnalytics> {
     const conditions = this.buildOrderConditions(filters);
     
-    // Get all orders with date info for time-series
+    // Get all orders with date info and user info for time-series
+    const selectFields = {
+      status: orders.status,
+      actualOrderValue: orders.actualOrderValue,
+      total: orders.total,
+      deliveredOnTime: orders.deliveredOnTime,
+      estimatedDeliveryDate: orders.estimatedDeliveryDate,
+      actualDeliveryDate: orders.actualDeliveryDate,
+      createdAt: orders.createdAt,
+      userId: orders.userId,
+      creatorFirstName: users.firstName,
+      creatorLastName: users.lastName,
+      creatorIsAdmin: users.isAdmin,
+    };
+    
     let allOrders;
     if (conditions.length > 0) {
-      allOrders = await db.select({
-        status: orders.status,
-        actualOrderValue: orders.actualOrderValue,
-        total: orders.total,
-        deliveredOnTime: orders.deliveredOnTime,
-        estimatedDeliveryDate: orders.estimatedDeliveryDate,
-        actualDeliveryDate: orders.actualDeliveryDate,
-        createdAt: orders.createdAt,
-      }).from(orders).where(and(...conditions));
+      allOrders = await db.select(selectFields)
+        .from(orders)
+        .leftJoin(users, eq(orders.userId, users.id))
+        .where(and(...conditions));
     } else {
-      allOrders = await db.select({
-        status: orders.status,
-        actualOrderValue: orders.actualOrderValue,
-        total: orders.total,
-        deliveredOnTime: orders.deliveredOnTime,
-        estimatedDeliveryDate: orders.estimatedDeliveryDate,
-        actualDeliveryDate: orders.actualDeliveryDate,
-        createdAt: orders.createdAt,
-      }).from(orders);
+      allOrders = await db.select(selectFields)
+        .from(orders)
+        .leftJoin(users, eq(orders.userId, users.id));
     }
     
     // Initialize status metrics (excluding Created and Invoiced)
@@ -933,6 +944,45 @@ export class DatabaseStorage implements IStorage {
       a.date.localeCompare(b.date)
     );
     
+    // Build creator series - track order counts by creator over time
+    const creatorBuckets = new Map<string, Map<string, number>>(); // date -> (creatorName -> count)
+    const creatorNamesSet = new Set<string>();
+    
+    for (const order of allOrders) {
+      const orderDate = order.createdAt ? new Date(order.createdAt) : new Date();
+      const bucketKey = getBucketKey(orderDate);
+      
+      // Determine creator name - combine all admins into "Admin"
+      let creatorName: string;
+      if (order.creatorIsAdmin) {
+        creatorName = 'Admin';
+      } else if (order.creatorFirstName || order.creatorLastName) {
+        creatorName = `${order.creatorFirstName || ''} ${order.creatorLastName || ''}`.trim();
+      } else {
+        creatorName = 'Unknown';
+      }
+      
+      creatorNamesSet.add(creatorName);
+      
+      if (!creatorBuckets.has(bucketKey)) {
+        creatorBuckets.set(bucketKey, new Map());
+      }
+      const bucket = creatorBuckets.get(bucketKey)!;
+      bucket.set(creatorName, (bucket.get(creatorName) || 0) + 1);
+    }
+    
+    // Convert to array format
+    const sortedCreatorNames = Array.from(creatorNamesSet).sort();
+    const creatorSeries: CreatorTimeBucket[] = Array.from(creatorBuckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, creators]) => {
+        const entry: CreatorTimeBucket = { date };
+        for (const name of sortedCreatorNames) {
+          entry[name] = creators.get(name) || 0;
+        }
+        return entry;
+      });
+    
     return {
       approved,
       dispatched,
@@ -944,6 +994,8 @@ export class DatabaseStorage implements IStorage {
         percentage: deliveredCount > 0 ? Math.round((onTimeCount / deliveredCount) * 100) : 0,
       },
       timeSeries: sortedTimeSeries,
+      creatorSeries,
+      creatorNames: sortedCreatorNames,
       bucketType,
     };
   }

@@ -35,6 +35,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
 } from "recharts";
 import { format, parseISO } from "date-fns";
 
@@ -53,6 +55,11 @@ interface TimeBucketMetric {
   deliveredCount: number;
 }
 
+interface CreatorTimeBucket {
+  date: string;
+  [creatorName: string]: string | number;
+}
+
 interface OrderAnalytics {
   approved: StatusMetric;
   dispatched: StatusMetric;
@@ -64,6 +71,8 @@ interface OrderAnalytics {
     percentage: number;
   };
   timeSeries: TimeBucketMetric[];
+  creatorSeries: CreatorTimeBucket[];
+  creatorNames: string[];
   bucketType: 'daily' | 'weekly' | 'monthly';
 }
 
@@ -517,6 +526,51 @@ export default function AnalyticsPage() {
                     </ResponsiveContainer>
                   </div>
                 </Card>
+
+                {analytics?.creatorSeries && analytics.creatorSeries.length > 0 && (
+                  <Card className="p-4">
+                    <h2 className="text-lg font-semibold mb-4">Orders Created by User</h2>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analytics.creatorSeries.map(bucket => ({
+                          ...bucket,
+                          date: formatChartDate(bucket.date),
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickMargin={8}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }} 
+                            allowDecimals={false}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                          />
+                          <Legend />
+                          {analytics.creatorNames.map((name, index) => {
+                            const colors = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#ef4444'];
+                            return (
+                              <Bar 
+                                key={name}
+                                dataKey={name}
+                                name={name}
+                                stackId="creators"
+                                fill={colors[index % colors.length]}
+                              />
+                            );
+                          })}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                )}
               </>
             )}
 
