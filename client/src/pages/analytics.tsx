@@ -99,6 +99,25 @@ function getDateRange(days: number): { fromDate: string; toDate: string } {
   };
 }
 
+function getThisMonthRange(): { fromDate: string; toDate: string } {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  return {
+    fromDate: firstDay.toISOString().split('T')[0],
+    toDate: today.toISOString().split('T')[0],
+  };
+}
+
+function getLastMonthRange(): { fromDate: string; toDate: string } {
+  const today = new Date();
+  const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+  return {
+    fromDate: firstDayLastMonth.toISOString().split('T')[0],
+    toDate: lastDayLastMonth.toISOString().split('T')[0],
+  };
+}
+
 interface KPICardProps {
   title: string;
   count: number;
@@ -130,7 +149,7 @@ function KPICard({ title, count, value, icon: Icon, colorClass, bgClass }: KPICa
 export default function AnalyticsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
-  const [dateRange, setDateRange] = useState<"7days" | "30days" | "all">("30days");
+  const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
 
@@ -154,6 +173,18 @@ export default function AnalyticsPage() {
       params.append("toDate", range.toDate);
     } else if (dateRange === "30days") {
       const range = getDateRange(30);
+      params.append("fromDate", range.fromDate);
+      params.append("toDate", range.toDate);
+    } else if (dateRange === "90days") {
+      const range = getDateRange(90);
+      params.append("fromDate", range.fromDate);
+      params.append("toDate", range.toDate);
+    } else if (dateRange === "thisMonth") {
+      const range = getThisMonthRange();
+      params.append("fromDate", range.fromDate);
+      params.append("toDate", range.toDate);
+    } else if (dateRange === "lastMonth") {
+      const range = getLastMonthRange();
       params.append("fromDate", range.fromDate);
       params.append("toDate", range.toDate);
     }
@@ -250,6 +281,9 @@ export default function AnalyticsPage() {
                 <SelectContent>
                   <SelectItem value="7days">Last 7 Days</SelectItem>
                   <SelectItem value="30days">Last 30 Days</SelectItem>
+                  <SelectItem value="90days">Last 90 Days</SelectItem>
+                  <SelectItem value="thisMonth">This Month</SelectItem>
+                  <SelectItem value="lastMonth">Last Month</SelectItem>
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
