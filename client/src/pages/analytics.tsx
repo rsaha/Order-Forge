@@ -47,10 +47,10 @@ interface StatusMetric {
 
 interface TimeBucketMetric {
   date: string;
-  approved: StatusMetric;
+  created: StatusMetric;
+  invoiced: StatusMetric;
   dispatched: StatusMetric;
   delivered: StatusMetric;
-  cancelled: StatusMetric;
   onTimeCount: number;
   deliveredCount: number;
 }
@@ -246,14 +246,13 @@ export default function AnalyticsPage() {
 
   const chartData = analytics?.timeSeries.map(bucket => ({
     date: formatChartDate(bucket.date),
-    Approved: bucket.approved.count,
+    Created: bucket.created.count,
+    Invoiced: bucket.invoiced.count,
     Dispatched: bucket.dispatched.count,
     Delivered: bucket.delivered.count,
-    Cancelled: bucket.cancelled.count,
-    ApprovedValue: bucket.approved.value,
+    InvoicedValue: bucket.invoiced.value,
     DispatchedValue: bucket.dispatched.value,
     DeliveredValue: bucket.delivered.value,
-    CancelledValue: bucket.cancelled.value,
     OnTimeRate: bucket.deliveredCount > 0 ? Math.round((bucket.onTimeCount / bucket.deliveredCount) * 100) : null,
   })) || [];
 
@@ -398,8 +397,16 @@ export default function AnalyticsPage() {
                         <Legend />
                         <Line 
                           type="monotone" 
-                          dataKey="Approved" 
-                          stroke="#22c55e" 
+                          dataKey="Created" 
+                          stroke="#3b82f6" 
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Invoiced" 
+                          stroke="#8b5cf6" 
                           strokeWidth={2}
                           dot={{ r: 3 }}
                           activeDot={{ r: 5 }}
@@ -416,14 +423,6 @@ export default function AnalyticsPage() {
                           type="monotone" 
                           dataKey="Delivered" 
                           stroke="#14b8a6" 
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          activeDot={{ r: 5 }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="Cancelled" 
-                          stroke="#6b7280" 
                           strokeWidth={2}
                           dot={{ r: 3 }}
                           activeDot={{ r: 5 }}
@@ -459,11 +458,11 @@ export default function AnalyticsPage() {
                         <Legend />
                         <Area 
                           type="monotone" 
-                          dataKey="ApprovedValue" 
-                          name="Approved"
+                          dataKey="InvoicedValue" 
+                          name="Invoiced"
                           stackId="1"
-                          stroke="#22c55e" 
-                          fill="#22c55e"
+                          stroke="#8b5cf6" 
+                          fill="#8b5cf6"
                           fillOpacity={0.6}
                         />
                         <Area 

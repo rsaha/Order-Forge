@@ -89,10 +89,10 @@ export interface StatusMetric {
 
 export interface TimeBucketMetric {
   date: string; // ISO date string for the bucket start
-  approved: StatusMetric;
+  created: StatusMetric;
+  invoiced: StatusMetric;
   dispatched: StatusMetric;
   delivered: StatusMetric;
-  cancelled: StatusMetric;
   onTimeCount: number;
   deliveredCount: number;
 }
@@ -881,10 +881,10 @@ export class DatabaseStorage implements IStorage {
       if (!buckets.has(dateKey)) {
         buckets.set(dateKey, {
           date: dateKey,
-          approved: { count: 0, value: 0 },
+          created: { count: 0, value: 0 },
+          invoiced: { count: 0, value: 0 },
           dispatched: { count: 0, value: 0 },
           delivered: { count: 0, value: 0 },
-          cancelled: { count: 0, value: 0 },
           onTimeCount: 0,
           deliveredCount: 0,
         });
@@ -904,13 +904,19 @@ export class DatabaseStorage implements IStorage {
         ? new Date(order.actualDeliveryDate) <= new Date(order.estimatedDeliveryDate)
         : order.deliveredOnTime;
       
-      // Update overall metrics (excluding Created and Invoiced)
+      // Update overall metrics
       switch (status) {
+        case 'Created':
+          bucket.created.count++;
+          bucket.created.value += value;
+          break;
         case 'Approved':
           approved.count++;
           approved.value += value;
-          bucket.approved.count++;
-          bucket.approved.value += value;
+          break;
+        case 'Invoiced':
+          bucket.invoiced.count++;
+          bucket.invoiced.value += value;
           break;
         case 'Dispatched':
           dispatched.count++;
@@ -933,8 +939,6 @@ export class DatabaseStorage implements IStorage {
         case 'Cancelled':
           cancelled.count++;
           cancelled.value += value;
-          bucket.cancelled.count++;
-          bucket.cancelled.value += value;
           break;
       }
     }
