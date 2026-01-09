@@ -1504,6 +1504,157 @@ export async function registerRoutes(
       const partyName = allLines.length > 0 ? allLines[0] : "";
       const productLines = allLines.slice(1); // Skip first line for product parsing
       
+      // Helper function to parse NAME-based multi-size format with SIZE/QTY pairs
+      // Handles formats like: "soft collar with support -M/15,L/15", "KNEE CAP -M/20,L,/20,S/10"
+      // Returns null if no pattern match, otherwise returns expanded items with [productName, size, qty]
+      const tryExpandNameBasedMultiSize = (line: string): Array<{productName: string; size: string; qty: number}> | null => {
+        // Remove leading line numbers like "1.", "2.", "10." etc.
+        let cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        
+        // Check if line contains SIZE/QTY pattern (uses / as separator)
+        // Must have at least one pattern like M/15 or SHORT/6
+        if (!cleanLine.includes('/')) {
+          return null;
+        }
+        
+        // Find the separator between product name and size/qty portion
+        // Common patterns: " -", " - ", just "-" after space
+        // Examples: "soft collar with support -M/15,L/15"
+        //           "KNEE CAP -M/20,L,/20,S/10"
+        
+        // Try to find the split point - look for " -" followed by size/qty pattern
+        const splitMatch = cleanLine.match(/^(.+?)\s*-\s*([A-Z0-9]+\s*\/\s*\d+.*)$/i);
+        
+        if (!splitMatch) {
+          return null;
+        }
+        
+        let productName = splitMatch[1].trim();
+        let sizeQtyPortion = splitMatch[2].trim();
+        
+        // Handle directional qualifiers like "right", "left" at end of product name
+        // Example: "Hand resting splint - right -M/1,L/1, LEFT -M/1,L/1"
+        // This creates: right-M, right-L, left-M, left-L
+        
+        // Check for directional pattern: "right -M/1,L/1, LEFT -M/1,L/1"
+        const directionalPattern = sizeQtyPortion.match(/^(right|left)\s*-\s*(.+)$/i);
+        if (directionalPattern) {
+          // Has directional prefix in the size portion
+          const direction = directionalPattern[1].toUpperCase();
+          sizeQtyPortion = directionalPattern[2];
+          productName = `${productName} ${direction}`;
+        }
+        
+        // Parse size/qty pairs - split by comma, handle typos
+        // Clean up the portion: remove stray commas before slashes, normalize spaces
+        sizeQtyPortion = sizeQtyPortion
+          .replace(/,\s*\//g, '/') // Fix typos like "L,/20" -> "L/20"
+          .replace(/\s*\/\s*/g, '/') // Normalize spaces around slashes
+          .replace(/\s+/g, ' '); // Normalize multiple spaces
+        
+        // Check for multiple directional sections (e.g., "M/1,L/1, LEFT -M/1,L/1")
+        const directionalSections = sizeQtyPortion.split(/,\s*(left|right)\s*-\s*/i);
+        
+        const results: Array<{productName: string; size: string; qty: number}> = [];
+        
+        if (directionalSections.length > 1) {
+          // Has multiple directional sections
+          // First section is for the current direction (or no direction)
+          const firstPairs = directionalSections[0].split(/,/).map(s => s.trim()).filter(s => s);
+          
+          for (const pair of firstPairs) {
+            const match = pair.match(/^([A-Z0-9]+)\s*\/\s*(\d+)\s*(?:pcs|pc)?$/i);
+            if (match) {
+              results.push({
+                productName: productName,
+                size: match[1].toUpperCase(),
+                qty: parseInt(match[2]) || 1
+              });
+            }
+          }
+          
+          // Process remaining directional sections
+          for (let i = 1; i < directionalSections.length; i += 2) {
+            if (i + 1 < directionalSections.length) {
+              const direction = directionalSections[i].toUpperCase();
+              const pairs = directionalSections[i + 1].split(/,/).map(s => s.trim()).filter(s => s);
+              
+              // Extract base product name (remove any previous direction)
+              const baseProductName = productName.replace(/\s+(LEFT|RIGHT)$/i, '').trim();
+              
+              for (const pair of pairs) {
+                const match = pair.match(/^([A-Z0-9]+)\s*\/\s*(\d+)\s*(?:pcs|pc)?$/i);
+                if (match) {
+                  results.push({
+                    productName: `${baseProductName} ${direction}`,
+                    size: match[1].toUpperCase(),
+                    qty: parseInt(match[2]) || 1
+                  });
+                }
+              }
+            }
+          }
+        } else {
+          // No multiple directional sections - simple comma-separated size/qty pairs
+          const pairs = sizeQtyPortion.split(/,/).map(s => s.trim()).filter(s => s);
+          
+          for (const pair of pairs) {
+            // Match patterns like: M/15, SHORT/6, XL/5, S/10, ADULT/10
+            const match = pair.match(/^([A-Z0-9]+)\s*\/\s*(\d+)\s*(?:pcs|pc)?$/i);
+            if (match) {
+              results.push({
+                productName: productName,
+                size: match[1].toUpperCase(),
+                qty: parseInt(match[2]) || 1
+              });
+            }
+          }
+        }
+        
+        return results.length > 0 ? results : null;
+      };
+      
+      // Helper function to parse simple PCS format like "WRIST BRACE WITH THUMB - 30PCS"
+      // Returns null if no pattern match
+      const tryParsePcsFormat = (line: string): {productName: string; qty: number} | null => {
+        // Remove leading line numbers
+        let cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        
+        // Pattern: "PRODUCT NAME - QTYpcs" or "PRODUCT NAME -QTY PCS"
+        const match = cleanLine.match(/^(.+?)\s*-\s*(\d+)\s*(?:pcs|pc|units?)$/i);
+        if (match) {
+          return {
+            productName: match[1].trim(),
+            qty: parseInt(match[2]) || 1
+          };
+        }
+        
+        return null;
+      };
+      
+      // Helper function to parse single quantity format like "UNIVERSAL SHOULDER IMMOBILIZER -6"
+      // Returns null if no pattern match
+      const tryParseSingleQtyFormat = (line: string): {productName: string; qty: number} | null => {
+        // Remove leading line numbers
+        let cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        
+        // Pattern: "PRODUCT NAME -QTY" (just a number after dash, no size)
+        // But NOT if it looks like a size/qty pattern with /
+        if (cleanLine.includes('/')) {
+          return null;
+        }
+        
+        const match = cleanLine.match(/^(.+?)\s*-\s*(\d+)$/);
+        if (match) {
+          return {
+            productName: match[1].trim(),
+            qty: parseInt(match[2]) || 1
+          };
+        }
+        
+        return null;
+      };
+      
       // Helper function to check if a line matches multi-size pattern and expand it
       // Returns null if no pattern match, otherwise returns expanded items
       const tryExpandMultiSizePattern = (line: string): string[] | null => {
@@ -1577,28 +1728,70 @@ export async function registerRoutes(
         return null;
       };
       
-      // Process product lines - try multi-size expansion first, then fall back to comma split
+      // Process product lines - try new NAME-based format first, then SKU-based, then fallback
       const lines: string[] = [];
+      const parsedItems: Array<{rawText: string; productRef: string; quantity: number; freeQuantity: number}> = [];
+      
       for (const line of productLines) {
         // First split by semicolon for multiple products on same line
         const semicolonParts = line.split(/;+/).map((p: string) => p.trim()).filter((p: string) => p);
         
         for (const part of semicolonParts) {
-          // Try to expand as multi-size pattern first
-          const expanded = tryExpandMultiSizePattern(part);
+          // 1. Try new NAME-based multi-size format first (uses / separator)
+          // Examples: "soft collar with support -M/15,L/15", "KNEE CAP -M/20,L,/20,S/10"
+          const nameBasedExpanded = tryExpandNameBasedMultiSize(part);
           
-          if (expanded) {
-            // Multi-size pattern matched and expanded
-            lines.push(...expanded);
+          if (nameBasedExpanded) {
+            // NAME-based multi-size pattern matched - add directly to parsedItems
+            for (const item of nameBasedExpanded) {
+              parsedItems.push({
+                rawText: part,
+                productRef: `${item.productName} ${item.size}`,
+                quantity: item.qty,
+                freeQuantity: 0,
+              });
+            }
+            continue;
+          }
+          
+          // 2. Try PCS format (e.g., "WRIST BRACE WITH THUMB - 30PCS")
+          const pcsFormat = tryParsePcsFormat(part);
+          if (pcsFormat) {
+            parsedItems.push({
+              rawText: part,
+              productRef: pcsFormat.productName,
+              quantity: pcsFormat.qty,
+              freeQuantity: 0,
+            });
+            continue;
+          }
+          
+          // 3. Try single qty format (e.g., "UNIVERSAL SHOULDER IMMOBILIZER -6")
+          const singleQtyFormat = tryParseSingleQtyFormat(part);
+          if (singleQtyFormat) {
+            parsedItems.push({
+              rawText: part,
+              productRef: singleQtyFormat.productName,
+              quantity: singleQtyFormat.qty,
+              freeQuantity: 0,
+            });
+            continue;
+          }
+          
+          // 4. Try existing SKU-based multi-size pattern (uses - separator)
+          // Examples: "F-01 M-3p,L-3p,S-3p" or "F-10-M-5p,S-2p,L-2p"
+          const skuBasedExpanded = tryExpandMultiSizePattern(part);
+          
+          if (skuBasedExpanded) {
+            // SKU-based multi-size pattern matched and expanded
+            lines.push(...skuBasedExpanded);
           } else {
-            // Not a multi-size pattern - use original comma/semicolon splitting
+            // 5. Not any multi-size pattern - use original comma/semicolon splitting
             const commaParts = part.split(/,+/).map((p: string) => p.trim()).filter((p: string) => p);
             lines.push(...commaParts);
           }
         }
       }
-      
-      const parsedItems: Array<{rawText: string; productRef: string; quantity: number; freeQuantity: number}> = [];
       
       for (const line of lines) {
         // Structure: Product Name, Optional Size, then Qty (with possible punctuation before qty)
