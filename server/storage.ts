@@ -413,14 +413,25 @@ export class DatabaseStorage implements IStorage {
       const activeCondition = inArray(orders.status, activeStatuses);
       
       conditions.push(or(dateRangeCondition, activeCondition));
-    } else {
+    } else if (filters?.fromDate || filters?.toDate) {
+      // Use status-specific date fields for filtering
+      // Dispatched orders: filter by dispatchDate
+      // Delivered orders: filter by actualDeliveryDate
+      // Other statuses: filter by createdAt
+      let dateField = orders.createdAt;
+      if (filters?.status === 'Dispatched') {
+        dateField = orders.dispatchDate;
+      } else if (filters?.status === 'Delivered') {
+        dateField = orders.actualDeliveryDate;
+      }
+      
       if (filters?.fromDate) {
-        conditions.push(gte(orders.createdAt, filters.fromDate));
+        conditions.push(gte(dateField, filters.fromDate));
       }
       if (filters?.toDate) {
         const endOfDay = new Date(filters.toDate);
         endOfDay.setHours(23, 59, 59, 999);
-        conditions.push(lte(orders.createdAt, endOfDay));
+        conditions.push(lte(dateField, endOfDay));
       }
     }
     
