@@ -863,6 +863,59 @@ export async function registerRoutes(
     }
   });
 
+  // Order Analytics endpoint
+  app.get('/api/analytics/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Only Admin and BrandAdmin can view analytics
+      if (!user?.isAdmin && user?.role !== 'BrandAdmin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      // Parse filters from query params
+      const { fromDate, toDate, brand, deliveryCompany } = req.query;
+      
+      const filters: any = {};
+      
+      if (fromDate) {
+        filters.fromDate = new Date(fromDate as string);
+      }
+      if (toDate) {
+        filters.toDate = new Date(toDate as string);
+      }
+      if (brand && brand !== 'all') {
+        filters.brand = brand as string;
+      }
+      if (deliveryCompany && deliveryCompany !== 'all') {
+        filters.deliveryCompany = deliveryCompany as string;
+      }
+      
+      // For BrandAdmin, filter by their assigned brands
+      if (user?.role === 'BrandAdmin' && !user.isAdmin) {
+        const userBrands = await storage.getUserBrandAccess(userId);
+        if (brand && brand !== 'all') {
+          // Verify user has access to this brand
+          if (!userBrands.includes(brand as string)) {
+            return res.status(403).json({ message: "Access denied to this brand" });
+          }
+        } else {
+          // Default to first brand if multiple
+          if (userBrands.length > 0) {
+            filters.brand = userBrands[0];
+          }
+        }
+      }
+      
+      const analytics = await storage.getOrderAnalytics(filters);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching order analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
   // Get user's orders
   app.get('/api/orders', isAuthenticated, async (req: any, res) => {
     try {

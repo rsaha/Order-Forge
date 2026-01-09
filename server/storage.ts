@@ -82,11 +82,37 @@ export interface IStorage {
   seedBrands(): Promise<void>;
 }
 
-export interface OrderAnalytics {
-  statusCounts: Record<string, number>;
-  totalInvoiceValue: number;
-  deliveredOnTimeCount: number;
+export interface StatusMetric {
+  count: number;
+  value: number;
+}
+
+export interface TimeBucketMetric {
+  date: string; // ISO date string for the bucket start
+  approved: StatusMetric;
+  dispatched: StatusMetric;
+  delivered: StatusMetric;
+  cancelled: StatusMetric;
+  onTimeCount: number;
   deliveredCount: number;
+}
+
+export interface OrderAnalytics {
+  // Overall KPIs (excluding Created and Invoiced)
+  approved: StatusMetric;
+  dispatched: StatusMetric;
+  delivered: StatusMetric;
+  cancelled: StatusMetric;
+  // On-time delivery stats
+  onTimeDelivery: {
+    onTimeCount: number;
+    deliveredCount: number;
+    percentage: number;
+  };
+  // Time-series data
+  timeSeries: TimeBucketMetric[];
+  // Bucket type used
+  bucketType: 'daily' | 'weekly' | 'monthly';
 }
 
 export interface OrderFilters {
@@ -776,6 +802,7 @@ export class DatabaseStorage implements IStorage {
   async getOrderAnalytics(filters?: OrderFilters): Promise<OrderAnalytics> {
     const conditions = this.buildOrderConditions(filters);
     
+    // Get all orders with date info for time-series
     let allOrders;
     if (conditions.length > 0) {
       allOrders = await db.select({
@@ -783,6 +810,9 @@ export class DatabaseStorage implements IStorage {
         actualOrderValue: orders.actualOrderValue,
         total: orders.total,
         deliveredOnTime: orders.deliveredOnTime,
+        estimatedDeliveryDate: orders.estimatedDeliveryDate,
+        actualDeliveryDate: orders.actualDeliveryDate,
+        createdAt: orders.createdAt,
       }).from(orders).where(and(...conditions));
     } else {
       allOrders = await db.select({
@@ -790,34 +820,131 @@ export class DatabaseStorage implements IStorage {
         actualOrderValue: orders.actualOrderValue,
         total: orders.total,
         deliveredOnTime: orders.deliveredOnTime,
+        estimatedDeliveryDate: orders.estimatedDeliveryDate,
+        actualDeliveryDate: orders.actualDeliveryDate,
+        createdAt: orders.createdAt,
       }).from(orders);
     }
     
-    const statusCounts: Record<string, number> = {};
-    let totalInvoiceValue = 0;
-    let deliveredOnTimeCount = 0;
+    // Initialize status metrics (excluding Created and Invoiced)
+    const approved: StatusMetric = { count: 0, value: 0 };
+    const dispatched: StatusMetric = { count: 0, value: 0 };
+    const delivered: StatusMetric = { count: 0, value: 0 };
+    const cancelled: StatusMetric = { count: 0, value: 0 };
+    let onTimeCount = 0;
     let deliveredCount = 0;
     
-    for (const order of allOrders) {
-      const status = order.status || "Created";
-      statusCounts[status] = (statusCounts[status] || 0) + 1;
-      
-      const value = Number(order.actualOrderValue || order.total || 0);
-      totalInvoiceValue += value;
-      
-      if (status === "Delivered") {
-        deliveredCount++;
-        if (order.deliveredOnTime === true) {
-          deliveredOnTimeCount++;
-        }
+    // Determine date range and bucket type
+    const fromDate = filters?.fromDate;
+    const toDate = filters?.toDate || new Date();
+    let bucketType: 'daily' | 'weekly' | 'monthly' = 'daily';
+    
+    if (fromDate && toDate) {
+      const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff > 90) {
+        bucketType = 'monthly';
+      } else if (daysDiff > 31) {
+        bucketType = 'weekly';
       }
     }
     
+    // Time-series buckets
+    const buckets = new Map<string, TimeBucketMetric>();
+    
+    const getBucketKey = (date: Date): string => {
+      if (bucketType === 'monthly') {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+      } else if (bucketType === 'weekly') {
+        // Get Monday of the week
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(date);
+        monday.setDate(diff);
+        return monday.toISOString().split('T')[0];
+      } else {
+        return date.toISOString().split('T')[0];
+      }
+    };
+    
+    const getOrCreateBucket = (dateKey: string): TimeBucketMetric => {
+      if (!buckets.has(dateKey)) {
+        buckets.set(dateKey, {
+          date: dateKey,
+          approved: { count: 0, value: 0 },
+          dispatched: { count: 0, value: 0 },
+          delivered: { count: 0, value: 0 },
+          cancelled: { count: 0, value: 0 },
+          onTimeCount: 0,
+          deliveredCount: 0,
+        });
+      }
+      return buckets.get(dateKey)!;
+    };
+    
+    for (const order of allOrders) {
+      const status = order.status || "Created";
+      const value = Number(order.actualOrderValue || order.total || 0);
+      const orderDate = order.createdAt ? new Date(order.createdAt) : new Date();
+      const bucketKey = getBucketKey(orderDate);
+      const bucket = getOrCreateBucket(bucketKey);
+      
+      // Calculate on-time based on estimated vs actual delivery dates
+      const isOnTime = order.actualDeliveryDate && order.estimatedDeliveryDate
+        ? new Date(order.actualDeliveryDate) <= new Date(order.estimatedDeliveryDate)
+        : order.deliveredOnTime;
+      
+      // Update overall metrics (excluding Created and Invoiced)
+      switch (status) {
+        case 'Approved':
+          approved.count++;
+          approved.value += value;
+          bucket.approved.count++;
+          bucket.approved.value += value;
+          break;
+        case 'Dispatched':
+          dispatched.count++;
+          dispatched.value += value;
+          bucket.dispatched.count++;
+          bucket.dispatched.value += value;
+          break;
+        case 'Delivered':
+          delivered.count++;
+          delivered.value += value;
+          deliveredCount++;
+          bucket.delivered.count++;
+          bucket.delivered.value += value;
+          bucket.deliveredCount++;
+          if (isOnTime) {
+            onTimeCount++;
+            bucket.onTimeCount++;
+          }
+          break;
+        case 'Cancelled':
+          cancelled.count++;
+          cancelled.value += value;
+          bucket.cancelled.count++;
+          bucket.cancelled.value += value;
+          break;
+      }
+    }
+    
+    // Sort buckets by date
+    const sortedTimeSeries = Array.from(buckets.values()).sort((a, b) => 
+      a.date.localeCompare(b.date)
+    );
+    
     return {
-      statusCounts,
-      totalInvoiceValue,
-      deliveredOnTimeCount,
-      deliveredCount,
+      approved,
+      dispatched,
+      delivered,
+      cancelled,
+      onTimeDelivery: {
+        onTimeCount,
+        deliveredCount,
+        percentage: deliveredCount > 0 ? Math.round((onTimeCount / deliveredCount) * 100) : 0,
+      },
+      timeSeries: sortedTimeSeries,
+      bucketType,
     };
   }
 

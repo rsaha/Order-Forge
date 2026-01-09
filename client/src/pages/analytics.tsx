@@ -12,40 +12,76 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Package,
-  FileText,
-  Clock,
-  Truck,
   CheckCircle,
   XCircle,
-  TrendingUp,
-  DollarSign,
-  BarChart3,
+  Truck,
+  Clock,
   Loader2,
   ChevronLeft,
   AlertCircle,
+  BarChart3,
+  Target,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { ORDER_STATUSES } from "@shared/schema";
 import type { BrandRecord } from "@shared/schema";
+import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from "recharts";
+import { format, parseISO } from "date-fns";
 
-interface OrderAnalytics {
-  statusCounts: Record<string, number>;
-  totalInvoiceValue: number;
-  deliveredOnTimeCount: number;
+interface StatusMetric {
+  count: number;
+  value: number;
+}
+
+interface TimeBucketMetric {
+  date: string;
+  approved: StatusMetric;
+  dispatched: StatusMetric;
+  delivered: StatusMetric;
+  cancelled: StatusMetric;
+  onTimeCount: number;
   deliveredCount: number;
 }
 
-const STATUS_ICONS: Record<string, { icon: typeof Package; color: string }> = {
-  Created: { icon: FileText, color: "text-blue-500" },
-  Approved: { icon: Clock, color: "text-yellow-500" },
-  Invoiced: { icon: FileText, color: "text-purple-500" },
-  Dispatched: { icon: Truck, color: "text-orange-500" },
-  Delivered: { icon: CheckCircle, color: "text-green-500" },
-  Cancelled: { icon: XCircle, color: "text-red-500" },
-};
+interface OrderAnalytics {
+  approved: StatusMetric;
+  dispatched: StatusMetric;
+  delivered: StatusMetric;
+  cancelled: StatusMetric;
+  onTimeDelivery: {
+    onTimeCount: number;
+    deliveredCount: number;
+    percentage: number;
+  };
+  timeSeries: TimeBucketMetric[];
+  bucketType: 'daily' | 'weekly' | 'monthly';
+}
 
 function formatINR(amount: number): string {
+  if (amount >= 100000) {
+    return `₹${(amount / 100000).toFixed(1)}L`;
+  } else if (amount >= 1000) {
+    return `₹${(amount / 1000).toFixed(1)}K`;
+  }
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatINRFull(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -63,13 +99,44 @@ function getDateRange(days: number): { fromDate: string; toDate: string } {
   };
 }
 
+interface KPICardProps {
+  title: string;
+  count: number;
+  value: number;
+  icon: typeof Clock;
+  colorClass: string;
+  bgClass: string;
+}
+
+function KPICard({ title, count, value, icon: Icon, colorClass, bgClass }: KPICardProps) {
+  return (
+    <Card className={`p-4 ${bgClass}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`p-2 rounded-lg ${colorClass} bg-opacity-20`}>
+          <Icon className={`w-5 h-5 ${colorClass}`} />
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">{title}</span>
+      </div>
+      <p className="text-3xl font-bold mb-1" data-testid={`text-${title.toLowerCase()}-count`}>
+        {count}
+      </p>
+      <p className="text-sm text-muted-foreground" data-testid={`text-${title.toLowerCase()}-value`}>
+        {formatINRFull(value)}
+      </p>
+    </Card>
+  );
+}
+
 export default function AnalyticsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
-  const [dateRange, setDateRange] = useState<"7days" | "30days" | "all">("30days");
+  const [dateRange, setDateRange] = useState<"today" | "7days" | "30days" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
 
   const isAdmin = user?.isAdmin || false;
+  const isBrandAdmin = user?.role === 'BrandAdmin';
+  const canViewAnalytics = isAdmin || isBrandAdmin;
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();
@@ -77,8 +144,15 @@ export default function AnalyticsPage() {
     if (brandFilter !== "all") {
       params.append("brand", brandFilter);
     }
+    if (deliveryCompanyFilter !== "all") {
+      params.append("deliveryCompany", deliveryCompanyFilter);
+    }
     
-    if (dateRange === "7days") {
+    if (dateRange === "today") {
+      const range = getDateRange(0);
+      params.append("fromDate", range.fromDate);
+      params.append("toDate", range.toDate);
+    } else if (dateRange === "7days") {
       const range = getDateRange(7);
       params.append("fromDate", range.fromDate);
       params.append("toDate", range.toDate);
@@ -92,16 +166,16 @@ export default function AnalyticsPage() {
   };
 
   const queryParams = buildQueryParams();
-  const queryUrl = `/api/admin/analytics/orders${queryParams ? `?${queryParams}` : ""}`;
+  const queryUrl = `/api/analytics/orders${queryParams ? `?${queryParams}` : ""}`;
 
   const { data: analytics, isLoading, isError } = useQuery<OrderAnalytics>({
-    queryKey: ["/api/admin/analytics/orders", dateRange, brandFilter],
+    queryKey: ["/api/analytics/orders", dateRange, brandFilter, deliveryCompanyFilter],
     queryFn: async () => {
       const res = await fetch(queryUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch analytics");
       return res.json();
     },
-    enabled: isAdmin,
+    enabled: canViewAnalytics,
   });
 
   const { data: brands = [] } = useQuery<BrandRecord[]>({
@@ -116,7 +190,7 @@ export default function AnalyticsPage() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canViewAnalytics) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <p className="text-muted-foreground">Admin access required</p>
@@ -125,10 +199,32 @@ export default function AnalyticsPage() {
     );
   }
 
-  const totalOrders = Object.values(analytics?.statusCounts || {}).reduce((a, b) => a + b, 0);
-  const onTimePercentage = analytics?.deliveredCount && analytics.deliveredCount > 0
-    ? Math.round((analytics.deliveredOnTimeCount / analytics.deliveredCount) * 100)
-    : 0;
+  const formatChartDate = (dateStr: string) => {
+    try {
+      const date = parseISO(dateStr);
+      if (analytics?.bucketType === 'monthly') {
+        return format(date, 'MMM yyyy');
+      } else if (analytics?.bucketType === 'weekly') {
+        return format(date, 'MMM d');
+      }
+      return format(date, 'MMM d');
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const chartData = analytics?.timeSeries.map(bucket => ({
+    date: formatChartDate(bucket.date),
+    Approved: bucket.approved.count,
+    Dispatched: bucket.dispatched.count,
+    Delivered: bucket.delivered.count,
+    Cancelled: bucket.cancelled.count,
+    ApprovedValue: bucket.approved.value,
+    DispatchedValue: bucket.dispatched.value,
+    DeliveredValue: bucket.delivered.value,
+    CancelledValue: bucket.cancelled.value,
+    OnTimeRate: bucket.deliveredCount > 0 ? Math.round((bucket.onTimeCount / bucket.deliveredCount) * 100) : null,
+  })) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -141,7 +237,7 @@ export default function AnalyticsPage() {
           </Link>
           <div className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5" />
-            <h1 className="text-xl font-semibold">Analytics</h1>
+            <h1 className="text-xl font-semibold">Order Analytics</h1>
           </div>
         </div>
       </div>
@@ -149,13 +245,14 @@ export default function AnalyticsPage() {
       <div className="p-4 space-y-6">
         <Card className="p-4">
           <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[150px]">
+            <div className="flex-1 min-w-[120px]">
               <Label className="text-sm text-muted-foreground">Date Range</Label>
-              <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "30days" | "all")}>
+              <Select value={dateRange} onValueChange={(v) => setDateRange(v as typeof dateRange)}>
                 <SelectTrigger data-testid="select-date-range">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
                   <SelectItem value="7days">Last 7 Days</SelectItem>
                   <SelectItem value="30days">Last 30 Days</SelectItem>
                   <SelectItem value="all">All Time</SelectItem>
@@ -163,7 +260,7 @@ export default function AnalyticsPage() {
               </Select>
             </div>
             
-            <div className="flex-1 min-w-[150px]">
+            <div className="flex-1 min-w-[120px]">
               <Label className="text-sm text-muted-foreground">Brand</Label>
               <Select value={brandFilter} onValueChange={setBrandFilter}>
                 <SelectTrigger data-testid="select-brand">
@@ -173,6 +270,21 @@ export default function AnalyticsPage() {
                   <SelectItem value="all">All Brands</SelectItem>
                   {brands.map((brand) => (
                     <SelectItem key={brand.id} value={brand.name}>{brand.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex-1 min-w-[120px]">
+              <Label className="text-sm text-muted-foreground">Delivery Co.</Label>
+              <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
+                <SelectTrigger data-testid="select-delivery-company">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {DELIVERY_COMPANY_OPTIONS.map((company) => (
+                    <SelectItem key={company} value={company}>{company}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -194,68 +306,218 @@ export default function AnalyticsPage() {
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Package className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Total Orders</span>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <KPICard
+                title="Approved"
+                count={analytics?.approved.count || 0}
+                value={analytics?.approved.value || 0}
+                icon={Clock}
+                colorClass="text-green-600"
+                bgClass="border-l-4 border-l-green-500"
+              />
+              <KPICard
+                title="Dispatched"
+                count={analytics?.dispatched.count || 0}
+                value={analytics?.dispatched.value || 0}
+                icon={Truck}
+                colorClass="text-orange-600"
+                bgClass="border-l-4 border-l-orange-500"
+              />
+              <KPICard
+                title="Delivered"
+                count={analytics?.delivered.count || 0}
+                value={analytics?.delivered.value || 0}
+                icon={CheckCircle}
+                colorClass="text-teal-600"
+                bgClass="border-l-4 border-l-teal-500"
+              />
+              <KPICard
+                title="Cancelled"
+                count={analytics?.cancelled.count || 0}
+                value={analytics?.cancelled.value || 0}
+                icon={XCircle}
+                colorClass="text-gray-600"
+                bgClass="border-l-4 border-l-gray-400"
+              />
+              <Card className="p-4 border-l-4 border-l-blue-500 col-span-2 lg:col-span-1">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 rounded-lg text-blue-600 bg-opacity-20">
+                    <Target className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">On-Time Delivery</span>
                 </div>
-                <p className="text-2xl font-bold" data-testid="text-total-orders">{totalOrders}</p>
-              </Card>
-
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Invoice Value</span>
-                </div>
-                <p className="text-2xl font-bold" data-testid="text-invoice-value">
-                  {formatINR(analytics?.totalInvoiceValue || 0)}
+                <p className="text-3xl font-bold mb-1" data-testid="text-ontime-percentage">
+                  {analytics?.onTimeDelivery.percentage || 0}%
                 </p>
-              </Card>
-
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-sm text-muted-foreground">On-Time Delivery</span>
-                </div>
-                <p className="text-2xl font-bold" data-testid="text-on-time">
-                  {analytics?.deliveredOnTimeCount || 0}
-                  <span className="text-sm text-muted-foreground ml-2">
-                    ({onTimePercentage}%)
-                  </span>
-                </p>
-              </Card>
-
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Delivered</span>
-                </div>
-                <p className="text-2xl font-bold" data-testid="text-delivered">
-                  {analytics?.deliveredCount || 0}
+                <p className="text-sm text-muted-foreground" data-testid="text-ontime-ratio">
+                  {analytics?.onTimeDelivery.onTimeCount || 0} / {analytics?.onTimeDelivery.deliveredCount || 0} orders
                 </p>
               </Card>
             </div>
 
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Orders by Status</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {ORDER_STATUSES.map((status) => {
-                  const config = STATUS_ICONS[status] || { icon: Package, color: "text-muted-foreground" };
-                  const Icon = config.icon;
-                  const count = analytics?.statusCounts[status] || 0;
-                  return (
-                    <div key={status} className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-                      <Icon className={`w-8 h-8 mb-2 ${config.color}`} />
-                      <span className="text-2xl font-bold" data-testid={`text-status-${status.toLowerCase()}`}>
-                        {count}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{status}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
+            {chartData.length > 0 && (
+              <>
+                <Card className="p-4">
+                  <h2 className="text-lg font-semibold mb-4">Orders by Status Over Time</h2>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          tickMargin={8}
+                        />
+                        <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Approved" 
+                          stroke="#22c55e" 
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Dispatched" 
+                          stroke="#f97316" 
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Delivered" 
+                          stroke="#14b8a6" 
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Cancelled" 
+                          stroke="#6b7280" 
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h2 className="text-lg font-semibold mb-4">Order Value Over Time</h2>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          tickMargin={8}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }} 
+                          tickFormatter={(v) => formatINR(v)}
+                        />
+                        <Tooltip 
+                          formatter={(value: number) => formatINRFull(value)}
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Legend />
+                        <Area 
+                          type="monotone" 
+                          dataKey="ApprovedValue" 
+                          name="Approved"
+                          stackId="1"
+                          stroke="#22c55e" 
+                          fill="#22c55e"
+                          fillOpacity={0.6}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="DispatchedValue" 
+                          name="Dispatched"
+                          stackId="1"
+                          stroke="#f97316" 
+                          fill="#f97316"
+                          fillOpacity={0.6}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="DeliveredValue" 
+                          name="Delivered"
+                          stackId="1"
+                          stroke="#14b8a6" 
+                          fill="#14b8a6"
+                          fillOpacity={0.6}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h2 className="text-lg font-semibold mb-4">On-Time Delivery Rate</h2>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData.filter(d => d.OnTimeRate !== null)}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          tickMargin={8}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12 }} 
+                          domain={[0, 100]}
+                          tickFormatter={(v) => `${v}%`}
+                        />
+                        <Tooltip 
+                          formatter={(value: number) => [`${value}%`, 'On-Time Rate']}
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="OnTimeRate" 
+                          name="On-Time %"
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          dot={{ r: 4, fill: '#3b82f6' }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+              </>
+            )}
+
+            {chartData.length === 0 && (
+              <Card className="p-8">
+                <div className="flex flex-col items-center gap-4 text-center">
+                  <BarChart3 className="w-12 h-12 text-muted-foreground" />
+                  <p className="text-muted-foreground">No order data available for the selected period.</p>
+                </div>
+              </Card>
+            )}
           </>
         )}
       </div>
