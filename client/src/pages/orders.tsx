@@ -318,13 +318,12 @@ export default function OrdersPage() {
   };
 
   const { data: bulkSummary = [] } = useQuery<BulkOrderSummary[]>({
-    queryKey: ["/api/admin/orders/bulk-summary", bulkType],
+    queryKey: ["/api/admin/orders/bulk-summary", bulkType, bulkDate],
     queryFn: async () => {
-      const today = getTodayDate();
       const params = new URLSearchParams();
       params.append("status", bulkType === "dispatched" ? "Dispatched" : "Delivered");
-      params.append("fromDate", today);
-      params.append("toDate", today);
+      params.append("fromDate", bulkDate);
+      params.append("toDate", bulkDate);
       
       const res = await fetch(`/api/admin/orders/bulk-summary?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch bulk summary");
@@ -2115,7 +2114,7 @@ export default function OrdersPage() {
               Bulk WhatsApp Messages
             </DialogTitle>
             <DialogDescription>
-              Send WhatsApp messages for all orders {bulkType === "dispatched" ? "dispatched" : "delivered"} today, grouped by brand and delivery company.
+              Send WhatsApp messages for orders {bulkType === "dispatched" ? "dispatched" : "delivered"} on the selected date, grouped by brand and delivery company.
             </DialogDescription>
           </DialogHeader>
           
@@ -2156,7 +2155,7 @@ export default function OrdersPage() {
             {bulkSummary.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No orders {bulkType === "dispatched" ? "dispatched" : "delivered"} today</p>
+                <p>No orders {bulkType === "dispatched" ? "dispatched" : "delivered"} on selected date</p>
               </div>
             ) : (
               bulkSummary.map((group, idx) => (
