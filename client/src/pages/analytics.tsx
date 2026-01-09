@@ -130,7 +130,7 @@ function KPICard({ title, count, value, icon: Icon, colorClass, bgClass }: KPICa
 export default function AnalyticsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
-  const [dateRange, setDateRange] = useState<"today" | "7days" | "30days" | "all">("30days");
+  const [dateRange, setDateRange] = useState<"7days" | "30days" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
 
@@ -148,11 +148,7 @@ export default function AnalyticsPage() {
       params.append("deliveryCompany", deliveryCompanyFilter);
     }
     
-    if (dateRange === "today") {
-      const range = getDateRange(0);
-      params.append("fromDate", range.fromDate);
-      params.append("toDate", range.toDate);
-    } else if (dateRange === "7days") {
+    if (dateRange === "7days") {
       const range = getDateRange(7);
       params.append("fromDate", range.fromDate);
       params.append("toDate", range.toDate);
@@ -252,7 +248,6 @@ export default function AnalyticsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="today">Today</SelectItem>
                   <SelectItem value="7days">Last 7 Days</SelectItem>
                   <SelectItem value="30days">Last 30 Days</SelectItem>
                   <SelectItem value="all">All Time</SelectItem>
