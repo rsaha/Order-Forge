@@ -232,6 +232,10 @@ export default function OrdersPage() {
   const [importBrand, setImportBrand] = useState<string>("Biostige");
   const [importInvoiceDate, setImportInvoiceDate] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string>("all");
+  const [exportBrand, setExportBrand] = useState<string>("all");
+  const [isExporting, setIsExporting] = useState(false);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -705,14 +709,24 @@ export default function OrdersPage() {
   };
 
   const handleExportOrders = async () => {
-    // Export filtered orders to Excel
-    const ordersToExport = orders;
-    if (ordersToExport.length === 0) {
-      toast({ title: "No orders to export", variant: "destructive" });
-      return;
-    }
-
+    setIsExporting(true);
     try {
+      // Filter orders based on export options
+      let ordersToExport = allOrders;
+      
+      if (exportStatus !== "all") {
+        ordersToExport = ordersToExport.filter(o => o.status === exportStatus);
+      }
+      if (exportBrand !== "all") {
+        ordersToExport = ordersToExport.filter(o => o.brand === exportBrand);
+      }
+      
+      if (ordersToExport.length === 0) {
+        toast({ title: "No orders match the selected filters", variant: "destructive" });
+        setIsExporting(false);
+        return;
+      }
+
       // Fetch items for each order
       const ordersWithItems = await Promise.all(
         ordersToExport.map(async (order) => {
@@ -736,12 +750,12 @@ export default function OrdersPage() {
       ordersWithItems.forEach(({ order, items }) => {
         items.forEach((item: any, idx: number) => {
           wsData.push([
-            new Date(order.createdAt).toLocaleDateString(),
+            order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
             order.id,
             order.partyName || "",
             order.brand || "",
             order.status,
-            order.createdByName || order.createdByEmail || "",
+            (order as any).createdByName || (order as any).createdByEmail || "",
             item.productName || "",
             item.size || "",
             item.quantity,
@@ -758,12 +772,12 @@ export default function OrdersPage() {
         // If no items, still add order row
         if (items.length === 0) {
           wsData.push([
-            new Date(order.createdAt).toLocaleDateString(),
+            order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
             order.id,
             order.partyName || "",
             order.brand || "",
             order.status,
-            order.createdByName || order.createdByEmail || "",
+            (order as any).createdByName || (order as any).createdByEmail || "",
             "",
             "",
             0,
@@ -784,15 +798,17 @@ export default function OrdersPage() {
       XLSX.utils.book_append_sheet(wb, ws, "Orders");
       
       // Generate filename with filters
-      const filterParts = [statusFilter.toLowerCase()];
-      if (brandFilter !== "all") filterParts.push(brandFilter);
-      if (dateRange !== "all") filterParts.push(dateRange);
+      const filterParts = [exportStatus !== "all" ? exportStatus.toLowerCase() : "all"];
+      if (exportBrand !== "all") filterParts.push(exportBrand);
       const filename = `orders_${filterParts.join("_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
       
       XLSX.writeFile(wb, filename);
       toast({ title: `Exported ${ordersWithItems.length} orders` });
+      setShowExportDialog(false);
     } catch (error) {
       toast({ title: "Export failed", description: String(error), variant: "destructive" });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -875,7 +891,7 @@ export default function OrdersPage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={handleExportOrders}
+                onClick={() => setShowExportDialog(true)}
                 className="gap-2"
                 data-testid="button-export-orders"
               >
@@ -2230,6 +2246,88 @@ export default function OrdersPage() {
           <div className="flex justify-end pt-4 border-t">
             <Button variant="outline" onClick={() => setShowBulkWhatsApp(false)} data-testid="button-close-bulk">
               Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showExportDialog} onOpenChange={(open) => {
+        setShowExportDialog(open);
+        if (!open) {
+          setExportStatus("all");
+          setExportBrand("all");
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              Export Orders
+            </DialogTitle>
+            <DialogDescription>
+              Choose which orders to export to Excel.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Status</label>
+              <Select value={exportStatus} onValueChange={setExportStatus}>
+                <SelectTrigger data-testid="select-export-status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Created">Created</SelectItem>
+                  <SelectItem value="Approved">Approved</SelectItem>
+                  <SelectItem value="Invoiced">Invoiced</SelectItem>
+                  <SelectItem value="Dispatched">Dispatched</SelectItem>
+                  <SelectItem value="Delivered">Delivered</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Brand</label>
+              <Select value={exportBrand} onValueChange={setExportBrand}>
+                <SelectTrigger data-testid="select-export-brand">
+                  <SelectValue placeholder="Select brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {BRANDS.map((brand) => (
+                    <SelectItem key={brand} value={brand}>
+                      {brand}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+              <p>
+                {exportStatus === "all" && exportBrand === "all" 
+                  ? `Will export all ${allOrders.length} orders`
+                  : `Will export ${allOrders.filter(o => 
+                      (exportStatus === "all" || o.status === exportStatus) &&
+                      (exportBrand === "all" || o.brand === exportBrand)
+                    ).length} orders`
+                }
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowExportDialog(false)} data-testid="button-cancel-export">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleExportOrders}
+              disabled={isExporting}
+              data-testid="button-confirm-export"
+            >
+              {isExporting ? "Exporting..." : "Export"}
             </Button>
           </div>
         </DialogContent>
