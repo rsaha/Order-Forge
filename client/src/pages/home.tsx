@@ -805,6 +805,7 @@ export default function Home() {
                               <th className="p-3 text-left font-medium">Name</th>
                               <th className="p-3 text-left font-medium">Brand</th>
                               <th className="p-3 text-left font-medium">Size</th>
+                              <th className="p-3 text-right font-medium">PTS</th>
                               <th className="p-3 text-right font-medium">MRP</th>
                               <th className="p-3 text-center font-medium">Actions</th>
                             </tr>
@@ -828,6 +829,9 @@ export default function Home() {
                                 </td>
                                 <td className="p-3" data-testid={`text-size-${product.id}`}>
                                   {product.size || "-"}
+                                </td>
+                                <td className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
+                                  {product.distributorPrice ? formatINR(Number(product.distributorPrice)) : "-"}
                                 </td>
                                 <td className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
                                   {formatINR(Number(product.price))}
