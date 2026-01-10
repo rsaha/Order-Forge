@@ -2363,5 +2363,143 @@ export async function registerRoutes(
     }
   });
 
+  // API Key authentication middleware for external agent endpoints
+  const validateApiKey = (req: any, res: any, next: any) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+    const validApiKey = process.env.CASHDESK_API_KEY;
+    
+    if (!validApiKey) {
+      console.error("CASHDESK_API_KEY not configured");
+      return res.status(500).json({ message: "API key not configured on server" });
+    }
+    
+    if (!apiKey || apiKey !== validApiKey) {
+      return res.status(401).json({ message: "Invalid or missing API key" });
+    }
+    
+    next();
+  };
+
+  // Get Dispatch Summary - Returns orders dispatched on a given date
+  app.get('/api/dispatch/summary', validateApiKey, async (req: any, res) => {
+    try {
+      const { date } = req.query;
+      
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Valid date parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const targetDate = new Date(date);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      
+      // Get all orders with Dispatched status
+      const allOrders = await storage.getAllOrders({ status: 'Dispatched' });
+      
+      // Filter orders dispatched on the target date
+      const dispatchedOrders = allOrders.filter(order => {
+        if (!order.dispatchDate) return false;
+        const dispatchDate = new Date(order.dispatchDate);
+        return dispatchDate >= targetDate && dispatchDate < nextDate;
+      });
+      
+      // Get order items for each order
+      const summary = await Promise.all(dispatchedOrders.map(async (order) => {
+        const items = await storage.getOrderItems(order.id);
+        return {
+          orderId: order.id,
+          partyName: order.partyName,
+          brand: order.brand,
+          invoiceNumber: order.invoiceNumber,
+          invoiceDate: order.invoiceDate,
+          dispatchDate: order.dispatchDate,
+          dispatchBy: order.dispatchBy,
+          cases: order.cases,
+          deliveryCompany: order.deliveryCompany,
+          estimatedDeliveryDate: order.estimatedDeliveryDate,
+          deliveryAddress: order.deliveryAddress,
+          orderValue: order.actualOrderValue || order.total,
+          itemCount: items.length,
+          totalQuantity: items.reduce((sum, item) => sum + item.quantity + item.freeQuantity, 0),
+        };
+      }));
+      
+      res.json({
+        date,
+        count: summary.length,
+        orders: summary,
+      });
+    } catch (error: any) {
+      console.error("Error getting dispatch summary:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get Delivery Summary - Returns orders delivered on a given date
+  app.get('/api/delivery/summary', validateApiKey, async (req: any, res) => {
+    try {
+      const { date } = req.query;
+      
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Valid date parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const targetDate = new Date(date);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      
+      // Get all orders with Delivered status
+      const allOrders = await storage.getAllOrders({ status: 'Delivered' });
+      
+      // Filter orders delivered on the target date
+      const deliveredOrders = allOrders.filter(order => {
+        if (!order.actualDeliveryDate) return false;
+        const deliveryDate = new Date(order.actualDeliveryDate);
+        return deliveryDate >= targetDate && deliveryDate < nextDate;
+      });
+      
+      // Get order items for each order
+      const summary = await Promise.all(deliveredOrders.map(async (order) => {
+        const items = await storage.getOrderItems(order.id);
+        
+        // Calculate if delivered on time
+        let onTime = order.deliveredOnTime;
+        if (onTime === null && order.estimatedDeliveryDate && order.actualDeliveryDate) {
+          onTime = new Date(order.actualDeliveryDate) <= new Date(order.estimatedDeliveryDate);
+        }
+        
+        return {
+          orderId: order.id,
+          partyName: order.partyName,
+          brand: order.brand,
+          invoiceNumber: order.invoiceNumber,
+          deliveryCompany: order.deliveryCompany,
+          estimatedDeliveryDate: order.estimatedDeliveryDate,
+          actualDeliveryDate: order.actualDeliveryDate,
+          deliveredOnTime: onTime,
+          deliveryAddress: order.deliveryAddress,
+          deliveryNote: order.deliveryNote,
+          orderValue: order.actualOrderValue || order.total,
+          itemCount: items.length,
+          totalQuantity: items.reduce((sum, item) => sum + item.quantity + item.freeQuantity, 0),
+        };
+      }));
+      
+      // Calculate summary stats
+      const onTimeCount = summary.filter(o => o.deliveredOnTime === true).length;
+      
+      res.json({
+        date,
+        count: summary.length,
+        onTimeCount,
+        onTimePercentage: summary.length > 0 ? Math.round((onTimeCount / summary.length) * 100) : 0,
+        orders: summary,
+      });
+    } catch (error: any) {
+      console.error("Error getting delivery summary:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
