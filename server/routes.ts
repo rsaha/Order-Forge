@@ -2381,9 +2381,10 @@ export async function registerRoutes(
   };
 
   // Get Dispatch Summary - Returns orders dispatched on a given date
+  // Optional brand filter (case-insensitive partial match)
   app.get('/api/dispatch/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { date } = req.query;
+      const { date, brand } = req.query;
       
       if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ message: "Valid date parameter required (format: YYYY-MM-DD)" });
@@ -2396,11 +2397,19 @@ export async function registerRoutes(
       // Get all orders with Dispatched status
       const allOrders = await storage.getAllOrders({ status: 'Dispatched' });
       
-      // Filter orders dispatched on the target date
+      // Filter orders dispatched on the target date and optionally by brand
       const dispatchedOrders = allOrders.filter(order => {
         if (!order.dispatchDate) return false;
         const dispatchDate = new Date(order.dispatchDate);
-        return dispatchDate >= targetDate && dispatchDate < nextDate;
+        const dateMatch = dispatchDate >= targetDate && dispatchDate < nextDate;
+        if (!dateMatch) return false;
+        
+        // Apply brand filter if provided (case-insensitive partial match)
+        if (brand) {
+          const brandFilter = String(brand).toLowerCase();
+          return order.brand?.toLowerCase().includes(brandFilter);
+        }
+        return true;
       });
       
       // Get order items for each order
@@ -2436,9 +2445,10 @@ export async function registerRoutes(
   });
 
   // Get Delivery Summary - Returns orders delivered on a given date
+  // Optional brand filter (case-insensitive partial match)
   app.get('/api/delivery/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { date } = req.query;
+      const { date, brand } = req.query;
       
       if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ message: "Valid date parameter required (format: YYYY-MM-DD)" });
@@ -2451,11 +2461,19 @@ export async function registerRoutes(
       // Get all orders with Delivered status
       const allOrders = await storage.getAllOrders({ status: 'Delivered' });
       
-      // Filter orders delivered on the target date
+      // Filter orders delivered on the target date and optionally by brand
       const deliveredOrders = allOrders.filter(order => {
         if (!order.actualDeliveryDate) return false;
         const deliveryDate = new Date(order.actualDeliveryDate);
-        return deliveryDate >= targetDate && deliveryDate < nextDate;
+        const dateMatch = deliveryDate >= targetDate && deliveryDate < nextDate;
+        if (!dateMatch) return false;
+        
+        // Apply brand filter if provided (case-insensitive partial match)
+        if (brand) {
+          const brandFilter = String(brand).toLowerCase();
+          return order.brand?.toLowerCase().includes(brandFilter);
+        }
+        return true;
       });
       
       // Get order items for each order
