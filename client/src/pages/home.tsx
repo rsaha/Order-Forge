@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
@@ -61,6 +61,39 @@ interface UploadedFile {
   productCount: number;
 }
 
+interface StoredCartItem {
+  productId: string;
+  quantity: number;
+  freeQuantity: number;
+}
+
+const CART_STORAGE_KEY = "order_entry_cart";
+
+function saveCartToStorage(cart: CartItemData[]): void {
+  try {
+    const storedItems: StoredCartItem[] = cart.map(item => ({
+      productId: item.product.id,
+      quantity: item.quantity,
+      freeQuantity: item.freeQuantity,
+    }));
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(storedItems));
+  } catch (e) {
+    console.warn("Failed to save cart to localStorage:", e);
+  }
+}
+
+function loadCartFromStorage(): StoredCartItem[] {
+  try {
+    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn("Failed to load cart from localStorage:", e);
+  }
+  return [];
+}
+
 export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -116,6 +149,7 @@ export default function Home() {
   
   const isAdmin = user?.isAdmin === true;
   const isCustomer = user?.role === "Customer";
+  const cartRestoredRef = useRef(false);
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -141,6 +175,62 @@ export default function Home() {
       setOrderDetails(prev => ({ ...prev, partyName: user.partyName || "" }));
     }
   }, [isCustomer, user?.partyName, orderDetails.partyName]);
+
+  // Restore cart from localStorage when products are loaded (only once)
+  useEffect(() => {
+    if (orderProducts.length > 0 && !cartRestoredRef.current) {
+      const storedItems = loadCartFromStorage();
+      if (storedItems.length > 0) {
+        const productMap = new Map(orderProducts.map(p => [p.id, p]));
+        const restoredCart: CartItemData[] = [];
+        let droppedCount = 0;
+        
+        for (const stored of storedItems) {
+          const product = productMap.get(stored.productId);
+          if (product) {
+            restoredCart.push({
+              product: {
+                id: product.id,
+                sku: product.sku,
+                name: product.name,
+                brand: product.brand,
+                price: Number(product.price),
+                distributorPrice: product.distributorPrice ? Number(product.distributorPrice) : undefined,
+                stock: product.stock || 0,
+              },
+              quantity: stored.quantity,
+              freeQuantity: stored.freeQuantity,
+            });
+          } else {
+            droppedCount++;
+          }
+        }
+        
+        if (restoredCart.length > 0) {
+          setCart(restoredCart);
+          if (droppedCount > 0) {
+            toast({
+              title: "Cart restored",
+              description: `${restoredCart.length} items restored. ${droppedCount} items were removed (products no longer available).`,
+            });
+          }
+        } else if (droppedCount > 0) {
+          toast({
+            title: "Cart cleared",
+            description: `${droppedCount} items were removed (products no longer available).`,
+            variant: "destructive",
+          });
+          localStorage.removeItem(CART_STORAGE_KEY);
+        }
+      }
+      cartRestoredRef.current = true;
+    }
+  }, [orderProducts, toast]);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    saveCartToStorage(cart);
+  }, [cart]);
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
