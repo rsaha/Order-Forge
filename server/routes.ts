@@ -2380,28 +2380,36 @@ export async function registerRoutes(
     next();
   };
 
-  // Get Dispatch Summary - Returns orders dispatched on a given date
-  // Optional brand filter (case-insensitive partial match)
+  // Get Dispatch Summary - Returns orders dispatched within a date range
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  // Optional: brand filter (case-insensitive partial match)
   app.get('/api/dispatch/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { date, brand } = req.query;
+      const { startDate, endDate, brand } = req.query;
       
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return res.status(400).json({ message: "Valid date parameter required (format: YYYY-MM-DD)" });
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
       }
       
-      const targetDate = new Date(date);
-      const nextDate = new Date(targetDate);
-      nextDate.setDate(nextDate.getDate() + 1);
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
       
       // Get all orders with Dispatched status
       const allOrders = await storage.getAllOrders({ status: 'Dispatched' });
       
-      // Filter orders dispatched on the target date and optionally by brand
+      // Filter orders dispatched within the date range and optionally by brand
       const dispatchedOrders = allOrders.filter(order => {
         if (!order.dispatchDate) return false;
         const dispatchDate = new Date(order.dispatchDate);
-        const dateMatch = dispatchDate >= targetDate && dispatchDate < nextDate;
+        const dateMatch = dispatchDate >= rangeStart && dispatchDate < rangeEnd;
         if (!dateMatch) return false;
         
         // Apply brand filter if provided (case-insensitive partial match)
@@ -2434,7 +2442,8 @@ export async function registerRoutes(
       }));
       
       res.json({
-        date,
+        startDate,
+        endDate,
         count: summary.length,
         orders: summary,
       });
@@ -2444,28 +2453,36 @@ export async function registerRoutes(
     }
   });
 
-  // Get Delivery Summary - Returns orders delivered on a given date
-  // Optional brand filter (case-insensitive partial match)
+  // Get Delivery Summary - Returns orders delivered within a date range
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  // Optional: brand filter (case-insensitive partial match)
   app.get('/api/delivery/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { date, brand } = req.query;
+      const { startDate, endDate, brand } = req.query;
       
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return res.status(400).json({ message: "Valid date parameter required (format: YYYY-MM-DD)" });
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
       }
       
-      const targetDate = new Date(date);
-      const nextDate = new Date(targetDate);
-      nextDate.setDate(nextDate.getDate() + 1);
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
       
       // Get all orders with Delivered status
       const allOrders = await storage.getAllOrders({ status: 'Delivered' });
       
-      // Filter orders delivered on the target date and optionally by brand
+      // Filter orders delivered within the date range and optionally by brand
       const deliveredOrders = allOrders.filter(order => {
         if (!order.actualDeliveryDate) return false;
         const deliveryDate = new Date(order.actualDeliveryDate);
-        const dateMatch = deliveryDate >= targetDate && deliveryDate < nextDate;
+        const dateMatch = deliveryDate >= rangeStart && deliveryDate < rangeEnd;
         if (!dateMatch) return false;
         
         // Apply brand filter if provided (case-insensitive partial match)
@@ -2507,7 +2524,8 @@ export async function registerRoutes(
       const onTimeCount = summary.filter(o => o.deliveredOnTime === true).length;
       
       res.json({
-        date,
+        startDate,
+        endDate,
         count: summary.length,
         onTimeCount,
         onTimePercentage: summary.length > 0 ? Math.round((onTimeCount / summary.length) * 100) : 0,
@@ -2515,6 +2533,95 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       console.error("Error getting delivery summary:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get Created Orders Summary - Returns orders created within a date range
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  // Optional: brand filter (case-insensitive partial match)
+  app.get('/api/created/summary', validateApiKey, async (req: any, res) => {
+    try {
+      const { startDate, endDate, brand } = req.query;
+      
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
+      
+      // Get all orders (any status)
+      const allOrders = await storage.getAllOrders({});
+      
+      // Filter orders created within the date range and optionally by brand
+      const createdOrders = allOrders.filter(order => {
+        if (!order.createdAt) return false;
+        const createdDate = new Date(order.createdAt);
+        const dateMatch = createdDate >= rangeStart && createdDate < rangeEnd;
+        if (!dateMatch) return false;
+        
+        // Apply brand filter if provided (case-insensitive partial match)
+        if (brand) {
+          const brandFilter = String(brand).toLowerCase();
+          return order.brand?.toLowerCase().includes(brandFilter);
+        }
+        return true;
+      });
+      
+      // Get order items for each order
+      const summary = await Promise.all(createdOrders.map(async (order) => {
+        const items = await storage.getOrderItems(order.id);
+        // Get user who created the order
+        const user = await storage.getUser(order.userId);
+        return {
+          orderId: order.id,
+          partyName: order.partyName,
+          brand: order.brand,
+          status: order.status,
+          createdAt: order.createdAt,
+          createdBy: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.id || 'Unknown',
+          deliveryCompany: order.deliveryCompany,
+          deliveryNote: order.deliveryNote,
+          specialNotes: order.specialNotes,
+          orderValue: order.total,
+          itemCount: items.length,
+          totalQuantity: items.reduce((sum, item) => sum + item.quantity + item.freeQuantity, 0),
+          items: items.map(item => ({
+            productName: item.productName,
+            size: item.size,
+            quantity: item.quantity,
+            freeQuantity: item.freeQuantity,
+            unitPrice: item.unitPrice,
+          })),
+        };
+      }));
+      
+      // Calculate summary stats by status
+      const statusCounts: Record<string, number> = {};
+      const totalValue = summary.reduce((sum, order) => {
+        statusCounts[order.status] = (statusCounts[order.status] || 0) + 1;
+        return sum + Number(order.orderValue || 0);
+      }, 0);
+      
+      res.json({
+        startDate,
+        endDate,
+        count: summary.length,
+        totalValue,
+        statusCounts,
+        orders: summary,
+      });
+    } catch (error: any) {
+      console.error("Error getting created orders summary:", error);
       res.status(500).json({ message: error.message });
     }
   });

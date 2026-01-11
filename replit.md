@@ -166,3 +166,37 @@ Different information is shown depending on the status tab:
 
 ### WhatsApp Sharing
 Click the message icon on any order to generate and share order details via WhatsApp. The message format changes based on order status.
+
+## External API Endpoints
+
+External API endpoints for integration with external agents and systems. All endpoints require API key authentication via `X-API-KEY` header or `Authorization: Bearer <key>` header.
+
+### GET /api/created/summary
+Returns orders created within a date range with full order details including items.
+
+**Parameters:**
+- `startDate` (required): Start date in YYYY-MM-DD format
+- `endDate` (required): End date in YYYY-MM-DD format
+- `brand` (optional): Case-insensitive partial match filter for brand name
+
+**Response:** Order count, total value, status breakdown, and detailed order list with items.
+
+### GET /api/dispatch/summary
+Returns orders dispatched within a date range.
+
+**Parameters:**
+- `startDate` (required): Start date in YYYY-MM-DD format
+- `endDate` (required): End date in YYYY-MM-DD format
+- `brand` (optional): Case-insensitive partial match filter for brand name
+
+**Response:** Order count and list of dispatched orders with invoice and dispatch details.
+
+### GET /api/delivery/summary
+Returns orders delivered within a date range with on-time delivery statistics.
+
+**Parameters:**
+- `startDate` (required): Start date in YYYY-MM-DD format
+- `endDate` (required): End date in YYYY-MM-DD format
+- `brand` (optional): Case-insensitive partial match filter for brand name
+
+**Response:** Order count, on-time delivery count/percentage, and list of delivered orders.
