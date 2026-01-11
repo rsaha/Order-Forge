@@ -2626,5 +2626,119 @@ export async function registerRoutes(
     }
   });
 
+  // Get All Orders Summary - Returns all orders within a date range across all statuses
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  // Optional: brand filter (case-insensitive partial match)
+  app.get('/api/summary', validateApiKey, async (req: any, res) => {
+    try {
+      const { startDate, endDate, brand } = req.query;
+      
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
+      
+      // Get all orders
+      const allOrders = await storage.getAllOrders({});
+      
+      // Filter orders created within the date range and optionally by brand
+      const filteredOrders = allOrders.filter(order => {
+        if (!order.createdAt) return false;
+        const createdDate = new Date(order.createdAt);
+        const dateMatch = createdDate >= rangeStart && createdDate < rangeEnd;
+        if (!dateMatch) return false;
+        
+        // Apply brand filter if provided (case-insensitive partial match)
+        if (brand) {
+          const brandFilter = String(brand).toLowerCase();
+          return order.brand?.toLowerCase().includes(brandFilter);
+        }
+        return true;
+      });
+      
+      // Group orders by status
+      const ordersByStatus: Record<string, any[]> = {};
+      
+      // Process each order
+      await Promise.all(filteredOrders.map(async (order) => {
+        const items = await storage.getOrderItems(order.id);
+        const user = await storage.getUser(order.userId);
+        
+        const orderData = {
+          orderId: order.id,
+          partyName: order.partyName,
+          brand: order.brand,
+          status: order.status,
+          createdAt: order.createdAt,
+          createdBy: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.id || 'Unknown',
+          approvedBy: order.approvedBy,
+          approvedAt: order.approvedAt,
+          invoiceNumber: order.invoiceNumber,
+          invoiceDate: order.invoiceDate,
+          dispatchDate: order.dispatchDate,
+          dispatchBy: order.dispatchBy,
+          cases: order.cases,
+          deliveryCompany: order.deliveryCompany,
+          estimatedDeliveryDate: order.estimatedDeliveryDate,
+          actualDeliveryDate: order.actualDeliveryDate,
+          deliveryNote: order.deliveryNote,
+          specialNotes: order.specialNotes,
+          orderValue: order.actualOrderValue || order.total,
+          itemCount: items.length,
+          totalQuantity: items.reduce((sum, item) => sum + item.quantity + item.freeQuantity, 0),
+          items: items.map(item => ({
+            productName: item.productName,
+            size: item.size,
+            quantity: item.quantity,
+            freeQuantity: item.freeQuantity,
+            unitPrice: item.unitPrice,
+          })),
+        };
+        
+        const status = order.status || 'Unknown';
+        if (!ordersByStatus[status]) {
+          ordersByStatus[status] = [];
+        }
+        ordersByStatus[status].push(orderData);
+      }));
+      
+      // Calculate summary stats
+      const statusCounts: Record<string, number> = {};
+      const statusValues: Record<string, number> = {};
+      let totalValue = 0;
+      
+      Object.entries(ordersByStatus).forEach(([status, orders]) => {
+        statusCounts[status] = orders.length;
+        const statusTotal = orders.reduce((sum, order) => sum + Number(order.orderValue || 0), 0);
+        statusValues[status] = statusTotal;
+        totalValue += statusTotal;
+      });
+      
+      res.json({
+        startDate,
+        endDate,
+        brand: brand || null,
+        totalOrders: filteredOrders.length,
+        totalValue,
+        statusCounts,
+        statusValues,
+        ordersByStatus,
+      });
+    } catch (error: any) {
+      console.error("Error getting orders summary:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }

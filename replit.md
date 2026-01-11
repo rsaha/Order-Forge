@@ -171,6 +171,16 @@ Click the message icon on any order to generate and share order details via What
 
 External API endpoints for integration with external agents and systems. All endpoints require API key authentication via `X-API-KEY` header or `Authorization: Bearer <key>` header.
 
+### GET /api/summary
+Returns all orders across all statuses within a date range, grouped by status.
+
+**Parameters:**
+- `startDate` (required): Start date in YYYY-MM-DD format
+- `endDate` (required): End date in YYYY-MM-DD format
+- `brand` (optional): Case-insensitive partial match filter for brand name
+
+**Response:** Total order count, total value, status counts, status values, and orders grouped by status with full details including items.
+
 ### GET /api/created/summary
 Returns orders created within a date range with full order details including items.
 
