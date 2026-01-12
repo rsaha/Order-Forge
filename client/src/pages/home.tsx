@@ -154,17 +154,23 @@ export default function Home() {
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes - products don't change often
+    refetchOnWindowFocus: false,
   });
 
   const { data: orderProducts = [] } = useQuery<Product[]>({
     queryKey: ["/api/products/by-brand"],
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes - products don't change often
+    refetchOnWindowFocus: false,
   });
   
   // Fetch delivery company access for Customer role
   const { data: deliveryCompanyAccess } = useQuery<{ deliveryCompanies: string[] }>({
     queryKey: ["/api/users", user?.id, "delivery-company-access"],
     enabled: isCustomer && !!user?.id,
+    staleTime: 10 * 60 * 1000, // 10 minutes - rarely changes
+    refetchOnWindowFocus: false,
   });
   
   const allowedDeliveryCompanies = isCustomer ? deliveryCompanyAccess?.deliveryCompanies : undefined;

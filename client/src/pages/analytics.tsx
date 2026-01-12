@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
@@ -207,11 +207,46 @@ export default function AnalyticsPage() {
       return res.json();
     },
     enabled: canViewAnalytics,
+    staleTime: 2 * 60 * 1000, // 2 minutes - analytics data is read-only
+    refetchOnWindowFocus: false,
   });
 
   const { data: brands = [] } = useQuery<BrandRecord[]>({
     queryKey: ["/api/brands"],
+    staleTime: 10 * 60 * 1000, // 10 minutes - brands rarely change
+    refetchOnWindowFocus: false,
   });
+
+  // Format chart date helper - must be before early returns
+  const formatChartDate = useCallback((dateStr: string, bucketType?: string) => {
+    try {
+      const date = parseISO(dateStr);
+      if (bucketType === 'monthly') {
+        return format(date, 'MMM yyyy');
+      } else if (bucketType === 'weekly') {
+        return format(date, 'MMM d');
+      }
+      return format(date, 'MMM d');
+    } catch {
+      return dateStr;
+    }
+  }, []);
+
+  // Memoize chart data transformation to avoid recalculating on every render
+  const chartData = useMemo(() => {
+    if (!analytics?.timeSeries) return [];
+    return analytics.timeSeries.map(bucket => ({
+      date: formatChartDate(bucket.date, analytics.bucketType),
+      Created: bucket.created.count,
+      Invoiced: bucket.invoiced.count,
+      Dispatched: bucket.dispatched.count,
+      Delivered: bucket.delivered.count,
+      InvoicedValue: bucket.invoiced.value,
+      DispatchedValue: bucket.dispatched.value,
+      DeliveredValue: bucket.delivered.value,
+      OnTimeRate: bucket.deliveredCount > 0 ? Math.round((bucket.onTimeCount / bucket.deliveredCount) * 100) : null,
+    }));
+  }, [analytics?.timeSeries, analytics?.bucketType, formatChartDate]);
 
   if (authLoading) {
     return (
@@ -229,32 +264,6 @@ export default function AnalyticsPage() {
       </div>
     );
   }
-
-  const formatChartDate = (dateStr: string) => {
-    try {
-      const date = parseISO(dateStr);
-      if (analytics?.bucketType === 'monthly') {
-        return format(date, 'MMM yyyy');
-      } else if (analytics?.bucketType === 'weekly') {
-        return format(date, 'MMM d');
-      }
-      return format(date, 'MMM d');
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const chartData = analytics?.timeSeries.map(bucket => ({
-    date: formatChartDate(bucket.date),
-    Created: bucket.created.count,
-    Invoiced: bucket.invoiced.count,
-    Dispatched: bucket.dispatched.count,
-    Delivered: bucket.delivered.count,
-    InvoicedValue: bucket.invoiced.value,
-    DispatchedValue: bucket.dispatched.value,
-    DeliveredValue: bucket.delivered.value,
-    OnTimeRate: bucket.deliveredCount > 0 ? Math.round((bucket.onTimeCount / bucket.deliveredCount) * 100) : null,
-  })) || [];
 
   return (
     <div className="min-h-screen bg-background">

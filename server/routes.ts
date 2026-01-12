@@ -6,8 +6,45 @@ import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBran
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
+import memoize from "memoizee";
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+// In-memory cache for analytics with 2-minute TTL
+// Cache stores results by filter key, but passes original filters to preserve Date types
+const analyticsCache = new Map<string, { data: any; timestamp: number }>();
+const ANALYTICS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+async function getCachedAnalytics(filters: any): Promise<any> {
+  // Create a stable cache key from filters
+  const cacheKey = JSON.stringify({
+    fromDate: filters.fromDate?.toISOString(),
+    toDate: filters.toDate?.toISOString(),
+    brand: filters.brand,
+  });
+  
+  const cached = analyticsCache.get(cacheKey);
+  const now = Date.now();
+  
+  if (cached && (now - cached.timestamp) < ANALYTICS_CACHE_TTL) {
+    return cached.data;
+  }
+  
+  // Fetch fresh data - filters still have proper Date objects
+  const data = await storage.getOrderAnalytics(filters);
+  analyticsCache.set(cacheKey, { data, timestamp: now });
+  
+  // Clean up old cache entries periodically
+  if (analyticsCache.size > 100) {
+    for (const [key, value] of analyticsCache.entries()) {
+      if (now - value.timestamp > ANALYTICS_CACHE_TTL) {
+        analyticsCache.delete(key);
+      }
+    }
+  }
+  
+  return data;
+}
 
 // Fuzzy matching utilities
 function levenshteinDistance(a: string, b: string): number {
@@ -906,7 +943,8 @@ export async function registerRoutes(
         }
       }
       
-      const analytics = await storage.getOrderAnalytics(filters);
+      // Use cached analytics to reduce DB calls (2-min TTL)
+      const analytics = await getCachedAnalytics(filters);
       res.json(analytics);
     } catch (error) {
       console.error("Error fetching order analytics:", error);
