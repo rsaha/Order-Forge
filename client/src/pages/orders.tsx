@@ -307,6 +307,8 @@ export default function OrdersPage() {
       }
     },
     enabled: !!user,
+    staleTime: 2 * 60 * 1000, // 2 minutes - orders are read-mostly
+    refetchOnWindowFocus: false,
   });
 
   // Filter orders by current status tab
@@ -335,6 +337,8 @@ export default function OrdersPage() {
       return res.json();
     },
     enabled: !!user && hasAdminAccess && showBulkWhatsApp,
+    staleTime: 1 * 60 * 1000, // 1 minute for bulk summary
+    refetchOnWindowFocus: false,
   });
 
   const updateMutation = useMutation({
@@ -371,6 +375,8 @@ export default function OrdersPage() {
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["/api/products/by-brand"],
     enabled: !!user && showAddItems,
+    staleTime: 5 * 60 * 1000, // 5 minutes - products rarely change
+    refetchOnWindowFocus: false,
   });
 
   const addItemsMutation = useMutation({
