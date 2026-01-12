@@ -307,7 +307,8 @@ export default function OrdersPage() {
       }
     },
     enabled: !!user,
-    staleTime: 2 * 60 * 1000, // 2 minutes - orders are read-mostly
+    // Role-based caching: Regular Users get longer cache (read-only), Admins get shorter cache
+    staleTime: hasAdminAccess ? 2 * 60 * 1000 : 5 * 60 * 1000, // Admin: 2 min, User: 5 min
     refetchOnWindowFocus: false,
   });
 
