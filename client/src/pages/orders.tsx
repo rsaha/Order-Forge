@@ -307,8 +307,7 @@ export default function OrdersPage() {
       }
     },
     enabled: !!user,
-    // Role-based caching: Regular Users get longer cache (read-only), Admins get shorter cache
-    staleTime: hasAdminAccess ? 2 * 60 * 1000 : 5 * 60 * 1000, // Admin: 2 min, User: 5 min
+    staleTime: 2 * 60 * 1000, // 2 minutes - all users can modify Created orders
     refetchOnWindowFocus: false,
   });
 
@@ -365,6 +364,7 @@ export default function OrdersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       toast({ title: "Order updated successfully" });
       setSelectedOrder(null);
     },
