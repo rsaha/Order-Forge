@@ -36,7 +36,8 @@ async function getCachedAnalytics(filters: any): Promise<any> {
   
   // Clean up old cache entries periodically
   if (analyticsCache.size > 100) {
-    for (const [key, value] of analyticsCache.entries()) {
+    const entries = Array.from(analyticsCache.entries());
+    for (const [key, value] of entries) {
       if (now - value.timestamp > ANALYTICS_CACHE_TTL) {
         analyticsCache.delete(key);
       }
