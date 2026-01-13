@@ -203,6 +203,7 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus>("Created");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("today");
   const [showBulkWhatsApp, setShowBulkWhatsApp] = useState(false);
   const [bulkType, setBulkType] = useState<"dispatched" | "delivered">("dispatched");
@@ -324,8 +325,20 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
-  // Filter orders by current status tab
-  const orders = allOrders.filter(o => o.status === statusFilter);
+  // Filter orders by search query across all statuses, or by current status tab
+  const orders = useMemo(() => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      return allOrders.filter(o => {
+        const partyMatch = o.partyName?.toLowerCase().includes(query);
+        const invoiceMatch = o.invoiceNumber?.toLowerCase().includes(query);
+        const createdByName = (o as any).createdByName?.toLowerCase().includes(query);
+        const createdByEmail = (o as any).createdByEmail?.toLowerCase().includes(query);
+        return partyMatch || invoiceMatch || createdByName || createdByEmail;
+      });
+    }
+    return allOrders.filter(o => o.status === statusFilter);
+  }, [allOrders, searchQuery, statusFilter]);
   
   // Count orders by status for tab badges
   const statusCounts: Record<OrderStatus, number> = {
@@ -998,6 +1011,27 @@ export default function OrdersPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-48 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by party, user, invoice..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9"
+              data-testid="input-search-orders"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => setSearchQuery("")}
+                data-testid="button-clear-search"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
           <Filter className="w-4 h-4 text-muted-foreground" />
           <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "today" | "all")}>
             <SelectTrigger className="w-28" data-testid="select-date-filter">
@@ -1081,8 +1115,21 @@ export default function OrdersPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 border-b">
+                    {/* Search Results Headers */}
+                    {searchQuery.trim() && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
+                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
                     {/* Created Tab Headers */}
-                    {statusFilter === "Created" && (
+                    {!searchQuery.trim() && statusFilter === "Created" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -1094,7 +1141,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* Approved Tab Headers */}
-                    {statusFilter === "Approved" && (
+                    {!searchQuery.trim() && statusFilter === "Approved" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -1108,7 +1155,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* Invoiced Tab Headers */}
-                    {statusFilter === "Invoiced" && (
+                    {!searchQuery.trim() && statusFilter === "Invoiced" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -1123,7 +1170,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* Pending Tab Headers */}
-                    {statusFilter === "Pending" && (
+                    {!searchQuery.trim() && statusFilter === "Pending" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
@@ -1135,7 +1182,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* Dispatched Tab Headers */}
-                    {statusFilter === "Dispatched" && (
+                    {!searchQuery.trim() && statusFilter === "Dispatched" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -1151,7 +1198,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* Delivered Tab Headers */}
-                    {statusFilter === "Delivered" && (
+                    {!searchQuery.trim() && statusFilter === "Delivered" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -1167,7 +1214,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* PODReceived Tab Headers */}
-                    {statusFilter === "PODReceived" && (
+                    {!searchQuery.trim() && statusFilter === "PODReceived" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
@@ -1179,7 +1226,7 @@ export default function OrdersPage() {
                       </tr>
                     )}
                     {/* Cancelled Tab Headers */}
-                    {statusFilter === "Cancelled" && (
+                    {!searchQuery.trim() && statusFilter === "Cancelled" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
@@ -1198,8 +1245,27 @@ export default function OrdersPage() {
                         onClick={() => handleOrderClick(order)}
                         data-testid={`row-order-${order.id}`}
                       >
+                        {/* Search Results Cells */}
+                        {searchQuery.trim() && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2">
+                              <Badge className={statusColors[order.status as OrderStatus]}>
+                                {order.status === "PODReceived" ? "POD" : order.status}
+                              </Badge>
+                            </td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                            </td>
+                          </>
+                        )}
                         {/* Created Tab Cells */}
-                        {statusFilter === "Created" && (
+                        {!searchQuery.trim() && statusFilter === "Created" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
@@ -1228,7 +1294,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* Approved Tab Cells */}
-                        {statusFilter === "Approved" && (
+                        {!searchQuery.trim() && statusFilter === "Approved" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
@@ -1258,7 +1324,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* Invoiced Tab Cells */}
-                        {statusFilter === "Invoiced" && (
+                        {!searchQuery.trim() && statusFilter === "Invoiced" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
@@ -1300,7 +1366,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* Pending Tab Cells */}
-                        {statusFilter === "Pending" && (
+                        {!searchQuery.trim() && statusFilter === "Pending" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
@@ -1317,7 +1383,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* Dispatched Tab Cells */}
-                        {statusFilter === "Dispatched" && (
+                        {!searchQuery.trim() && statusFilter === "Dispatched" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
@@ -1338,7 +1404,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* Delivered Tab Cells */}
-                        {statusFilter === "Delivered" && (
+                        {!searchQuery.trim() && statusFilter === "Delivered" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
@@ -1376,7 +1442,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* PODReceived Tab Cells */}
-                        {statusFilter === "PODReceived" && (
+                        {!searchQuery.trim() && statusFilter === "PODReceived" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
@@ -1393,7 +1459,7 @@ export default function OrdersPage() {
                           </>
                         )}
                         {/* Cancelled Tab Cells */}
-                        {statusFilter === "Cancelled" && (
+                        {!searchQuery.trim() && statusFilter === "Cancelled" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
