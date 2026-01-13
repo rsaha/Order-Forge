@@ -62,7 +62,7 @@ export const products = pgTable("products", {
 });
 
 // Order status values
-export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered", "PODReceived", "Cancelled"] as const;
+export const ORDER_STATUSES = ["Created", "Approved", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
 // POD (Proof of Delivery) status values

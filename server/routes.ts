@@ -1205,8 +1205,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      if (order.status !== 'Approved') {
-        return res.status(400).json({ message: "Can only create pending orders from Approved orders" });
+      if (!['Created', 'Approved'].includes(order.status)) {
+        return res.status(400).json({ message: "Can only create pending orders from Created or Approved orders" });
       }
 
       // Check brand access for BrandAdmin
@@ -1217,7 +1217,7 @@ export async function registerRoutes(
         }
       }
 
-      const result = await storage.createPendingOrderFromApproved(order.id, userId);
+      const result = await storage.createPendingOrder(order.id, userId);
       if (!result) {
         return res.status(400).json({ message: "No out-of-stock items found. All items have sufficient stock." });
       }
@@ -1233,7 +1233,7 @@ export async function registerRoutes(
     }
   });
 
-  // Add items to an existing order (only when status is Created or Approved)
+  // Add items to an existing order (only when status is Created, Approved, or Pending)
   app.post('/api/orders/:id/items', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1245,10 +1245,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created or Approved status)
-      if (!['Created', 'Approved'].includes(order.status)) {
+      // Check if order is editable (Created, Approved, or Pending status)
+      if (!['Created', 'Approved', 'Pending'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created or Approved orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only Created, Approved, or Pending orders can be modified.` 
         });
       }
 
@@ -1313,7 +1313,7 @@ export async function registerRoutes(
     }
   });
 
-  // Update an order item (quantity/freeQuantity) - only when status is Created or Approved
+  // Update an order item (quantity/freeQuantity) - only when status is Created, Approved, or Pending
   app.patch('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1326,10 +1326,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created or Approved status)
-      if (!['Created', 'Approved'].includes(order.status)) {
+      // Check if order is editable (Created, Approved, or Pending status)
+      if (!['Created', 'Approved', 'Pending'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created or Approved orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only Created, Approved, or Pending orders can be modified.` 
         });
       }
 
@@ -1373,7 +1373,7 @@ export async function registerRoutes(
     }
   });
 
-  // Delete an order item - only when status is Created or Approved
+  // Delete an order item - only when status is Created, Approved, or Pending
   app.delete('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1385,10 +1385,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created or Approved status)
-      if (!['Created', 'Approved'].includes(order.status)) {
+      // Check if order is editable (Created, Approved, or Pending status)
+      if (!['Created', 'Approved', 'Pending'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created or Approved orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only Created, Approved, or Pending orders can be modified.` 
         });
       }
 

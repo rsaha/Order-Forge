@@ -72,7 +72,7 @@ import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -489,11 +489,12 @@ export default function OrdersPage() {
   });
 
   const updatePodStatusMutation = useMutation({
-    mutationFn: async ({ orderId, podStatus }: { orderId: string; podStatus: string }) => {
-      return apiRequest("PATCH", `/api/admin/orders/${orderId}`, { 
+    mutationFn: async ({ orderId, podStatus }: { orderId: string; podStatus: string }): Promise<Order> => {
+      const res = await apiRequest("PATCH", `/api/admin/orders/${orderId}`, { 
         podStatus,
         podTimestamp: podStatus === "Received" ? new Date().toISOString() : null
       });
+      return res.json();
     },
     onSuccess: (data: Order, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
@@ -727,7 +728,7 @@ export default function OrdersPage() {
   };
 
   const isOrderEditable = (order: Order) => {
-    return order.status === "Created" || order.status === "Approved";
+    return order.status === "Created" || order.status === "Approved" || order.status === "Pending";
   };
 
   const filteredProducts = products.filter((p) => {
@@ -1198,6 +1199,17 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {hasAdminAccess && (
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    onClick={(e) => { e.stopPropagation(); setOrderForPendingCreation(order); }} 
+                                    title="Create Pending Order"
+                                    data-testid={`button-create-pending-created-${order.id}`}
+                                  >
+                                    <GitBranch className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 {canDeleteOrder(order) && <Button size="icon" variant="ghost" onClick={(e) => handleDeleteClick(order, e)} title="Delete Order" className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
                               </div>
                             </td>

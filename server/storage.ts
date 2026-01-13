@@ -82,7 +82,7 @@ export interface IStorage {
   seedBrands(): Promise<void>;
   
   // Pending order operations
-  createPendingOrderFromApproved(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null>;
+  createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null>;
 }
 
 export interface StatusMetric {
@@ -1080,9 +1080,9 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async createPendingOrderFromApproved(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null> {
+  async createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null> {
     const originalOrder = await this.getOrderById(orderId);
-    if (!originalOrder || originalOrder.status !== "Approved") {
+    if (!originalOrder || !["Created", "Approved"].includes(originalOrder.status)) {
       return null;
     }
 
