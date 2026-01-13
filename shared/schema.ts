@@ -62,8 +62,12 @@ export const products = pgTable("products", {
 });
 
 // Order status values
-export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"] as const;
+export const ORDER_STATUSES = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered", "PODReceived", "Cancelled"] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
+
+// POD (Proof of Delivery) status values
+export const POD_STATUSES = ["Pending", "Received"] as const;
+export type PodStatus = typeof POD_STATUSES[number];
 
 // Brand options (legacy - kept for backwards compatibility, use brands table instead)
 export const BRAND_OPTIONS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "Acusure", "Elmeric", "Blefit", "Shikon", "Samson"] as const;
@@ -129,6 +133,9 @@ export const orders = pgTable("orders", {
   approvedBy: varchar("approved_by"),
   approvedAt: timestamp("approved_at"),
   importText: text("import_text"), // Original pasted text from Import tab
+  podStatus: varchar("pod_status").default("Pending"), // POD status: Pending or Received
+  podTimestamp: timestamp("pod_timestamp"), // When POD was marked as Received
+  parentOrderId: varchar("parent_order_id"), // Reference to parent order for forked pending orders
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -215,6 +222,9 @@ export const updateOrderSchema = z.object({
   approvedBy: z.string().nullable().optional(),
   approvedAt: z.string().nullable().optional(),
   importText: z.string().nullable().optional(),
+  podStatus: z.enum(POD_STATUSES).nullable().optional(),
+  podTimestamp: z.string().nullable().optional(),
+  parentOrderId: z.string().nullable().optional(),
 });
 export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 
