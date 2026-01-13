@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -338,6 +338,17 @@ export default function OrdersPage() {
     PODReceived: allOrders.filter(o => o.status === "PODReceived").length,
     Cancelled: allOrders.filter(o => o.status === "Cancelled").length,
   };
+
+  // Create a lookup map: parentOrderId -> pending order (for showing pending indicators)
+  const pendingOrderLookup = useMemo(() => {
+    const lookup = new Map<string, Order>();
+    allOrders
+      .filter(o => o.status === "Pending" && o.parentOrderId)
+      .forEach(pendingOrder => {
+        lookup.set(pendingOrder.parentOrderId!, pendingOrder);
+      });
+    return lookup;
+  }, [allOrders]);
 
   const { data: bulkSummary = [] } = useQuery<BulkOrderSummary[]>({
     queryKey: ["/api/admin/orders/bulk-summary", bulkType, bulkDate],
@@ -1107,6 +1118,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
+                        <th className="text-center p-2 font-medium hidden md:table-cell">Pending</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
@@ -1256,6 +1268,29 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.deliveryCompany || "-"}</td>
+                            <td className="p-2 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
+                              {pendingOrderLookup.has(order.id) ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-600 dark:hover:bg-amber-900/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const pendingOrder = pendingOrderLookup.get(order.id);
+                                    if (pendingOrder) {
+                                      setStatusFilter("Pending");
+                                      handleOrderClick(pendingOrder);
+                                    }
+                                  }}
+                                  data-testid={`button-view-pending-${order.id}`}
+                                >
+                                  <GitBranch className="w-3 h-3 mr-1" />
+                                  View
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                            </td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
@@ -2040,6 +2075,30 @@ export default function OrdersPage() {
                       {selectedOrder.status}
                     </Badge>
                   </div>
+                  {pendingOrderLookup.has(selectedOrder.id) && (
+                    <div className="flex justify-between items-center p-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                      <span className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                        <GitBranch className="w-4 h-4" />
+                        Has pending order
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs text-amber-600 border-amber-300 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-600 dark:hover:bg-amber-900/40"
+                        onClick={() => {
+                          const pendingOrder = pendingOrderLookup.get(selectedOrder.id);
+                          if (pendingOrder) {
+                            setSelectedOrder(null);
+                            setStatusFilter("Pending");
+                            setTimeout(() => handleOrderClick(pendingOrder), 100);
+                          }
+                        }}
+                        data-testid="button-dialog-view-pending"
+                      >
+                        View
+                      </Button>
+                    </div>
+                  )}
                   {selectedOrder.invoiceNumber && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Invoice:</span>
