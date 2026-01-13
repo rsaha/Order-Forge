@@ -1175,13 +1175,15 @@ export async function registerRoutes(
         }
       }
 
-      // Auto-set podTimestamp when POD status changes to Received
-      if (req.body.podStatus === 'Received' && order.podStatus !== 'Received') {
+      // Auto-set podTimestamp when POD status changes to Received or Digital Received
+      const isPodReceived = req.body.podStatus === 'Received' || req.body.podStatus === 'Digital Received';
+      const wasPodReceived = order.podStatus === 'Received' || order.podStatus === 'Digital Received';
+      if (isPodReceived && !wasPodReceived) {
         req.body.podTimestamp = new Date().toISOString();
       }
 
-      // Auto-update order status to PODReceived when POD status is marked as Received
-      if (req.body.podStatus === 'Received' && order.status === 'Delivered') {
+      // Auto-update order status to PODReceived when POD status is marked as Received or Digital Received
+      if (isPodReceived && order.status === 'Delivered') {
         req.body.status = 'PODReceived';
       }
 
