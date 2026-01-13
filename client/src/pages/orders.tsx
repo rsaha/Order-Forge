@@ -64,20 +64,24 @@ import {
   Check,
   X,
   Upload,
+  GitBranch,
+  ClipboardCheck,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Invoiced", "Dispatched", "Delivered", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  Pending: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   Dispatched: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   Delivered: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+  PODReceived: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
   Cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
@@ -85,8 +89,10 @@ const tabColors: Record<OrderStatus, string> = {
   Created: "border-blue-500 text-blue-700 dark:text-blue-300",
   Approved: "border-green-500 text-green-700 dark:text-green-300",
   Invoiced: "border-purple-500 text-purple-700 dark:text-purple-300",
+  Pending: "border-amber-500 text-amber-700 dark:text-amber-300",
   Dispatched: "border-orange-500 text-orange-700 dark:text-orange-300",
   Delivered: "border-teal-500 text-teal-700 dark:text-teal-300",
+  PODReceived: "border-indigo-500 text-indigo-700 dark:text-indigo-300",
   Cancelled: "border-gray-500 text-gray-700 dark:text-gray-300",
 };
 
@@ -94,8 +100,10 @@ const tabBgColors: Record<OrderStatus, string> = {
   Created: "bg-blue-50 dark:bg-blue-950",
   Approved: "bg-green-50 dark:bg-green-950",
   Invoiced: "bg-purple-50 dark:bg-purple-950",
+  Pending: "bg-amber-50 dark:bg-amber-950",
   Dispatched: "bg-orange-50 dark:bg-orange-950",
   Delivered: "bg-teal-50 dark:bg-teal-950",
+  PODReceived: "bg-indigo-50 dark:bg-indigo-950",
   Cancelled: "bg-gray-50 dark:bg-gray-950",
 };
 
@@ -103,8 +111,10 @@ const statusIcons: Record<OrderStatus, typeof Package> = {
   Created: FileText,
   Approved: Clock,
   Invoiced: FileText,
+  Pending: AlertCircle,
   Dispatched: Truck,
   Delivered: CheckCircle,
+  PODReceived: CheckCircle,
   Cancelled: XCircle,
 };
 
@@ -178,7 +188,9 @@ interface BulkOrderSummary {
     deliveryCompany: string | null;
     invoiceNumber: string | null;
     invoiceDate: string | null;
+    dispatchDate: string | null;
     estimatedDeliveryDate: string | null;
+    actualDeliveryDate: string | null;
     actualOrderValue: string | null;
     deliveredOnTime: boolean | null;
   }>;
@@ -236,6 +248,7 @@ export default function OrdersPage() {
   const [exportStatus, setExportStatus] = useState<string>("all");
   const [exportBrand, setExportBrand] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
+  const [orderForPendingCreation, setOrderForPendingCreation] = useState<Order | null>(null);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -319,8 +332,10 @@ export default function OrdersPage() {
     Created: allOrders.filter(o => o.status === "Created").length,
     Approved: allOrders.filter(o => o.status === "Approved").length,
     Invoiced: allOrders.filter(o => o.status === "Invoiced").length,
+    Pending: allOrders.filter(o => o.status === "Pending").length,
     Dispatched: allOrders.filter(o => o.status === "Dispatched").length,
     Delivered: allOrders.filter(o => o.status === "Delivered").length,
+    PODReceived: allOrders.filter(o => o.status === "PODReceived").length,
     Cancelled: allOrders.filter(o => o.status === "Cancelled").length,
   };
 
@@ -473,6 +488,47 @@ export default function OrdersPage() {
     },
   });
 
+  const updatePodStatusMutation = useMutation({
+    mutationFn: async ({ orderId, podStatus }: { orderId: string; podStatus: string }) => {
+      return apiRequest("PATCH", `/api/admin/orders/${orderId}`, { 
+        podStatus,
+        podTimestamp: podStatus === "Received" ? new Date().toISOString() : null
+      });
+    },
+    onSuccess: (data: Order, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "POD status updated successfully" });
+      if (selectedOrder) {
+        setSelectedOrder({ 
+          ...selectedOrder, 
+          podStatus: variables.podStatus,
+          podTimestamp: variables.podStatus === "Received" ? new Date() : null,
+          status: data.status || selectedOrder.status
+        } as Order);
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update POD status", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const createPendingOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return apiRequest("POST", `/api/orders/${orderId}/pending`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "Pending order created successfully", description: "A new order with out-of-stock items has been created." });
+      setOrderForPendingCreation(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create pending order", description: error.message, variant: "destructive" });
+      setOrderForPendingCreation(null);
+    },
+  });
+
   const canDeleteOrder = (order: Order): boolean => {
     if (order.status !== 'Created') return false;
     if (isAdmin) return true;
@@ -549,7 +605,7 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       toast({ title: `Order status updated to ${newStatus}` });
       
-      if (newStatus === "Dispatched" || newStatus === "Delivered") {
+      if (newStatus === "Delivered") {
         setPendingWhatsAppShare({ order: { ...order, status: newStatus }, status: newStatus });
         handleOrderClick({ ...order, status: newStatus });
       }
@@ -1053,6 +1109,18 @@ export default function OrdersPage() {
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
+                    {/* Pending Tab Headers */}
+                    {statusFilter === "Pending" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Parent Order</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
+                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
                     {/* Dispatched Tab Headers */}
                     {statusFilter === "Dispatched" && (
                       <tr>
@@ -1085,6 +1153,18 @@ export default function OrdersPage() {
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
+                    {/* PODReceived Tab Headers */}
+                    {statusFilter === "PODReceived" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Delivered On</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">POD Received</th>
+                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
                     {/* Cancelled Tab Headers */}
                     {statusFilter === "Cancelled" && (
                       <tr>
@@ -1108,7 +1188,7 @@ export default function OrdersPage() {
                         {/* Created Tab Cells */}
                         {statusFilter === "Created" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -1126,7 +1206,7 @@ export default function OrdersPage() {
                         {/* Approved Tab Cells */}
                         {statusFilter === "Approved" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -1138,6 +1218,17 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {hasAdminAccess && (
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    onClick={(e) => { e.stopPropagation(); setOrderForPendingCreation(order); }} 
+                                    title="Create Pending Order"
+                                    data-testid={`button-create-pending-${order.id}`}
+                                  >
+                                    <GitBranch className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </>
@@ -1145,7 +1236,7 @@ export default function OrdersPage() {
                         {/* Invoiced Tab Cells */}
                         {statusFilter === "Invoiced" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -1161,10 +1252,27 @@ export default function OrdersPage() {
                             </td>
                           </>
                         )}
+                        {/* Pending Tab Cells */}
+                        {statusFilter === "Pending" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{order.parentOrderId ? `#${order.parentOrderId.slice(-6)}` : "-"}</td>
+                            <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.specialNotes || ""}>{order.specialNotes || "-"}</div></td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
                         {/* Dispatched Tab Cells */}
                         {statusFilter === "Dispatched" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -1185,7 +1293,7 @@ export default function OrdersPage() {
                         {/* Delivered Tab Cells */}
                         {statusFilter === "Delivered" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -1220,10 +1328,27 @@ export default function OrdersPage() {
                             </td>
                           </>
                         )}
+                        {/* PODReceived Tab Cells */}
+                        {statusFilter === "PODReceived" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.podTimestamp ? new Date(order.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
                         {/* Cancelled Tab Cells */}
                         {statusFilter === "Cancelled" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -1314,6 +1439,44 @@ export default function OrdersPage() {
                   </div>
                 )}
               </div>
+
+              {/* POD Status Toggle - only visible for Admin when order is Dispatched or Delivered */}
+              {isAdmin && (selectedOrder.status === "Dispatched" || selectedOrder.status === "Delivered") && (
+                <div className="p-3 rounded-md border bg-muted/30 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">POD Status</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={selectedOrder.podStatus === "Received" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"}>
+                        {selectedOrder.podStatus === "Received" ? "Received" : "Pending"}
+                      </Badge>
+                      {selectedOrder.podStatus !== "Received" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updatePodStatusMutation.mutate({ orderId: selectedOrder.id, podStatus: "Received" })}
+                          disabled={updatePodStatusMutation.isPending}
+                          data-testid="button-mark-pod-received"
+                        >
+                          {updatePodStatusMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          ) : (
+                            <Check className="w-3 h-3 mr-1" />
+                          )}
+                          Mark Received
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {selectedOrder.podTimestamp && (
+                    <div className="text-xs text-muted-foreground">
+                      POD received on: {new Date(selectedOrder.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {selectedOrder.importText && (
                 <Collapsible className="border rounded-md" data-testid="collapsible-import-text">
@@ -2055,6 +2218,38 @@ export default function OrdersPage() {
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!orderForPendingCreation} onOpenChange={(open) => !open && setOrderForPendingCreation(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create Pending Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Create a pending order with out-of-stock items from this order for "{orderForPendingCreation?.partyName || 'Unknown'}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-pending-order">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (orderForPendingCreation) {
+                  createPendingOrderMutation.mutate(orderForPendingCreation.id);
+                }
+              }}
+              disabled={createPendingOrderMutation.isPending}
+              data-testid="button-confirm-pending-order"
+            >
+              {createPendingOrderMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Pending Order"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

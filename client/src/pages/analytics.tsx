@@ -23,7 +23,7 @@ import {
   Target,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { BrandRecord } from "@shared/schema";
+import type { BrandRecord, Order } from "@shared/schema";
 import {
   LineChart,
   Line,
@@ -217,6 +217,20 @@ export default function AnalyticsPage() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch orders for delivery cost analysis and status breakdown
+  const ordersQueryUrl = `/api/admin/orders${queryParams ? `?${queryParams}` : ""}`;
+  const { data: ordersData = [] } = useQuery<Order[]>({
+    queryKey: ["/api/admin/orders", dateRange, brandFilter],
+    queryFn: async () => {
+      const res = await fetch(ordersQueryUrl, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      return res.json();
+    },
+    enabled: canViewAnalytics,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   // Format chart date helper - must be before early returns
   const formatChartDate = useCallback((dateStr: string, bucketType?: string) => {
     try {
@@ -247,6 +261,96 @@ export default function AnalyticsPage() {
       OnTimeRate: bucket.deliveredCount > 0 ? Math.round((bucket.onTimeCount / bucket.deliveredCount) * 100) : null,
     }));
   }, [analytics?.timeSeries, analytics?.bucketType, formatChartDate]);
+
+  // Delivery Cost by Dispatch By - filter and aggregate
+  const deliveryCostByDispatcher = useMemo(() => {
+    const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
+    const filtered = ordersData.filter(order => 
+      validStatuses.includes(order.status) && 
+      order.deliveryCost && 
+      order.dispatchBy &&
+      order.dispatchDate
+    );
+
+    // Group by date and dispatchBy
+    const grouped: Record<string, Record<string, { cost: number; count: number }>> = {};
+    const dispatchers = new Set<string>();
+
+    filtered.forEach(order => {
+      const dateStr = order.dispatchDate ? format(new Date(order.dispatchDate), 'yyyy-MM-dd') : '';
+      if (!dateStr) return;
+      
+      const dispatcher = order.dispatchBy || 'Unknown';
+      dispatchers.add(dispatcher);
+
+      if (!grouped[dateStr]) grouped[dateStr] = {};
+      if (!grouped[dateStr][dispatcher]) grouped[dateStr][dispatcher] = { cost: 0, count: 0 };
+      
+      grouped[dateStr][dispatcher].cost += parseFloat(order.deliveryCost || '0');
+      grouped[dateStr][dispatcher].count += 1;
+    });
+
+    // Convert to chart format
+    const dates = Object.keys(grouped).sort();
+    const dispatcherNames = Array.from(dispatchers).sort();
+    
+    const chartData = dates.map(date => {
+      const row: Record<string, string | number> = { date: formatChartDate(date) };
+      dispatcherNames.forEach(name => {
+        row[name] = grouped[date]?.[name]?.cost || 0;
+      });
+      return row;
+    });
+
+    // Convert to table format
+    const tableData: { date: string; dispatchBy: string; deliveryCost: number; orderCount: number }[] = [];
+    dates.forEach(date => {
+      Object.entries(grouped[date]).forEach(([dispatcher, data]) => {
+        tableData.push({
+          date: formatChartDate(date),
+          dispatchBy: dispatcher,
+          deliveryCost: data.cost,
+          orderCount: data.count,
+        });
+      });
+    });
+
+    return { chartData, tableData, dispatcherNames };
+  }, [ordersData, formatChartDate]);
+
+  // Order Status Over Time - aggregate by createdAt date
+  const orderStatusByDay = useMemo(() => {
+    const statusesToShow = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered"] as const;
+    
+    // Group by createdAt date
+    const grouped: Record<string, { Created: number; Approved: number; Invoiced: number; Pending: number; Dispatched: number; Delivered: number }> = {};
+    
+    ordersData.forEach(order => {
+      if (!order.createdAt) return;
+      const dateStr = format(new Date(order.createdAt), 'yyyy-MM-dd');
+      
+      if (!grouped[dateStr]) {
+        grouped[dateStr] = { Created: 0, Approved: 0, Invoiced: 0, Pending: 0, Dispatched: 0, Delivered: 0 };
+      }
+      
+      if (statusesToShow.includes(order.status as typeof statusesToShow[number])) {
+        grouped[dateStr][order.status as keyof typeof grouped[string]] += 1;
+      }
+    });
+
+    // Convert to sorted array
+    const dates = Object.keys(grouped).sort();
+    return dates.map(date => ({
+      date: formatChartDate(date),
+      rawDate: date,
+      Created: grouped[date].Created,
+      Approved: grouped[date].Approved,
+      Invoiced: grouped[date].Invoiced,
+      Pending: grouped[date].Pending,
+      Dispatched: grouped[date].Dispatched,
+      Delivered: grouped[date].Delivered,
+    }));
+  }, [ordersData, formatChartDate]);
 
   if (authLoading) {
     return (
@@ -576,6 +680,105 @@ export default function AnalyticsPage() {
                           })}
                         </BarChart>
                       </ResponsiveContainer>
+                    </div>
+                  </Card>
+                )}
+
+                {deliveryCostByDispatcher.chartData.length > 0 && (
+                  <Card className="p-4">
+                    <h2 className="text-lg font-semibold mb-4">Delivery Cost by Dispatch By</h2>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={deliveryCostByDispatcher.chartData}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickMargin={8}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }} 
+                            tickFormatter={(v) => formatINR(v)}
+                          />
+                          <Tooltip 
+                            formatter={(value: number) => formatINRFull(value)}
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                          />
+                          <Legend />
+                          {deliveryCostByDispatcher.dispatcherNames.map((name, index) => {
+                            const colors = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#ef4444'];
+                            return (
+                              <Bar 
+                                key={name}
+                                dataKey={name}
+                                name={name}
+                                stackId="dispatchers"
+                                fill={colors[index % colors.length]}
+                              />
+                            );
+                          })}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full text-sm" data-testid="table-delivery-cost">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium">Date</th>
+                            <th className="text-left py-2 px-3 font-medium">Dispatch By</th>
+                            <th className="text-right py-2 px-3 font-medium">Delivery Cost</th>
+                            <th className="text-right py-2 px-3 font-medium">Order Count</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deliveryCostByDispatcher.tableData.map((row, idx) => (
+                            <tr key={idx} className="border-b last:border-0">
+                              <td className="py-2 px-3">{row.date}</td>
+                              <td className="py-2 px-3">{row.dispatchBy}</td>
+                              <td className="py-2 px-3 text-right">{formatINRFull(row.deliveryCost)}</td>
+                              <td className="py-2 px-3 text-right">{row.orderCount}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )}
+
+                {orderStatusByDay.length > 0 && (
+                  <Card className="p-4">
+                    <h2 className="text-lg font-semibold mb-4">Order Status Over Time</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm" data-testid="table-order-status">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium">Date</th>
+                            <th className="text-right py-2 px-3 font-medium">Created</th>
+                            <th className="text-right py-2 px-3 font-medium">Approved</th>
+                            <th className="text-right py-2 px-3 font-medium">Invoiced</th>
+                            <th className="text-right py-2 px-3 font-medium">Pending</th>
+                            <th className="text-right py-2 px-3 font-medium">Dispatched</th>
+                            <th className="text-right py-2 px-3 font-medium">Delivered</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderStatusByDay.map((row, idx) => (
+                            <tr key={idx} className="border-b last:border-0">
+                              <td className="py-2 px-3">{row.date}</td>
+                              <td className="py-2 px-3 text-right">{row.Created || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Approved || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Invoiced || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Pending || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Dispatched || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Delivered || 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </Card>
                 )}

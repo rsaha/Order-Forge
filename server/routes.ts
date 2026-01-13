@@ -1163,6 +1163,16 @@ export async function registerRoutes(
         }
       }
 
+      // Auto-set podTimestamp when POD status changes to Received
+      if (req.body.podStatus === 'Received' && order.podStatus !== 'Received') {
+        req.body.podTimestamp = new Date().toISOString();
+      }
+
+      // Auto-update order status to PODReceived when POD status is marked as Received
+      if (req.body.podStatus === 'Received' && order.status === 'Delivered') {
+        req.body.status = 'PODReceived';
+      }
+
       const parseResult = updateOrderSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ message: "Invalid update data", errors: parseResult.error.errors });
@@ -1177,6 +1187,49 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating order:", error);
       res.status(500).json({ message: "Failed to update order" });
+    }
+  });
+
+  // Create pending order from approved order (fork with out-of-stock items)
+  app.post('/api/orders/:id/pending', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.isAdmin && user?.role !== 'BrandAdmin') {
+        return res.status(403).json({ message: "Admin or BrandAdmin access required" });
+      }
+
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      if (order.status !== 'Approved') {
+        return res.status(400).json({ message: "Can only create pending orders from Approved orders" });
+      }
+
+      // Check brand access for BrandAdmin
+      if (!user.isAdmin && user.role === 'BrandAdmin') {
+        const brands = await storage.getUserBrandAccess(userId);
+        if (!order.brand || !brands.includes(order.brand)) {
+          return res.status(403).json({ message: "Access denied to this order" });
+        }
+      }
+
+      const result = await storage.createPendingOrderFromApproved(order.id, userId);
+      if (!result) {
+        return res.status(400).json({ message: "No out-of-stock items found. All items have sufficient stock." });
+      }
+
+      res.json({
+        message: "Pending order created successfully",
+        pendingOrder: result.pendingOrder,
+        itemCount: result.pendingItems.length
+      });
+    } catch (error) {
+      console.error("Error creating pending order:", error);
+      res.status(500).json({ message: "Failed to create pending order" });
     }
   });
 

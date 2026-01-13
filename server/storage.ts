@@ -80,6 +80,9 @@ export interface IStorage {
   updateBrand(id: string, updates: { name?: string; isActive?: boolean }): Promise<BrandRecord | undefined>;
   deleteBrand(id: string): Promise<boolean>;
   seedBrands(): Promise<void>;
+  
+  // Pending order operations
+  createPendingOrderFromApproved(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null>;
 }
 
 export interface StatusMetric {
@@ -520,6 +523,9 @@ export class DatabaseStorage implements IStorage {
       approvedBy: orders.approvedBy,
       approvedAt: orders.approvedAt,
       importText: orders.importText,
+      podStatus: orders.podStatus,
+      podTimestamp: orders.podTimestamp,
+      parentOrderId: orders.parentOrderId,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
       createdByEmail: users.email,
@@ -566,6 +572,9 @@ export class DatabaseStorage implements IStorage {
       approvedBy: orders.approvedBy,
       approvedAt: orders.approvedAt,
       importText: orders.importText,
+      podStatus: orders.podStatus,
+      podTimestamp: orders.podTimestamp,
+      parentOrderId: orders.parentOrderId,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
       createdByEmail: users.email,
@@ -1069,6 +1078,65 @@ export class DatabaseStorage implements IStorage {
     for (const name of defaultBrands) {
       await db.insert(brands).values({ name, isActive: true }).onConflictDoNothing();
     }
+  }
+
+  async createPendingOrderFromApproved(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null> {
+    const originalOrder = await this.getOrderById(orderId);
+    if (!originalOrder || originalOrder.status !== "Approved") {
+      return null;
+    }
+
+    const originalItems = await this.getOrderItems(orderId);
+    if (originalItems.length === 0) {
+      return null;
+    }
+
+    const productIds = originalItems.map(item => item.productId);
+    const productList = await db.select().from(products).where(inArray(products.id, productIds));
+    const productMap = new Map(productList.map(p => [p.id, p]));
+
+    const outOfStockItems = originalItems.filter(item => {
+      const product = productMap.get(item.productId);
+      return product && product.stock < item.quantity;
+    });
+
+    if (outOfStockItems.length === 0) {
+      return null;
+    }
+
+    let pendingTotal = 0;
+    for (const item of outOfStockItems) {
+      pendingTotal += parseFloat(item.unitPrice) * item.quantity;
+    }
+
+    const discountPercent = parseFloat(originalOrder.discountPercent?.toString() || "0");
+    if (discountPercent > 0) {
+      pendingTotal = pendingTotal * (1 - discountPercent / 100);
+    }
+
+    const [pendingOrder] = await db.insert(orders).values({
+      userId,
+      brand: originalOrder.brand,
+      status: "Pending",
+      total: pendingTotal.toFixed(2),
+      discountPercent: originalOrder.discountPercent,
+      partyName: originalOrder.partyName,
+      deliveryAddress: originalOrder.deliveryAddress,
+      parentOrderId: orderId,
+      podStatus: "Pending",
+    }).returning();
+
+    const pendingItemsData: InsertOrderItem[] = outOfStockItems.map(item => ({
+      orderId: pendingOrder.id,
+      productId: item.productId,
+      quantity: item.quantity,
+      freeQuantity: item.freeQuantity,
+      unitPrice: item.unitPrice,
+    }));
+
+    const pendingItems = await this.createOrderItems(pendingItemsData);
+
+    return { pendingOrder, pendingItems };
   }
 }
 

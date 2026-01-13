@@ -73,16 +73,37 @@ Key tables:
 
 ### Orders Page Status Tab Navigation
 - Orders page uses horizontal status tabs instead of dropdown filter
-- Color-coded tabs: Created (Blue), Approved (Green), Invoiced (Purple), Dispatched (Orange), Delivered (Teal), Cancelled (Gray)
+- Color-coded tabs: Created (Blue), Approved (Green), Invoiced (Purple), Pending (Amber), Dispatched (Orange), Delivered (Teal), POD Received (Indigo), Cancelled (Gray)
 - Each tab shows a badge with count of orders in that status
 - Status-specific table columns:
   - **Created**: Date, Party, Created By, Brand, Notes, Total
   - **Approved**: Date, Party, Approved By, Approved At, Brand, Notes, Total
   - **Invoiced**: Date, Party, Invoice #, Invoice Date, Order Value, Delivery Co.
+  - **Pending**: Date, Party, Brand, Parent Order, Notes, Total
   - **Dispatched**: Date, Party, Invoice #, Dispatch By, Cases, Order Value, Est. Delivery, Delivery Co.
   - **Delivered**: Date, Party, Invoice #, Delivered On, Order Value, On Time?
+  - **POD Received**: Date, Party, Invoice #, Delivered On, POD Received, Total
   - **Cancelled**: Date, Party, Brand, Total
 - All orders are fetched once and filtered client-side for responsive tab switching
+
+### POD (Proof of Delivery) Status Tracking
+- Orders have a `podStatus` field: Pending (default) or Received
+- When an order is Dispatched or Delivered, Admin users can mark POD as "Received"
+- When POD is marked as Received:
+  - `podTimestamp` is set to the current timestamp
+  - Order status automatically changes to "POD Received"
+- POD Received orders appear in the dedicated "POD Received" tab
+
+### Pending Orders (Out-of-Stock Items)
+- Pending orders are created from Approved orders when some items are out of stock
+- Admin/BrandAdmin can click "Create Pending Order" button on Approved orders
+- The system clones the order with only out-of-stock items (stock < quantity ordered)
+- The new Pending order has:
+  - `parentOrderId` linking to the original order
+  - `status` set to "Pending"
+  - Only the items that are out of stock
+  - Recalculated total based on included items
+- If all items have sufficient stock, the pending order creation fails with a message
 
 ## External Dependencies
 
