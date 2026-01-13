@@ -162,6 +162,7 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [statusViewMode, setStatusViewMode] = useState<"chart" | "table">("chart");
+  const [selectedDeliveryCostDate, setSelectedDeliveryCostDate] = useState<string | null>(null);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -265,6 +266,15 @@ export default function AnalyticsPage() {
     }));
   }, [analytics?.timeSeries, analytics?.bucketType, formatChartDate]);
 
+  // Normalize dispatcher names - combine DTDC variations
+  const normalizeDispatcher = useCallback((dispatcher: string): string => {
+    if (!dispatcher) return 'Unknown';
+    const lower = dispatcher.toLowerCase().trim();
+    // Combine all DTDC variations into "DTDC"
+    if (lower.includes('dtdc')) return 'DTDC';
+    return dispatcher;
+  }, []);
+
   // Delivery Cost by Dispatch By - filter and aggregate
   const deliveryCostByDispatcher = useMemo(() => {
     const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
@@ -275,7 +285,7 @@ export default function AnalyticsPage() {
       order.dispatchDate
     );
 
-    // Group by date and dispatchBy
+    // Group by date and dispatchBy (normalized)
     const grouped: Record<string, Record<string, { cost: number; count: number }>> = {};
     const dispatchers = new Set<string>();
 
@@ -283,7 +293,7 @@ export default function AnalyticsPage() {
       const dateStr = order.dispatchDate ? format(new Date(order.dispatchDate), 'yyyy-MM-dd') : '';
       if (!dateStr) return;
       
-      const dispatcher = order.dispatchBy || 'Unknown';
+      const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
       dispatchers.add(dispatcher);
 
       if (!grouped[dateStr]) grouped[dateStr] = {};
@@ -298,7 +308,7 @@ export default function AnalyticsPage() {
     const dispatcherNames = Array.from(dispatchers).sort();
     
     const chartData = dates.map(date => {
-      const row: Record<string, string | number> = { date: formatChartDate(date) };
+      const row: Record<string, string | number> = { date: formatChartDate(date), rawDate: date };
       dispatcherNames.forEach(name => {
         row[name] = grouped[date]?.[name]?.cost || 0;
       });
@@ -306,11 +316,12 @@ export default function AnalyticsPage() {
     });
 
     // Convert to table format
-    const tableData: { date: string; dispatchBy: string; deliveryCost: number; orderCount: number }[] = [];
+    const tableData: { date: string; rawDate: string; dispatchBy: string; deliveryCost: number; orderCount: number }[] = [];
     dates.forEach(date => {
       Object.entries(grouped[date]).forEach(([dispatcher, data]) => {
         tableData.push({
           date: formatChartDate(date),
+          rawDate: date,
           dispatchBy: dispatcher,
           deliveryCost: data.cost,
           orderCount: data.count,
@@ -319,7 +330,7 @@ export default function AnalyticsPage() {
     });
 
     return { chartData, tableData, dispatcherNames };
-  }, [ordersData, formatChartDate]);
+  }, [ordersData, formatChartDate, normalizeDispatcher]);
 
   // Order Status Over Time - aggregate by createdAt date
   const orderStatusByDay = useMemo(() => {
@@ -741,9 +752,19 @@ export default function AnalyticsPage() {
                 {deliveryCostByDispatcher.chartData.length > 0 && (
                   <Card className="p-4">
                     <h2 className="text-lg font-semibold mb-4">Delivery Cost by Dispatch By</h2>
+                    <p className="text-xs text-muted-foreground mb-2">Click on a bar to see details for that day</p>
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={deliveryCostByDispatcher.chartData}>
+                        <BarChart 
+                          data={deliveryCostByDispatcher.chartData}
+                          onClick={(data) => {
+                            if (data && data.activePayload && data.activePayload.length > 0 && data.activePayload[0]?.payload?.rawDate) {
+                              const clickedDate = data.activePayload[0].payload.rawDate;
+                              setSelectedDeliveryCostDate(prev => prev === clickedDate ? null : clickedDate);
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                           <XAxis 
                             dataKey="date" 
@@ -778,28 +799,43 @@ export default function AnalyticsPage() {
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="mt-4 overflow-x-auto">
-                      <table className="w-full text-sm" data-testid="table-delivery-cost">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-3 font-medium">Date</th>
-                            <th className="text-left py-2 px-3 font-medium">Dispatch By</th>
-                            <th className="text-right py-2 px-3 font-medium">Delivery Cost</th>
-                            <th className="text-right py-2 px-3 font-medium">Order Count</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {deliveryCostByDispatcher.tableData.map((row, idx) => (
-                            <tr key={idx} className="border-b last:border-0">
-                              <td className="py-2 px-3">{row.date}</td>
-                              <td className="py-2 px-3">{row.dispatchBy}</td>
-                              <td className="py-2 px-3 text-right">{formatINRFull(row.deliveryCost)}</td>
-                              <td className="py-2 px-3 text-right">{row.orderCount}</td>
+                    {selectedDeliveryCostDate && (
+                      <div className="mt-4 overflow-x-auto">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-medium">
+                            Details for {formatChartDate(selectedDeliveryCostDate)}
+                          </h3>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => setSelectedDeliveryCostDate(null)}
+                            data-testid="button-clear-delivery-date"
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                        <table className="w-full text-sm" data-testid="table-delivery-cost">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 px-3 font-medium">Dispatch By</th>
+                              <th className="text-right py-2 px-3 font-medium">Delivery Cost</th>
+                              <th className="text-right py-2 px-3 font-medium">Order Count</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {deliveryCostByDispatcher.tableData
+                              .filter(row => row.rawDate === selectedDeliveryCostDate)
+                              .map((row, idx) => (
+                                <tr key={idx} className="border-b last:border-0">
+                                  <td className="py-2 px-3">{row.dispatchBy}</td>
+                                  <td className="py-2 px-3 text-right">{formatINRFull(row.deliveryCost)}</td>
+                                  <td className="py-2 px-3 text-right">{row.orderCount}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </Card>
                 )}
               </>

@@ -514,21 +514,25 @@ export default function OrdersPage() {
 
   const updatePodStatusMutation = useMutation({
     mutationFn: async ({ orderId, podStatus }: { orderId: string; podStatus: string }): Promise<Order> => {
-      const res = await apiRequest("PATCH", `/api/admin/orders/${orderId}`, { 
-        podStatus,
-        podTimestamp: podStatus === "Received" ? new Date().toISOString() : null
-      });
+      const isPodReceived = podStatus === "Received" || podStatus === "Digital Received";
+      const payload: Record<string, any> = { podStatus };
+      // Only send podTimestamp when marking as received (not when clearing)
+      if (isPodReceived) {
+        payload.podTimestamp = new Date().toISOString();
+      }
+      const res = await apiRequest("PATCH", `/api/admin/orders/${orderId}`, payload);
       return res.json();
     },
     onSuccess: (data: Order, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       toast({ title: "POD status updated successfully" });
+      const isPodReceived = variables.podStatus === "Received" || variables.podStatus === "Digital Received";
       if (selectedOrder) {
         setSelectedOrder({ 
           ...selectedOrder, 
           podStatus: variables.podStatus,
-          podTimestamp: variables.podStatus === "Received" ? new Date() : null,
+          podTimestamp: isPodReceived ? new Date() : selectedOrder.podTimestamp,
           status: data.status || selectedOrder.status
         } as Order);
       }
@@ -1562,30 +1566,50 @@ export default function OrdersPage() {
                       <span className="text-sm font-medium">POD Status</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={selectedOrder.podStatus === "Received" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"}>
-                        {selectedOrder.podStatus === "Received" ? "Received" : "Pending"}
+                      <Badge className={
+                        selectedOrder.podStatus === "Received" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : 
+                        selectedOrder.podStatus === "Digital Received" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" :
+                        "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                      }>
+                        {selectedOrder.podStatus || "Pending"}
                       </Badge>
-                      {selectedOrder.podStatus !== "Received" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updatePodStatusMutation.mutate({ orderId: selectedOrder.id, podStatus: "Received" })}
-                          disabled={updatePodStatusMutation.isPending}
-                          data-testid="button-mark-pod-received"
-                        >
-                          {updatePodStatusMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                          ) : (
-                            <Check className="w-3 h-3 mr-1" />
-                          )}
-                          Mark Received
-                        </Button>
-                      )}
+                      {selectedOrder.podStatus === "Pending" || !selectedOrder.podStatus ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updatePodStatusMutation.mutate({ orderId: selectedOrder.id, podStatus: "Received" })}
+                            disabled={updatePodStatusMutation.isPending}
+                            data-testid="button-mark-pod-received"
+                          >
+                            {updatePodStatusMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                            ) : (
+                              <Check className="w-3 h-3 mr-1" />
+                            )}
+                            Received
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updatePodStatusMutation.mutate({ orderId: selectedOrder.id, podStatus: "Digital Received" })}
+                            disabled={updatePodStatusMutation.isPending}
+                            data-testid="button-mark-pod-digital"
+                          >
+                            {updatePodStatusMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                            ) : (
+                              <Check className="w-3 h-3 mr-1" />
+                            )}
+                            Digital
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   {selectedOrder.podTimestamp && (
                     <div className="text-xs text-muted-foreground">
-                      POD received on: {new Date(selectedOrder.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      POD received on: {new Date(selectedOrder.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </div>
                   )}
                 </div>
