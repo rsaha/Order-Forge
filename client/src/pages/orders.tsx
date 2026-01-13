@@ -1789,12 +1789,13 @@ export default function OrdersPage() {
                     </div>
 
                     <div>
-                      <Label htmlFor="partyName">Party Name</Label>
+                      <Label htmlFor="partyName">Party Name {["Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status) && <span className="text-xs text-muted-foreground">(locked)</span>}</Label>
                       <Input
                         id="partyName"
                         value={editFormData.partyName}
                         onChange={(e) => setEditFormData({ ...editFormData, partyName: e.target.value })}
                         placeholder="Customer name"
+                        disabled={["Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status)}
                         data-testid="input-party-name"
                       />
                     </div>
@@ -1807,6 +1808,7 @@ export default function OrdersPage() {
                         onChange={(e) => setEditFormData({ ...editFormData, deliveryAddress: e.target.value })}
                         placeholder="Full delivery address"
                         rows={2}
+                        disabled={selectedOrder.status === "PODReceived"}
                         data-testid="input-delivery-address"
                       />
                     </div>
@@ -1816,6 +1818,7 @@ export default function OrdersPage() {
                       <Select
                         value={editFormData.deliveryCompany}
                         onValueChange={(v) => setEditFormData({ ...editFormData, deliveryCompany: v })}
+                        disabled={selectedOrder.status === "PODReceived"}
                       >
                         <SelectTrigger id="deliveryCompany" data-testid="select-edit-delivery-company">
                           <SelectValue placeholder="Select delivery company" />
@@ -1838,6 +1841,7 @@ export default function OrdersPage() {
                           value={editFormData.invoiceNumber}
                           onChange={(e) => setEditFormData({ ...editFormData, invoiceNumber: e.target.value })}
                           placeholder="INV-001"
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-invoice-number"
                         />
                       </div>
@@ -1848,6 +1852,7 @@ export default function OrdersPage() {
                           type="date"
                           value={editFormData.invoiceDate}
                           onChange={(e) => setEditFormData({ ...editFormData, invoiceDate: e.target.value })}
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-invoice-date"
                         />
                       </div>
@@ -1859,6 +1864,7 @@ export default function OrdersPage() {
                           value={editFormData.actualOrderValue}
                           onChange={(e) => setEditFormData({ ...editFormData, actualOrderValue: e.target.value })}
                           placeholder="0.00"
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-actual-order-value"
                         />
                       </div>
@@ -1872,6 +1878,7 @@ export default function OrdersPage() {
                           type="date"
                           value={editFormData.dispatchDate}
                           onChange={(e) => setEditFormData({ ...editFormData, dispatchDate: e.target.value })}
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-dispatch-date"
                         />
                       </div>
@@ -1882,6 +1889,7 @@ export default function OrdersPage() {
                           value={editFormData.dispatchBy}
                           onChange={(e) => setEditFormData({ ...editFormData, dispatchBy: e.target.value })}
                           placeholder="Courier name"
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-dispatch-by"
                         />
                       </div>
@@ -1896,6 +1904,7 @@ export default function OrdersPage() {
                           value={editFormData.cases}
                           onChange={(e) => setEditFormData({ ...editFormData, cases: e.target.value })}
                           placeholder="0"
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-cases"
                         />
                       </div>
@@ -1906,6 +1915,7 @@ export default function OrdersPage() {
                           value={editFormData.deliveryCost}
                           onChange={(e) => setEditFormData({ ...editFormData, deliveryCost: e.target.value })}
                           placeholder="0.00"
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-delivery-cost"
                         />
                       </div>
@@ -1919,6 +1929,7 @@ export default function OrdersPage() {
                           type="date"
                           value={editFormData.estimatedDeliveryDate}
                           onChange={(e) => setEditFormData({ ...editFormData, estimatedDeliveryDate: e.target.value })}
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-est-delivery"
                         />
                       </div>
@@ -1929,6 +1940,7 @@ export default function OrdersPage() {
                           type="date"
                           value={editFormData.actualDeliveryDate}
                           onChange={(e) => setEditFormData({ ...editFormData, actualDeliveryDate: e.target.value })}
+                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-actual-delivery"
                         />
                       </div>
@@ -1956,6 +1968,7 @@ export default function OrdersPage() {
                         onChange={(e) => setEditFormData({ ...editFormData, specialNotes: e.target.value })}
                         placeholder="Additional notes..."
                         rows={3}
+                        disabled={selectedOrder.status === "PODReceived"}
                         data-testid="input-special-notes"
                       />
                     </div>
@@ -1968,34 +1981,52 @@ export default function OrdersPage() {
                         onChange={(e) => setEditFormData({ ...editFormData, deliveryNote: e.target.value })}
                         placeholder="Delivery instructions or notes..."
                         rows={3}
+                        disabled={selectedOrder.status === "PODReceived"}
                         data-testid="input-delivery-note"
                       />
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setSelectedOrder(null)}
-                      data-testid="button-cancel-edit"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSave}
-                      disabled={updateMutation.isPending}
-                      data-testid="button-save-order"
-                    >
-                      {updateMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        "Save Changes"
-                      )}
-                    </Button>
-                  </div>
+                  {selectedOrder.status === "PODReceived" ? (
+                    <div className="flex justify-end gap-2 pt-4">
+                      <div className="flex-1 p-3 rounded-md bg-muted/50 border">
+                        <p className="text-sm text-muted-foreground">
+                          This order has reached POD Received status. No further changes are allowed.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => setSelectedOrder(null)}
+                        data-testid="button-close-order"
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setSelectedOrder(null)}
+                        data-testid="button-cancel-edit"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleSave}
+                        disabled={updateMutation.isPending}
+                        data-testid="button-save-order"
+                      >
+                        {updateMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Changes"
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : isBrandAdmin && selectedOrder.status === "Created" ? (
                 <div className="space-y-4">
