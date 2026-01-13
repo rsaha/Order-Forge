@@ -66,7 +66,7 @@ export const ORDER_STATUSES = ["Created", "Approved", "Pending", "Invoiced", "Di
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
 // POD (Proof of Delivery) status values
-export const POD_STATUSES = ["Pending", "Received"] as const;
+export const POD_STATUSES = ["Pending", "Received", "Digital Received"] as const;
 export type PodStatus = typeof POD_STATUSES[number];
 
 // Brand options (legacy - kept for backwards compatibility, use brands table instead)
