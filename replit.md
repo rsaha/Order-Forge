@@ -95,8 +95,8 @@ Key tables:
 - POD Received orders appear in the dedicated "POD Received" tab
 
 ### Pending Orders (Out-of-Stock Items)
-- Pending orders are created from Approved orders when some items are out of stock
-- Admin/BrandAdmin can click "Create Pending Order" button on Approved orders
+- Pending orders are created from Created or Approved orders when some items are out of stock
+- Admin/BrandAdmin can click "Create Pending Order" button (fork icon) on Created or Approved orders
 - The system clones the order with only out-of-stock items (stock < quantity ordered)
 - The new Pending order has:
   - `parentOrderId` linking to the original order
@@ -104,6 +104,7 @@ Key tables:
   - Only the items that are out of stock
   - Recalculated total based on included items
 - If all items have sufficient stock, the pending order creation fails with a message
+- Pending orders can be edited: users can update quantity/free quantity or remove items
 
 ## External Dependencies
 
