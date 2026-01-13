@@ -266,12 +266,14 @@ export default function AnalyticsPage() {
     }));
   }, [analytics?.timeSeries, analytics?.bucketType, formatChartDate]);
 
-  // Normalize dispatcher names - combine DTDC variations
+  // Normalize dispatcher names - combine variations
   const normalizeDispatcher = useCallback((dispatcher: string): string => {
     if (!dispatcher) return 'Unknown';
     const lower = dispatcher.toLowerCase().trim();
     // Combine all DTDC variations into "DTDC"
     if (lower.includes('dtdc')) return 'DTDC';
+    // Combine all Universal variations into "Universal"
+    if (lower.includes('universal')) return 'Universal';
     return dispatcher;
   }, []);
 
