@@ -21,6 +21,8 @@ import {
   AlertCircle,
   BarChart3,
   Target,
+  Table2,
+  LineChartIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { BrandRecord, Order } from "@shared/schema";
@@ -159,6 +161,7 @@ export default function AnalyticsPage() {
   const [, navigate] = useLocation();
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [statusViewMode, setStatusViewMode] = useState<"chart" | "table">("chart");
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -489,60 +492,111 @@ export default function AnalyticsPage() {
             {chartData.length > 0 && (
               <>
                 <Card className="p-4">
-                  <h2 className="text-lg font-semibold mb-4">Orders by Status Over Time</h2>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 12 }}
-                          tickMargin={8}
-                        />
-                        <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Legend />
-                        <Line 
-                          type="monotone" 
-                          dataKey="Created" 
-                          stroke="#3b82f6" 
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          activeDot={{ r: 5 }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="Invoiced" 
-                          stroke="#8b5cf6" 
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          activeDot={{ r: 5 }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="Dispatched" 
-                          stroke="#f97316" 
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          activeDot={{ r: 5 }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="Delivered" 
-                          stroke="#14b8a6" 
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          activeDot={{ r: 5 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Orders by Status Over Time</h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setStatusViewMode(statusViewMode === "chart" ? "table" : "chart")}
+                      data-testid="button-toggle-status-view"
+                    >
+                      {statusViewMode === "chart" ? (
+                        <>
+                          <Table2 className="w-4 h-4 mr-1" />
+                          Table
+                        </>
+                      ) : (
+                        <>
+                          <LineChartIcon className="w-4 h-4 mr-1" />
+                          Chart
+                        </>
+                      )}
+                    </Button>
                   </div>
+                  {statusViewMode === "chart" ? (
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickMargin={8}
+                          />
+                          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                          />
+                          <Legend />
+                          <Line 
+                            type="monotone" 
+                            dataKey="Created" 
+                            stroke="#3b82f6" 
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="Invoiced" 
+                            stroke="#8b5cf6" 
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="Dispatched" 
+                            stroke="#f97316" 
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="Delivered" 
+                            stroke="#14b8a6" 
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm" data-testid="table-order-status">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium">Date</th>
+                            <th className="text-right py-2 px-3 font-medium">Created</th>
+                            <th className="text-right py-2 px-3 font-medium">Approved</th>
+                            <th className="text-right py-2 px-3 font-medium">Invoiced</th>
+                            <th className="text-right py-2 px-3 font-medium">Pending</th>
+                            <th className="text-right py-2 px-3 font-medium">Dispatched</th>
+                            <th className="text-right py-2 px-3 font-medium">Delivered</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderStatusByDay.map((row, idx) => (
+                            <tr key={idx} className="border-b last:border-0">
+                              <td className="py-2 px-3">{row.date}</td>
+                              <td className="py-2 px-3 text-right">{row.Created || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Approved || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Invoiced || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Pending || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Dispatched || 0}</td>
+                              <td className="py-2 px-3 text-right">{row.Delivered || 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </Card>
 
                 <Card className="p-4">
@@ -741,40 +795,6 @@ export default function AnalyticsPage() {
                               <td className="py-2 px-3">{row.dispatchBy}</td>
                               <td className="py-2 px-3 text-right">{formatINRFull(row.deliveryCost)}</td>
                               <td className="py-2 px-3 text-right">{row.orderCount}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Card>
-                )}
-
-                {orderStatusByDay.length > 0 && (
-                  <Card className="p-4">
-                    <h2 className="text-lg font-semibold mb-4">Order Status Over Time</h2>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm" data-testid="table-order-status">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-3 font-medium">Date</th>
-                            <th className="text-right py-2 px-3 font-medium">Created</th>
-                            <th className="text-right py-2 px-3 font-medium">Approved</th>
-                            <th className="text-right py-2 px-3 font-medium">Invoiced</th>
-                            <th className="text-right py-2 px-3 font-medium">Pending</th>
-                            <th className="text-right py-2 px-3 font-medium">Dispatched</th>
-                            <th className="text-right py-2 px-3 font-medium">Delivered</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {orderStatusByDay.map((row, idx) => (
-                            <tr key={idx} className="border-b last:border-0">
-                              <td className="py-2 px-3">{row.date}</td>
-                              <td className="py-2 px-3 text-right">{row.Created || 0}</td>
-                              <td className="py-2 px-3 text-right">{row.Approved || 0}</td>
-                              <td className="py-2 px-3 text-right">{row.Invoiced || 0}</td>
-                              <td className="py-2 px-3 text-right">{row.Pending || 0}</td>
-                              <td className="py-2 px-3 text-right">{row.Dispatched || 0}</td>
-                              <td className="py-2 px-3 text-right">{row.Delivered || 0}</td>
                             </tr>
                           ))}
                         </tbody>
