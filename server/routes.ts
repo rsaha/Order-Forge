@@ -1124,6 +1124,18 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
+      // Status transition restrictions
+      if (req.body.status && req.body.status !== order.status) {
+        // Delivered can only transition to PODReceived
+        if (order.status === 'Delivered' && req.body.status !== 'PODReceived') {
+          return res.status(400).json({ message: "Delivered orders can only be moved to POD Received status" });
+        }
+        // PODReceived cannot transition to any other status
+        if (order.status === 'PODReceived') {
+          return res.status(400).json({ message: "POD Received orders cannot be moved to another status" });
+        }
+      }
+
       if (!user.isAdmin && user.role === 'BrandAdmin') {
         const brands = await storage.getUserBrandAccess(userId);
         if (!order.brand || !brands.includes(order.brand)) {
