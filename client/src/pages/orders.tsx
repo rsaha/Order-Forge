@@ -1694,21 +1694,32 @@ export default function OrdersPage() {
                   <div className="grid gap-4">
                     <div>
                       <Label htmlFor="status">Status</Label>
-                      <Select
-                        value={editFormData.status}
-                        onValueChange={(v) => setEditFormData({ ...editFormData, status: v as OrderStatus })}
-                      >
-                        <SelectTrigger id="status" data-testid="select-edit-status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ORDER_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {selectedOrder.status === "Delivered" || selectedOrder.status === "PODReceived" ? (
+                        <div className="flex items-center h-9 px-3 rounded-md border bg-muted">
+                          <Badge className={statusColors[selectedOrder.status as OrderStatus]}>
+                            {selectedOrder.status === "PODReceived" ? "POD Received" : selectedOrder.status}
+                          </Badge>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {selectedOrder.status === "Delivered" ? "(Can only mark POD Received)" : "(Final status)"}
+                          </span>
+                        </div>
+                      ) : (
+                        <Select
+                          value={editFormData.status}
+                          onValueChange={(v) => setEditFormData({ ...editFormData, status: v as OrderStatus })}
+                        >
+                          <SelectTrigger id="status" data-testid="select-edit-status">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ORDER_STATUSES.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
 
                     <div>
