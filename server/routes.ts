@@ -1934,11 +1934,125 @@ export async function registerRoutes(
         return null;
       };
       
-      // Process product lines - try new NAME-based format first, then SKU-based, then fallback
-      const lines: string[] = [];
+      // Known size codes that can appear as continuation lines
+      const KNOWN_SIZE_CODES = new Set(['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'UNI', 'CH', 'SPL', 'LT', 'RT']);
+      
+      // Known variant names that can appear as continuation lines (product sub-types)
+      const KNOWN_VARIANT_NAMES = new Set([
+        'ERGO', 'NEOPRENE', 'WO WHEEL', 'WITH WHEEL', 'QUADRATIC', 'QUADRIOPOD',
+        'HEAVY DUTY', 'ALUMINIUM', 'REGULAR', 'PLUS', 'SHORT', 'LONG'
+      ]);
+      
+      // Helper function to detect if a line is a STRICT "continuation line" (size-only + quantity)
+      // These inherit the product name from the previous full product line
+      // Only matches: "L- 10", "Xl- 8", "S- 2", "uni- 5", "14"- 1", "19"- 2" (measurements)
+      const isStrictContinuationLine = (line: string): { type: 'size' | 'measurement' | 'variant'; value: string; qty: number } | null => {
+        const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        
+        // Pattern 1: Standard size code - "L- 10", "XL- 8", "uni- 5"
+        const sizeMatch = cleanLine.match(/^(S|M|L|XL|XXL|XXXL|UNI|CH|SPL|LT|RT)\s*-\s*(\d+)$/i);
+        if (sizeMatch && KNOWN_SIZE_CODES.has(sizeMatch[1].toUpperCase())) {
+          return { type: 'size', value: sizeMatch[1].toUpperCase(), qty: parseInt(sizeMatch[2]) || 1 };
+        }
+        
+        // Pattern 2: Measurement size - "14"- 1", "19"- m- 2" -> extract the measurement
+        const measurementMatch = cleanLine.match(/^(\d+)"?\s*-\s*(?:([A-Z]{1,3})\s*-\s*)?(\d+)$/i);
+        if (measurementMatch) {
+          const size = measurementMatch[2] ? `${measurementMatch[1]}"-${measurementMatch[2].toUpperCase()}` : `${measurementMatch[1]}"`;
+          return { type: 'measurement', value: size, qty: parseInt(measurementMatch[3]) || 1 };
+        }
+        
+        // Pattern 3: Known variant names - "Ergo- 1", "Wo wheel- 2"
+        const variantMatch = cleanLine.match(/^(.+?)\s*-\s*(\d+)$/i);
+        if (variantMatch) {
+          const potentialVariant = variantMatch[1].trim().toUpperCase();
+          if (KNOWN_VARIANT_NAMES.has(potentialVariant)) {
+            return { type: 'variant', value: potentialVariant, qty: parseInt(variantMatch[2]) || 1 };
+          }
+        }
+        
+        return null;
+      };
+      
+      // Helper to parse full product line: "PRODUCT NAME- SIZE- QTY"
+      // Only matches lines with exactly 2 dashes in the pattern "name - size - qty"
+      const parseFullProductSizeLine = (line: string): { productName: string; size: string; qty: number } | null => {
+        const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        // Pattern: "product name- size- qty" 
+        // Examples: "knee cap- m- 10", "Ankel binder-m- 8", "Cervical collar with supp- m- 8"
+        // The size part should be a known size code or measurement
+        const match = cleanLine.match(/^(.+?)\s*-\s*([A-Za-z0-9"]+)\s*-\s*(\d+)$/i);
+        if (match) {
+          const potentialSize = match[2].trim().toUpperCase();
+          // Verify size is a known size code or looks like a measurement
+          if (KNOWN_SIZE_CODES.has(potentialSize) || /^\d+"?$/.test(potentialSize)) {
+            return {
+              productName: match[1].trim(),
+              size: potentialSize,
+              qty: parseInt(match[3]) || 1
+            };
+          }
+        }
+        return null;
+      };
+      
+      // Parsed items array - shared across all parsing phases
       const parsedItems: Array<{rawText: string; productRef: string; quantity: number; freeQuantity: number}> = [];
       
-      for (const line of productLines) {
+      // Process continuation patterns and add directly to parsedItems
+      // This is done BEFORE other parsing to handle the specific format
+      const processedByContinuation = new Set<number>();
+      
+      // CRITICAL: Only track product names from full "product-size-qty" lines
+      // This ensures continuation only happens after explicit size-based lines
+      let lastProductFromSizeLine: string | null = null;
+      
+      for (let i = 0; i < productLines.length; i++) {
+        const line = productLines[i];
+        const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        if (!cleanLine) continue;
+        
+        // Try to parse as full product-size-qty line first (2 dashes pattern)
+        const fullProduct = parseFullProductSizeLine(cleanLine);
+        if (fullProduct) {
+          // Set lastProductFromSizeLine ONLY from full product-size-qty lines
+          lastProductFromSizeLine = fullProduct.productName;
+          parsedItems.push({
+            rawText: cleanLine,
+            productRef: `${fullProduct.productName} ${fullProduct.size}`,
+            quantity: fullProduct.qty,
+            freeQuantity: 0,
+          });
+          processedByContinuation.add(i);
+          continue;
+        }
+        
+        // Check if this is a strict continuation line (size-only or known variant)
+        // ONLY allow continuation if we have a product from a previous size line
+        const continuation = isStrictContinuationLine(cleanLine);
+        if (continuation && lastProductFromSizeLine) {
+          parsedItems.push({
+            rawText: cleanLine,
+            productRef: `${lastProductFromSizeLine} ${continuation.value}`,
+            quantity: continuation.qty,
+            freeQuantity: 0,
+          });
+          processedByContinuation.add(i);
+          continue;
+        }
+        
+        // Not a continuation pattern - reset lastProductFromSizeLine
+        // This prevents continuation from bleeding across unrelated products
+        // Standalone products like "Heating pad- 3" will NOT be followed by continuations
+        lastProductFromSizeLine = null;
+      }
+      
+      // Filter out lines already processed by continuation parser
+      const remainingLines = productLines.filter((_: string, i: number) => !processedByContinuation.has(i));
+      
+      const lines: string[] = [];
+      
+      for (const line of remainingLines) {
         // First split by semicolon for multiple products on same line
         const semicolonParts = line.split(/;+/).map((p: string) => p.trim()).filter((p: string) => p);
         
