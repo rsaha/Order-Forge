@@ -326,10 +326,13 @@ export default function OrdersPage() {
   });
 
   // Filter orders by search query across all statuses, or by current status tab
+  // PODReceived orders are only visible to Admin users
   const orders = useMemo(() => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       return allOrders.filter(o => {
+        // Hide PODReceived orders from non-admin users in search results
+        if (o.status === "PODReceived" && !isAdmin) return false;
         const partyMatch = o.partyName?.toLowerCase().includes(query);
         const invoiceMatch = o.invoiceNumber?.toLowerCase().includes(query);
         const createdByName = (o as any).createdByName?.toLowerCase().includes(query);
@@ -338,7 +341,7 @@ export default function OrdersPage() {
       });
     }
     return allOrders.filter(o => o.status === statusFilter);
-  }, [allOrders, searchQuery, statusFilter]);
+  }, [allOrders, searchQuery, statusFilter, isAdmin]);
   
   // Count orders by status for tab badges
   const statusCounts: Record<OrderStatus, number> = {
@@ -1077,9 +1080,9 @@ export default function OrdersPage() {
           </Select>
         </div>
         
-        {/* Status Tabs */}
+        {/* Status Tabs - PODReceived only visible to Admin */}
         <div className="flex gap-1 overflow-x-auto pb-1 -mx-4 px-4">
-          {ORDER_STATUSES.map((status) => (
+          {ORDER_STATUSES.filter(status => status !== "PODReceived" || isAdmin).map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
