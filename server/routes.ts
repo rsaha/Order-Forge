@@ -2261,22 +2261,6 @@ export async function registerRoutes(
         userProducts = userProducts.filter(p => p.brand.toLowerCase() === brand.toLowerCase());
       }
       
-      // Helper to extract product family key (base name without size)
-      const getProductFamilyKey = (productName: string): string => {
-        const normalized = normalizeText(productName);
-        // Remove size tokens at the end
-        const sizePatterns = ['xxxl', 'xxl', 'xl', 'xs', 'uni', 'spl', 'ch', 'lt', 'rt', 'left', 'right', 'adult', 'child', 's', 'm', 'l'];
-        let familyKey = normalized;
-        for (const size of sizePatterns) {
-          // Remove size at end of string
-          const endPattern = new RegExp(`\\s+${size}$`, 'i');
-          familyKey = familyKey.replace(endPattern, '');
-        }
-        // Also remove common size patterns like "19" or "14""
-        familyKey = familyKey.replace(/\s+\d+"?\s*$/, '');
-        return familyKey.trim();
-      };
-      
       // Helper to extract base product name from productRef (strip size)
       const getBaseProductName = (productRef: string): string => {
         const { queryWithoutSize } = extractSizeFromQuery(productRef);
@@ -2284,55 +2268,62 @@ export async function registerRoutes(
         return queryWithoutSize.replace(/\s*-?\s*\d+"?\s*$/, '').trim();
       };
       
+      // Helper to check if product name contains all words from the base query
+      const productContainsAllWords = (productName: string, baseWords: string[]): boolean => {
+        const normalizedProduct = normalizeText(productName);
+        const productWords = normalizedProduct.split(' ').filter(w => w.length > 0);
+        
+        for (const queryWord of baseWords) {
+          if (queryWord.length < 2) continue;
+          // Check if any product word matches or contains the query word
+          const found = productWords.some(pw => 
+            pw === queryWord || pw.includes(queryWord) || queryWord.includes(pw)
+          );
+          if (!found) return false;
+        }
+        return true;
+      };
+      
       // Group parsed items by base product name for continuation handling
       // Items with the same base name should match the same product family
-      type ParsedItemWithGroup = typeof parsedItems[0] & { groupKey: string };
-      const itemsWithGroups: ParsedItemWithGroup[] = parsedItems.map(item => ({
-        ...item,
-        groupKey: getBaseProductName(item.productRef).toLowerCase()
-      }));
+      type ParsedItemWithGroup = typeof parsedItems[0] & { groupKey: string; baseWords: string[] };
+      const itemsWithGroups: ParsedItemWithGroup[] = parsedItems.map(item => {
+        const baseName = getBaseProductName(item.productRef).toLowerCase();
+        const baseWords = normalizeText(baseName).split(' ').filter(w => w.length >= 2);
+        return {
+          ...item,
+          groupKey: baseName,
+          baseWords: baseWords
+        };
+      });
       
-      // Track matched product families for each group key
-      const matchedFamilies: Map<string, { familyKey: string; sku: string }> = new Map();
+      // Track which group keys we've seen (to apply family filtering)
+      const seenGroups: Set<string> = new Set();
 
       const matchedItems = itemsWithGroups.map((item, index) => {
         const productRef = item.productRef.trim();
         const groupKey = item.groupKey;
+        const baseWords = item.baseWords;
         
         let matchedProduct = null;
         
-        // Check if we already matched a product for this group (continuation handling)
-        const familyMatch = matchedFamilies.get(groupKey);
+        // Filter products to those containing all words from user's base query
+        // This ensures "knee cap" matches products with "knee" AND "cap" in the name
+        const familyProducts = baseWords.length > 0 
+          ? userProducts.filter(p => productContainsAllWords(p.name, baseWords))
+          : userProducts;
         
-        if (familyMatch) {
-          // This is a continuation line - filter products to same family
-          const familyProducts = userProducts.filter(p => {
-            const pFamilyKey = getProductFamilyKey(p.name);
-            // Match by family key OR same SKU prefix
-            return pFamilyKey === familyMatch.familyKey || 
-                   p.sku.split('-')[0] === familyMatch.sku.split('-')[0];
-          });
-          
-          if (familyProducts.length > 0) {
-            matchedProduct = findBestMatch(productRef, familyProducts, 0.3);
-          }
-          
-          // Fallback to full catalog if no family match found
-          if (!matchedProduct) {
-            matchedProduct = findBestMatch(productRef, userProducts, 0.4);
-          }
-        } else {
-          // First item in this group - match normally
-          matchedProduct = findBestMatch(productRef, userProducts, 0.4);
-          
-          // Store the family for subsequent continuation lines
-          if (matchedProduct) {
-            matchedFamilies.set(groupKey, {
-              familyKey: getProductFamilyKey(matchedProduct.name),
-              sku: matchedProduct.sku
-            });
-          }
+        if (familyProducts.length > 0) {
+          // Match within family-filtered products
+          matchedProduct = findBestMatch(productRef, familyProducts, 0.3);
         }
+        
+        // Fallback to full catalog if no family match found
+        if (!matchedProduct) {
+          matchedProduct = findBestMatch(productRef, userProducts, 0.4);
+        }
+        
+        seenGroups.add(groupKey);
 
         return {
           rawText: item.rawText,
