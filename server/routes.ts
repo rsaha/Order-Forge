@@ -342,6 +342,27 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
       // If product has no size field, don't adjust (might be universal)
     }
     
+    // SIMPLICITY BONUS: Prefer products with fewer extra words beyond the query
+    // This ensures "knee cap" matches "KNEE CAP (PAIR) - M" over "KNEE CAP (WITH RIGID HINGE) - M"
+    const queryWords = normalizeText(matchQuery).split(' ').filter(w => w.length >= 2);
+    const productNameNormalized = normalizeText(product.name);
+    const productWords = productNameNormalized.split(' ').filter(w => w.length >= 2);
+    
+    // Count how many query words are found in product name
+    const queryWordsInProduct = queryWords.filter(qw => 
+      productWords.some(pw => pw === qw || pw.includes(qw) || qw.includes(pw))
+    ).length;
+    
+    // Extra words = total product words - query words found
+    const extraWords = productWords.length - queryWordsInProduct;
+    
+    // Apply simplicity bonus: fewer extra words = higher bonus
+    // Max bonus of 0.1 for products with 0 extra words, decreasing by 0.02 per extra word
+    if (queryWordsInProduct > 0 && score >= threshold) {
+      const simplicityBonus = Math.max(0, 0.1 - (extraWords * 0.02));
+      score += simplicityBonus;
+    }
+    
     if (score > bestScore) {
       bestScore = score;
       bestMatch = product;
@@ -2268,6 +2289,19 @@ export async function registerRoutes(
         return queryWithoutSize.replace(/\s*-?\s*\d+"?\s*$/, '').trim();
       };
       
+      // Helper to extract product base name without size (for family matching)
+      const getProductBaseName = (productName: string): string => {
+        const normalized = normalizeText(productName);
+        // Remove size tokens at the end: - M, - L, - XL, etc.
+        const sizePatterns = ['xxxl', 'xxl', 'xl', 'xs', 'uni', 'spl', 'ch', 'lt', 'rt', 'left', 'right', 's', 'm', 'l'];
+        let baseName = normalized;
+        for (const size of sizePatterns) {
+          const endPattern = new RegExp(`\\s*-?\\s*${size}$`, 'i');
+          baseName = baseName.replace(endPattern, '');
+        }
+        return baseName.trim();
+      };
+      
       // Helper to check if product name contains all words from the base query
       const productContainsAllWords = (productName: string, baseWords: string[]): boolean => {
         const normalizedProduct = normalizeText(productName);
@@ -2297,8 +2331,8 @@ export async function registerRoutes(
         };
       });
       
-      // Track which group keys we've seen (to apply family filtering)
-      const seenGroups: Set<string> = new Set();
+      // Track matched products by group key - use the first matched product's base name to constrain continuations
+      const matchedProductBases: Map<string, string> = new Map();
 
       const matchedItems = itemsWithGroups.map((item, index) => {
         const productRef = item.productRef.trim();
@@ -2307,15 +2341,35 @@ export async function registerRoutes(
         
         let matchedProduct = null;
         
-        // Filter products to those containing all words from user's base query
-        // This ensures "knee cap" matches products with "knee" AND "cap" in the name
-        const familyProducts = baseWords.length > 0 
-          ? userProducts.filter(p => productContainsAllWords(p.name, baseWords))
-          : userProducts;
+        // Check if we already matched a product for this group
+        const existingProductBase = matchedProductBases.get(groupKey);
         
-        if (familyProducts.length > 0) {
-          // Match within family-filtered products
-          matchedProduct = findBestMatch(productRef, familyProducts, 0.3);
+        if (existingProductBase) {
+          // This is a continuation - STRICTLY filter to products with the same base name
+          const strictFamilyProducts = userProducts.filter(p => 
+            getProductBaseName(p.name) === existingProductBase
+          );
+          
+          if (strictFamilyProducts.length > 0) {
+            matchedProduct = findBestMatch(productRef, strictFamilyProducts, 0.3);
+          }
+          
+          // If strict matching fails, try products containing all query words
+          if (!matchedProduct && baseWords.length > 0) {
+            const looseFamilyProducts = userProducts.filter(p => productContainsAllWords(p.name, baseWords));
+            if (looseFamilyProducts.length > 0) {
+              matchedProduct = findBestMatch(productRef, looseFamilyProducts, 0.3);
+            }
+          }
+        } else {
+          // First item in this group - filter by query words, then match
+          const familyProducts = baseWords.length > 0 
+            ? userProducts.filter(p => productContainsAllWords(p.name, baseWords))
+            : userProducts;
+          
+          if (familyProducts.length > 0) {
+            matchedProduct = findBestMatch(productRef, familyProducts, 0.3);
+          }
         }
         
         // Fallback to full catalog if no family match found
@@ -2323,7 +2377,10 @@ export async function registerRoutes(
           matchedProduct = findBestMatch(productRef, userProducts, 0.4);
         }
         
-        seenGroups.add(groupKey);
+        // Store the matched product's base name for future continuations
+        if (matchedProduct && !matchedProductBases.has(groupKey)) {
+          matchedProductBases.set(groupKey, getProductBaseName(matchedProduct.name));
+        }
 
         return {
           rawText: item.rawText,
