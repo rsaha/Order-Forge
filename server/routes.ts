@@ -2260,15 +2260,85 @@ export async function registerRoutes(
       if (brand && brand.trim()) {
         userProducts = userProducts.filter(p => p.brand.toLowerCase() === brand.toLowerCase());
       }
+      
+      // Helper to extract product family key (base name without size)
+      const getProductFamilyKey = (productName: string): string => {
+        const normalized = normalizeText(productName);
+        // Remove size tokens at the end
+        const sizePatterns = ['xxxl', 'xxl', 'xl', 'xs', 'uni', 'spl', 'ch', 'lt', 'rt', 'left', 'right', 'adult', 'child', 's', 'm', 'l'];
+        let familyKey = normalized;
+        for (const size of sizePatterns) {
+          // Remove size at end of string
+          const endPattern = new RegExp(`\\s+${size}$`, 'i');
+          familyKey = familyKey.replace(endPattern, '');
+        }
+        // Also remove common size patterns like "19" or "14""
+        familyKey = familyKey.replace(/\s+\d+"?\s*$/, '');
+        return familyKey.trim();
+      };
+      
+      // Helper to extract base product name from productRef (strip size)
+      const getBaseProductName = (productRef: string): string => {
+        const { queryWithoutSize } = extractSizeFromQuery(productRef);
+        // Also strip measurement sizes like "19"", "14""
+        return queryWithoutSize.replace(/\s*-?\s*\d+"?\s*$/, '').trim();
+      };
+      
+      // Group parsed items by base product name for continuation handling
+      // Items with the same base name should match the same product family
+      type ParsedItemWithGroup = typeof parsedItems[0] & { groupKey: string };
+      const itemsWithGroups: ParsedItemWithGroup[] = parsedItems.map(item => ({
+        ...item,
+        groupKey: getBaseProductName(item.productRef).toLowerCase()
+      }));
+      
+      // Track matched product families for each group key
+      const matchedFamilies: Map<string, { familyKey: string; sku: string }> = new Map();
 
-      const matchedItems = parsedItems.map(item => {
+      const matchedItems = itemsWithGroups.map((item, index) => {
         const productRef = item.productRef.trim();
+        const groupKey = item.groupKey;
         
-        // Use fuzzy matching to find the best matching product
-        const matchedProduct = findBestMatch(productRef, userProducts, 0.4);
+        let matchedProduct = null;
+        
+        // Check if we already matched a product for this group (continuation handling)
+        const familyMatch = matchedFamilies.get(groupKey);
+        
+        if (familyMatch) {
+          // This is a continuation line - filter products to same family
+          const familyProducts = userProducts.filter(p => {
+            const pFamilyKey = getProductFamilyKey(p.name);
+            // Match by family key OR same SKU prefix
+            return pFamilyKey === familyMatch.familyKey || 
+                   p.sku.split('-')[0] === familyMatch.sku.split('-')[0];
+          });
+          
+          if (familyProducts.length > 0) {
+            matchedProduct = findBestMatch(productRef, familyProducts, 0.3);
+          }
+          
+          // Fallback to full catalog if no family match found
+          if (!matchedProduct) {
+            matchedProduct = findBestMatch(productRef, userProducts, 0.4);
+          }
+        } else {
+          // First item in this group - match normally
+          matchedProduct = findBestMatch(productRef, userProducts, 0.4);
+          
+          // Store the family for subsequent continuation lines
+          if (matchedProduct) {
+            matchedFamilies.set(groupKey, {
+              familyKey: getProductFamilyKey(matchedProduct.name),
+              sku: matchedProduct.sku
+            });
+          }
+        }
 
         return {
-          ...item,
+          rawText: item.rawText,
+          productRef: item.productRef,
+          quantity: item.quantity,
+          freeQuantity: item.freeQuantity,
           matchedProduct: matchedProduct ? {
             id: matchedProduct.id,
             sku: matchedProduct.sku,
