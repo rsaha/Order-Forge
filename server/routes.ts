@@ -274,9 +274,41 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
   let bestMatch: T | null = null;
   let bestScore = threshold;
   
+  // Helper to check if query has at least one word overlap with target
+  const hasWordOverlap = (queryText: string, targetText: string): boolean => {
+    const queryWords = normalizeText(queryText).split(' ').filter(w => w.length >= 2);
+    const targetWords = normalizeText(targetText).split(' ').filter(w => w.length >= 2);
+    
+    for (const qw of queryWords) {
+      for (const tw of targetWords) {
+        // Exact match or one contains the other (for abbreviations/misspellings)
+        if (qw === tw || tw.includes(qw) || qw.includes(tw)) {
+          return true;
+        }
+        // Allow 1-2 character typos for longer words
+        if (qw.length >= 4 && tw.length >= 4) {
+          const distance = levenshteinDistance(qw, tw);
+          if (distance <= 2) return true;
+        }
+      }
+    }
+    return false;
+  };
+  
   for (const product of products) {
     // Use queryWithoutSize for base matching if we extracted a size
     const matchQuery = querySize ? queryWithoutSize : query;
+    
+    // WORD-OVERLAP GATE: Skip products with no word overlap to prevent unrelated matches
+    const hasNameOverlap = hasWordOverlap(matchQuery, product.name);
+    const hasSkuOverlap = hasWordOverlap(matchQuery, product.sku);
+    const hasAliasOverlap = (product.alias1 && hasWordOverlap(matchQuery, product.alias1)) ||
+                            (product.alias2 && hasWordOverlap(matchQuery, product.alias2)) ||
+                            (product.aliases && hasWordOverlap(matchQuery, product.aliases));
+    
+    if (!hasNameOverlap && !hasSkuOverlap && !hasAliasOverlap) {
+      continue; // Skip this product - no word overlap with query
+    }
     
     const skuScore = calculateSimilarity(matchQuery, product.sku);
     const nameScore = calculateSimilarity(matchQuery, product.name);
