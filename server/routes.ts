@@ -2007,16 +2007,21 @@ export async function registerRoutes(
       // This ensures continuation only happens after explicit size-based lines
       let lastProductFromSizeLine: string | null = null;
       
+      console.log('[PARSE DEBUG] Starting continuation parsing, productLines:', productLines.length);
+      
       for (let i = 0; i < productLines.length; i++) {
         const line = productLines[i];
         const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
         if (!cleanLine) continue;
+        
+        console.log(`[PARSE DEBUG] Line ${i}: "${cleanLine}", lastProduct: "${lastProductFromSizeLine}"`);
         
         // Try to parse as full product-size-qty line first (2 dashes pattern)
         const fullProduct = parseFullProductSizeLine(cleanLine);
         if (fullProduct) {
           // Set lastProductFromSizeLine ONLY from full product-size-qty lines
           lastProductFromSizeLine = fullProduct.productName;
+          console.log(`[PARSE DEBUG] -> Full product: ${fullProduct.productName} ${fullProduct.size} x${fullProduct.qty}`);
           parsedItems.push({
             rawText: cleanLine,
             productRef: `${fullProduct.productName} ${fullProduct.size}`,
@@ -2030,7 +2035,9 @@ export async function registerRoutes(
         // Check if this is a strict continuation line (size-only or known variant)
         // ONLY allow continuation if we have a product from a previous size line
         const continuation = isStrictContinuationLine(cleanLine);
+        console.log(`[PARSE DEBUG] -> Continuation check: ${continuation ? JSON.stringify(continuation) : 'null'}`);
         if (continuation && lastProductFromSizeLine) {
+          console.log(`[PARSE DEBUG] -> Attaching to ${lastProductFromSizeLine}: ${continuation.value} x${continuation.qty}`);
           parsedItems.push({
             rawText: cleanLine,
             productRef: `${lastProductFromSizeLine} ${continuation.value}`,
@@ -2044,8 +2051,11 @@ export async function registerRoutes(
         // Not a continuation pattern - reset lastProductFromSizeLine
         // This prevents continuation from bleeding across unrelated products
         // Standalone products like "Heating pad- 3" will NOT be followed by continuations
+        console.log(`[PARSE DEBUG] -> Not matched, resetting lastProductFromSizeLine`);
         lastProductFromSizeLine = null;
       }
+      
+      console.log(`[PARSE DEBUG] Continuation parsing complete. Processed ${processedByContinuation.size} lines, parsedItems: ${parsedItems.length}`);
       
       // Filter out lines already processed by continuation parser
       const remainingLines = productLines.filter((_: string, i: number) => !processedByContinuation.has(i));
