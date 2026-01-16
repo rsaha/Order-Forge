@@ -2096,14 +2096,14 @@ export async function registerRoutes(
       const isDoPrefixContinuationLine = (line: string): { size: string; qty: number } | null => {
         const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
         
-        // Pattern 1: "Do (SIZE) QTY" - e.g., "Do (M) 60", "do (XL) 20"
-        const parenMatch = cleanLine.match(/^do\s*\(([A-Za-z0-9"]+)\)\s*(\d+)$/i);
+        // Pattern 1: "Do (SIZE) QTY" or "Do (SIZE) QTYpcs" - e.g., "Do (M) 60", "do (XL) 20", "Do (L) 48pcs"
+        const parenMatch = cleanLine.match(/^do\s*\(([A-Za-z0-9"]+)\)\s*(\d+)\s*(?:pcs|pc)?$/i);
         if (parenMatch) {
           return { size: parenMatch[1].toUpperCase(), qty: parseInt(parenMatch[2]) || 1 };
         }
         
-        // Pattern 2: "Do SIZE-QTY" or "Do SIZE QTY" - e.g., "Do M-10", "Do XL 5"
-        const spaceMatch = cleanLine.match(/^do\s+([A-Za-z0-9"]+)\s*[-\s]\s*(\d+)$/i);
+        // Pattern 2: "Do SIZE-QTY" or "Do SIZE QTY" or with pcs suffix - e.g., "Do M-10", "Do XL 5", "Do 50gr 60"
+        const spaceMatch = cleanLine.match(/^do\s+([A-Za-z0-9"]+)\s*[-\s]\s*(\d+)\s*(?:pcs|pc)?$/i);
         if (spaceMatch) {
           return { size: spaceMatch[1].toUpperCase(), qty: parseInt(spaceMatch[2]) || 1 };
         }
