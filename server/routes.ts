@@ -275,20 +275,46 @@ function findBestMatch<T extends { sku: string; name: string; size?: string | nu
   let bestScore = threshold;
   
   // Helper to check if query has at least one word overlap with target
+  // Uses STRICT matching: exact word match or Levenshtein distance for typos
+  // Strict rules to prevent "anklet" matching "ankle":
+  // - Exact match always allowed
+  // - Fuzzy match only if words are SAME length and distance <= 1, OR
+  // - Fuzzy match if words differ by 1 char in length and distance <= 1
   const hasWordOverlap = (queryText: string, targetText: string): boolean => {
     const queryWords = normalizeText(queryText).split(' ').filter(w => w.length >= 2);
     const targetWords = normalizeText(targetText).split(' ').filter(w => w.length >= 2);
     
     for (const qw of queryWords) {
       for (const tw of targetWords) {
-        // Exact match or one contains the other (for abbreviations/misspellings)
-        if (qw === tw || tw.includes(qw) || qw.includes(tw)) {
+        // Exact match - always allowed
+        if (qw === tw) {
           return true;
         }
-        // Allow 1-2 character typos for longer words
-        if (qw.length >= 4 && tw.length >= 4) {
-          const distance = levenshteinDistance(qw, tw);
-          if (distance <= 2) return true;
+        
+        // Fuzzy matching with strict rules for typos
+        const lenDiff = Math.abs(qw.length - tw.length);
+        const distance = levenshteinDistance(qw, tw);
+        
+        // Same length words: allow 1 edit (typo like "ankel" → "ankle")
+        if (lenDiff === 0 && distance <= 1) {
+          return true;
+        }
+        
+        // 1 char length difference: only allow if distance is exactly 1 
+        // (insertion/deletion typo, NOT different words like "ankle"/"anklet")
+        // Actually, "ankle" (5) vs "anklet" (6) has distance 1, so we need to be even stricter
+        // Only allow if the shorter word is a PREFIX of the longer word minus 1 char
+        // This handles typos like "suppor" → "support" but not "ankle" → "anklet"
+        if (lenDiff === 1 && distance === 1) {
+          // Check if it's a simple prefix typo (missing last char)
+          const shorter = qw.length < tw.length ? qw : tw;
+          const longer = qw.length < tw.length ? tw : qw;
+          if (longer.startsWith(shorter)) {
+            // This is "ankle" vs "anklet" case - different words, NOT a typo
+            // Only allow if the extra char is a common typo pattern
+            continue; // Skip this - they're different words
+          }
+          return true; // Allow other 1-edit differences (internal typos)
         }
       }
     }
