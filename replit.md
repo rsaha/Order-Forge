@@ -63,7 +63,16 @@ Key tables:
 ### User Roles
 - **Regular Users (User)**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email. See only products from their assigned brands.
 - **Brand Admin (BrandAdmin)**: All regular user access plus can view orders for their assigned brands. Can change order status from Created to Approved only. When approving, their name and approval timestamp are recorded on the order.
-- **Admin Users**: Full access including Products tab, Upload tab (product inventory), Users management, and complete order management with all status transitions.
+- **Admin Users**: Full access including Products tab, Upload tab (product inventory), Users management, and complete order management with all status transitions. Can create orders on behalf of sales users.
+
+### Admin Order Creation on Behalf of Sales Users
+- Admin users can create orders for any sales user via a dropdown in the cart panel
+- Order ownership model:
+  - `userId` = order owner (the sales user the order is created for)
+  - `createdBy` = actual creator (the admin who created the order)
+- The order appears in the sales user's order list but includes full audit trail
+- Display format: "Owner Name (by Admin Name)" when creator differs from owner
+- Regular users and brand admins cannot create orders on behalf of others
 
 ### Single-Brand Order Requirement
 - Each order must contain products from only one brand
