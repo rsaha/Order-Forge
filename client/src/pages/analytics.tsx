@@ -63,6 +63,7 @@ interface CreatorTimeBucket {
 }
 
 interface OrderAnalytics {
+  created: StatusMetric;
   approved: StatusMetric;
   dispatched: StatusMetric;
   delivered: StatusMetric;
@@ -455,12 +456,12 @@ export default function AnalyticsPage() {
           <>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <KPICard
-                title="Approved"
-                count={analytics?.approved.count || 0}
-                value={analytics?.approved.value || 0}
+                title="Created"
+                count={analytics?.created.count || 0}
+                value={analytics?.created.value || 0}
                 icon={Clock}
-                colorClass="text-green-600"
-                bgClass="border-l-4 border-l-green-500"
+                colorClass="text-blue-600"
+                bgClass="border-l-4 border-l-blue-500"
               />
               <KPICard
                 title="Dispatched"

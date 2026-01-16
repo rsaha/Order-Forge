@@ -107,7 +107,8 @@ export interface CreatorTimeBucket {
 }
 
 export interface OrderAnalytics {
-  // Overall KPIs (excluding Created and Invoiced)
+  // Overall KPIs
+  created: StatusMetric;
   approved: StatusMetric;
   dispatched: StatusMetric;
   delivered: StatusMetric;
@@ -908,7 +909,8 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(users, eq(orders.userId, users.id));
     }
     
-    // Initialize status metrics (excluding Created and Invoiced)
+    // Initialize status metrics
+    const created: StatusMetric = { count: 0, value: 0 };
     const approved: StatusMetric = { count: 0, value: 0 };
     const dispatched: StatusMetric = { count: 0, value: 0 };
     const delivered: StatusMetric = { count: 0, value: 0 };
@@ -978,6 +980,8 @@ export class DatabaseStorage implements IStorage {
       // Update overall metrics
       switch (status) {
         case 'Created':
+          created.count++;
+          created.value += value;
           bucket.created.count++;
           bucket.created.value += value;
           break;
@@ -1059,6 +1063,7 @@ export class DatabaseStorage implements IStorage {
       });
     
     return {
+      created,
       approved,
       dispatched,
       delivered,
