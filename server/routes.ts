@@ -1983,11 +1983,19 @@ export async function registerRoutes(
         // The size part should be a known size code or measurement
         const match = cleanLine.match(/^(.+?)\s*-\s*([A-Za-z0-9"]+)\s*-\s*(\d+)$/i);
         if (match) {
+          const productName = match[1].trim();
           const potentialSize = match[2].trim().toUpperCase();
+          
+          // DON'T match if the product name is just a number/measurement (e.g., "14"")
+          // These should be treated as measurement continuations, not new products
+          if (/^\d+"?$/.test(productName)) {
+            return null;
+          }
+          
           // Verify size is a known size code or looks like a measurement
           if (KNOWN_SIZE_CODES.has(potentialSize) || /^\d+"?$/.test(potentialSize)) {
             return {
-              productName: match[1].trim(),
+              productName: productName,
               size: potentialSize,
               qty: parseInt(match[3]) || 1
             };
@@ -2003,9 +2011,13 @@ export async function registerRoutes(
       // This is done BEFORE other parsing to handle the specific format
       const processedByContinuation = new Set<number>();
       
-      // CRITICAL: Only track product names from full "product-size-qty" lines
-      // This ensures continuation only happens after explicit size-based lines
+      // Two-track context tracking:
+      // 1. lastProductFromSizeLine - for SIZE continuations (S, M, L, XL, etc.) 
+      //    Only set from product-size-qty lines like "knee cap- m- 10"
+      // 2. lastProductFromAnyLine - for VARIANT continuations (ERGO, NEOPRENE, etc.)
+      //    Set from any product line including "Commod chair - 1"
       let lastProductFromSizeLine: string | null = null;
+      let lastProductFromAnyLine: string | null = null;
       
       console.log('[PARSE DEBUG] Starting continuation parsing, productLines:', productLines.length);
       
@@ -2014,13 +2026,14 @@ export async function registerRoutes(
         const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
         if (!cleanLine) continue;
         
-        console.log(`[PARSE DEBUG] Line ${i}: "${cleanLine}", lastProduct: "${lastProductFromSizeLine}"`);
+        console.log(`[PARSE DEBUG] Line ${i}: "${cleanLine}", lastSizeProduct: "${lastProductFromSizeLine}", lastAnyProduct: "${lastProductFromAnyLine}"`);
         
         // Try to parse as full product-size-qty line first (2 dashes pattern)
         const fullProduct = parseFullProductSizeLine(cleanLine);
         if (fullProduct) {
-          // Set lastProductFromSizeLine ONLY from full product-size-qty lines
+          // Set both contexts from full product-size-qty lines
           lastProductFromSizeLine = fullProduct.productName;
+          lastProductFromAnyLine = fullProduct.productName;
           console.log(`[PARSE DEBUG] -> Full product: ${fullProduct.productName} ${fullProduct.size} x${fullProduct.qty}`);
           parsedItems.push({
             rawText: cleanLine,
@@ -2033,26 +2046,49 @@ export async function registerRoutes(
         }
         
         // Check if this is a strict continuation line (size-only or known variant)
-        // ONLY allow continuation if we have a product from a previous size line
         const continuation = isStrictContinuationLine(cleanLine);
         console.log(`[PARSE DEBUG] -> Continuation check: ${continuation ? JSON.stringify(continuation) : 'null'}`);
-        if (continuation && lastProductFromSizeLine) {
-          console.log(`[PARSE DEBUG] -> Attaching to ${lastProductFromSizeLine}: ${continuation.value} x${continuation.qty}`);
-          parsedItems.push({
-            rawText: cleanLine,
-            productRef: `${lastProductFromSizeLine} ${continuation.value}`,
-            quantity: continuation.qty,
-            freeQuantity: 0,
-          });
-          processedByContinuation.add(i);
-          continue;
+        
+        if (continuation) {
+          // Size continuations (S, M, L, XL, etc.) need lastProductFromSizeLine
+          // Variant/measurement continuations can use lastProductFromAnyLine
+          const contextProduct = (continuation.type === 'size') 
+            ? lastProductFromSizeLine 
+            : (lastProductFromAnyLine || lastProductFromSizeLine);
+          
+          if (contextProduct) {
+            console.log(`[PARSE DEBUG] -> Attaching ${continuation.type} to ${contextProduct}: ${continuation.value} x${continuation.qty}`);
+            parsedItems.push({
+              rawText: cleanLine,
+              productRef: `${contextProduct} ${continuation.value}`,
+              quantity: continuation.qty,
+              freeQuantity: 0,
+            });
+            processedByContinuation.add(i);
+            continue;
+          }
         }
         
-        // Not a continuation pattern - reset lastProductFromSizeLine
-        // This prevents continuation from bleeding across unrelated products
-        // Standalone products like "Heating pad- 3" will NOT be followed by continuations
-        console.log(`[PARSE DEBUG] -> Not matched, resetting lastProductFromSizeLine`);
+        // Check if this is a simple "product - qty" line (single dash, qty only)
+        // This sets lastProductFromAnyLine for variant continuations but NOT lastProductFromSizeLine
+        const simpleProductQty = cleanLine.match(/^(.+?)\s*-\s*(\d+)$/i);
+        if (simpleProductQty) {
+          const productName = simpleProductQty[1].trim();
+          // Only update if it looks like a product name (not a size code or variant)
+          if (!KNOWN_SIZE_CODES.has(productName.toUpperCase()) && !KNOWN_VARIANT_NAMES.has(productName.toUpperCase())) {
+            console.log(`[PARSE DEBUG] -> Simple product-qty: "${productName}" x${simpleProductQty[2]}, setting lastProductFromAnyLine`);
+            lastProductFromAnyLine = productName;
+            // Reset size context since this isn't a size-based line
+            lastProductFromSizeLine = null;
+            // Don't add to processedByContinuation - let other parsers handle this line
+            continue;
+          }
+        }
+        
+        // Not a continuation pattern - reset contexts
+        console.log(`[PARSE DEBUG] -> Not matched, resetting contexts`);
         lastProductFromSizeLine = null;
+        lastProductFromAnyLine = null;
       }
       
       console.log(`[PARSE DEBUG] Continuation parsing complete. Processed ${processedByContinuation.size} lines, parsedItems: ${parsedItems.length}`);
