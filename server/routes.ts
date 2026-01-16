@@ -87,22 +87,66 @@ function calculateSimilarity(query: string, target: string): number {
   // Exact match
   if (normalizedQuery === normalizedTarget) return 1;
   
-  // Substring match - very high score if query is contained in target
+  // Substring match - very high score if query is contained in target as a phrase
   if (normalizedTarget.includes(normalizedQuery)) {
     // Score higher for longer query matches
-    return 0.85 + (normalizedQuery.length / normalizedTarget.length) * 0.1;
+    return 0.95 + (normalizedQuery.length / normalizedTarget.length) * 0.05;
   }
   if (normalizedQuery.includes(normalizedTarget)) {
-    return 0.85;
-  }
-  
-  // Check if query starts with target or vice versa (prefix matching)
-  if (normalizedTarget.startsWith(normalizedQuery) || normalizedQuery.startsWith(normalizedTarget)) {
-    return 0.8;
+    return 0.9;
   }
   
   const queryWords = normalizedQuery.split(' ').filter(w => w.length > 0);
   const targetWords = normalizedTarget.split(' ').filter(w => w.length > 0);
+  const validQueryWords = queryWords.filter(w => w.length >= 2);
+  
+  if (validQueryWords.length === 0) return 0;
+  
+  // CRITICAL: Check if ALL query words are present in target (exact word match)
+  // This is the key to fixing "knee cap" matching "KNEE CAP (PAIR)" over "OA KNEE SUPPORT"
+  let exactWordMatches = 0;
+  let fuzzyWordMatches = 0;
+  
+  for (const qWord of validQueryWords) {
+    let foundExact = false;
+    let foundFuzzy = false;
+    
+    for (const tWord of targetWords) {
+      if (tWord === qWord) {
+        foundExact = true;
+        break;
+      }
+      // Check prefix match (query word is prefix of target word)
+      if (tWord.startsWith(qWord) && qWord.length >= 3) {
+        foundFuzzy = true;
+      }
+      // Fuzzy match with low tolerance
+      const distance = levenshteinDistance(qWord, tWord);
+      const maxLen = Math.max(qWord.length, tWord.length);
+      if (distance <= 1 && maxLen >= 3) {
+        foundFuzzy = true;
+      }
+    }
+    
+    if (foundExact) exactWordMatches++;
+    else if (foundFuzzy) fuzzyWordMatches++;
+  }
+  
+  // If ALL query words are exact matches in target - very high score
+  if (exactWordMatches === validQueryWords.length) {
+    return 0.92 + (validQueryWords.length / targetWords.length) * 0.05;
+  }
+  
+  // If ALL query words match (exact or fuzzy) - high score
+  if (exactWordMatches + fuzzyWordMatches === validQueryWords.length) {
+    const exactRatio = exactWordMatches / validQueryWords.length;
+    return 0.8 + exactRatio * 0.1;
+  }
+  
+  // Check if query starts with target or vice versa (prefix matching)
+  if (normalizedTarget.startsWith(normalizedQuery) || normalizedQuery.startsWith(normalizedTarget)) {
+    return 0.75;
+  }
   
   // Single word query - check each word in target
   if (queryWords.length === 1 && queryWords[0].length >= 2) {
@@ -111,25 +155,25 @@ function calculateSimilarity(query: string, target: string): number {
       // Exact word match
       if (tWord === qWord) return 0.9;
       // Word contains query
-      if (tWord.includes(qWord)) return 0.75;
+      if (tWord.includes(qWord)) return 0.7;
       // Query contains word
-      if (qWord.includes(tWord)) return 0.7;
+      if (qWord.includes(tWord)) return 0.65;
       // Word starts with query
-      if (tWord.startsWith(qWord)) return 0.75;
-      // Fuzzy match for single words (allow more typos)
+      if (tWord.startsWith(qWord)) return 0.7;
+      // Fuzzy match for single words
       const distance = levenshteinDistance(qWord, tWord);
       const maxLen = Math.max(qWord.length, tWord.length);
-      if (distance <= Math.ceil(maxLen * 0.4)) { // More forgiving - allow 40% difference
-        return 0.6 + (1 - distance / maxLen) * 0.2;
+      if (distance <= Math.ceil(maxLen * 0.3)) {
+        return 0.5 + (1 - distance / maxLen) * 0.2;
       }
     }
   }
   
-  // Multi-word matching
+  // Multi-word partial matching - PENALIZE when not all words match
   let matchedWords = 0;
   let partialScore = 0;
   for (const qWord of queryWords) {
-    if (qWord.length < 2) continue; // Skip single letters
+    if (qWord.length < 2) continue;
     
     let bestWordScore = 0;
     for (const tWord of targetWords) {
@@ -138,31 +182,34 @@ function calculateSimilarity(query: string, target: string): number {
         break;
       }
       if (tWord.includes(qWord) || qWord.includes(tWord)) {
-        bestWordScore = Math.max(bestWordScore, 0.8);
+        bestWordScore = Math.max(bestWordScore, 0.7);
         continue;
       }
       if (tWord.startsWith(qWord) || qWord.startsWith(tWord)) {
-        bestWordScore = Math.max(bestWordScore, 0.7);
+        bestWordScore = Math.max(bestWordScore, 0.6);
         continue;
       }
       const distance = levenshteinDistance(qWord, tWord);
       const maxLen = Math.max(qWord.length, tWord.length);
-      if (distance <= Math.ceil(maxLen * 0.4)) {
-        const score = 0.5 + (1 - distance / maxLen) * 0.3;
+      if (distance <= Math.ceil(maxLen * 0.3)) {
+        const score = 0.4 + (1 - distance / maxLen) * 0.2;
         bestWordScore = Math.max(bestWordScore, score);
       }
     }
-    if (bestWordScore > 0.5) {
+    if (bestWordScore > 0.4) {
       matchedWords++;
       partialScore += bestWordScore;
     }
   }
   
-  const validQueryWords = queryWords.filter(w => w.length >= 2).length;
-  if (validQueryWords === 0) return 0;
+  // If not all words matched, apply heavy penalty
+  const matchRatio = matchedWords / validQueryWords.length;
+  if (matchRatio < 1) {
+    // Penalize partial matches - this ensures "knee cap" doesn't match "knee support" highly
+    const avgScore = matchedWords > 0 ? partialScore / matchedWords : 0;
+    return matchRatio * avgScore * 0.6; // 40% penalty for partial matches
+  }
   
-  // Return weighted score based on matched words and their quality
-  const matchRatio = matchedWords / validQueryWords;
   const avgScore = matchedWords > 0 ? partialScore / matchedWords : 0;
   return matchRatio * avgScore;
 }
