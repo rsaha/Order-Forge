@@ -25,6 +25,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
   // User operations - required for Replit Auth
@@ -493,8 +494,11 @@ export class DatabaseStorage implements IStorage {
     return conditions;
   }
 
-  async getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
+  async getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
     const conditions = this.buildOrderConditions(filters);
+    
+    // Create alias for the creator (who actually made the order, may differ from owner)
+    const creatorUser = alias(users, 'creatorUser');
     
     const baseQuery = db.select({
       id: orders.id,
@@ -526,12 +530,17 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      createdBy: orders.createdBy,
       createdAt: orders.createdAt,
+      // Order owner info (sales user)
       createdByName: users.firstName,
       createdByEmail: users.email,
+      // Actual creator info (may be admin creating on behalf of sales user)
+      actualCreatorName: creatorUser.firstName,
     })
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id))
+    .leftJoin(creatorUser, eq(orders.createdBy, creatorUser.id))
     .orderBy(desc(orders.createdAt));
     
     if (conditions.length > 0) {
@@ -540,10 +549,13 @@ export class DatabaseStorage implements IStorage {
     return baseQuery;
   }
 
-  async getOrdersByBrands(brands: string[], filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null })[]> {
+  async getOrdersByBrands(brands: string[], filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
     if (brands.length === 0) return [];
     
     const conditions = this.buildOrderConditions(filters, [inArray(orders.brand, brands)]);
+    
+    // Create alias for the creator (who actually made the order, may differ from owner)
+    const creatorUser = alias(users, 'creatorUser');
     
     return db.select({
       id: orders.id,
@@ -575,12 +587,17 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      createdBy: orders.createdBy,
       createdAt: orders.createdAt,
+      // Order owner info (sales user)
       createdByName: users.firstName,
       createdByEmail: users.email,
+      // Actual creator info (may be admin creating on behalf of sales user)
+      actualCreatorName: creatorUser.firstName,
     })
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id))
+    .leftJoin(creatorUser, eq(orders.createdBy, creatorUser.id))
     .where(and(...conditions))
     .orderBy(desc(orders.createdAt));
   }

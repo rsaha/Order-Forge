@@ -135,6 +135,16 @@ function formatINR(amount: string | number): string {
   }).format(Number(amount));
 }
 
+function formatCreatedBy(order: any): string {
+  const ownerName = order.createdByName || order.createdByEmail || "-";
+  const actualCreator = order.actualCreatorName;
+  
+  if (actualCreator && actualCreator !== order.createdByName) {
+    return `${ownerName} (by ${actualCreator})`;
+  }
+  return ownerName;
+}
+
 interface OrderEditFormData {
   status: OrderStatus;
   partyName: string;
@@ -850,7 +860,7 @@ export default function OrdersPage() {
             order.partyName || "",
             order.brand || "",
             order.status,
-            (order as any).createdByName || (order as any).createdByEmail || "",
+            formatCreatedBy(order),
             item.productName || "",
             item.size || "",
             item.quantity,
@@ -872,7 +882,7 @@ export default function OrdersPage() {
             order.partyName || "",
             order.brand || "",
             order.status,
-            (order as any).createdByName || (order as any).createdByEmail || "",
+            formatCreatedBy(order),
             "",
             "",
             0,
@@ -1263,7 +1273,7 @@ export default function OrdersPage() {
                             </td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1277,7 +1287,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1306,7 +1316,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.approvedBy || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
@@ -1336,7 +1346,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
@@ -1395,7 +1405,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
                             <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
@@ -1416,7 +1426,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
@@ -1471,7 +1481,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
@@ -1532,7 +1542,7 @@ export default function OrdersPage() {
                 {((selectedOrder as any).createdByName || (selectedOrder as any).createdByEmail) && (
                   <div className="text-sm">
                     <span className="font-medium">Created By: </span>
-                    <span className="text-muted-foreground">{(selectedOrder as any).createdByName || (selectedOrder as any).createdByEmail}</span>
+                    <span className="text-muted-foreground">{formatCreatedBy(selectedOrder)}</span>
                   </div>
                 )}
                 {selectedOrder.approvedBy && (
