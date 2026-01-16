@@ -2278,6 +2278,44 @@ export async function registerRoutes(
           }
         }
         
+        // Check if this is a "product size qty" line (spaces only, no dashes)
+        // Examples: "Emoform 150grm 40", "Nipple(m) 288", "Cotton buds 36"
+        // This sets context for "Do" continuation lines
+        // Pattern: product name + optional size + quantity at end (separated by spaces)
+        const spaceProductQty = cleanLine.match(/^(.+?)\s+(\d+)$/);
+        if (spaceProductQty) {
+          const beforeQty = spaceProductQty[1].trim();
+          const qty = spaceProductQty[2];
+          
+          // Try to extract product name and size from the beforeQty portion
+          // Could be "Emoform 150grm" or just "Cotton buds"
+          // Size patterns: "150grm", "50gr", "100ml", parenthesized like "(m)", "(L)"
+          const sizeMatch = beforeQty.match(/^(.+?)\s+(\d+(?:grm?|ml|pcs|pc)?)$/i);
+          const parenSizeMatch = beforeQty.match(/^(.+?)\s*\(([A-Za-z0-9]+)\)$/i);
+          
+          if (sizeMatch) {
+            // Has size like "Emoform 150grm"
+            const productName = sizeMatch[1].trim();
+            console.log(`[PARSE DEBUG] -> Space-separated product-size-qty: "${productName}" size="${sizeMatch[2]}" x${qty}, setting both contexts`);
+            lastProductFromAnyLine = productName;
+            lastProductFromSizeLine = productName;
+            continue;
+          } else if (parenSizeMatch) {
+            // Has parenthesized size like "Nipple(m)"
+            const productName = parenSizeMatch[1].trim();
+            console.log(`[PARSE DEBUG] -> Paren-size product-qty: "${productName}" size="(${parenSizeMatch[2]})" x${qty}, setting both contexts`);
+            lastProductFromAnyLine = productName;
+            lastProductFromSizeLine = productName;
+            continue;
+          } else {
+            // Just product and qty, no size - set anyLine context only
+            console.log(`[PARSE DEBUG] -> Space-separated product-qty: "${beforeQty}" x${qty}, setting lastProductFromAnyLine`);
+            lastProductFromAnyLine = beforeQty;
+            lastProductFromSizeLine = null;
+            continue;
+          }
+        }
+        
         // Not a continuation pattern - reset contexts
         console.log(`[PARSE DEBUG] -> Not matched, resetting contexts`);
         lastProductFromSizeLine = null;
