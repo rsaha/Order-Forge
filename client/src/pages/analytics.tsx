@@ -735,11 +735,14 @@ export default function AnalyticsPage() {
                           <Legend />
                           {analytics.creatorNames.map((name, index) => {
                             const colors = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#ef4444'];
+                            // Show first name only, limited to 8 characters
+                            const firstName = name.split(' ')[0];
+                            const displayName = firstName.length > 8 ? firstName.substring(0, 8) : firstName;
                             return (
                               <Bar 
                                 key={name}
                                 dataKey={name}
-                                name={name}
+                                name={displayName}
                                 stackId="creators"
                                 fill={colors[index % colors.length]}
                               />
