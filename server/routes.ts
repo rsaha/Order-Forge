@@ -2402,6 +2402,9 @@ export async function registerRoutes(
         // Check if we already matched a product for this group
         const existingProductBase = matchedProductBases.get(groupKey);
         
+        // Use higher threshold (0.5) for confident matching - better to fail than match wrong
+        const HIGH_CONFIDENCE_THRESHOLD = 0.5;
+        
         if (existingProductBase) {
           // This is a continuation - STRICTLY filter to products with the same base name
           const strictFamilyProducts = userProducts.filter(p => 
@@ -2409,14 +2412,14 @@ export async function registerRoutes(
           );
           
           if (strictFamilyProducts.length > 0) {
-            matchedProduct = findBestMatch(productRef, strictFamilyProducts, 0.3);
+            matchedProduct = findBestMatch(productRef, strictFamilyProducts, HIGH_CONFIDENCE_THRESHOLD);
           }
           
-          // If strict matching fails, try products containing all query words
+          // If strict matching fails, try products containing all query words (still high threshold)
           if (!matchedProduct && baseWords.length > 0) {
             const looseFamilyProducts = userProducts.filter(p => productContainsAllWords(p.name, baseWords));
             if (looseFamilyProducts.length > 0) {
-              matchedProduct = findBestMatch(productRef, looseFamilyProducts, 0.3);
+              matchedProduct = findBestMatch(productRef, looseFamilyProducts, HIGH_CONFIDENCE_THRESHOLD);
             }
           }
         } else {
@@ -2426,14 +2429,12 @@ export async function registerRoutes(
             : userProducts;
           
           if (familyProducts.length > 0) {
-            matchedProduct = findBestMatch(productRef, familyProducts, 0.3);
+            matchedProduct = findBestMatch(productRef, familyProducts, HIGH_CONFIDENCE_THRESHOLD);
           }
         }
         
-        // Fallback to full catalog if no family match found
-        if (!matchedProduct) {
-          matchedProduct = findBestMatch(productRef, userProducts, 0.4);
-        }
+        // NO FALLBACK to full catalog - if we can't match with high confidence, return null
+        // This prevents matching wrong products when confidence is low
         
         // Store the matched product's base name for future continuations
         if (matchedProduct && !matchedProductBases.has(groupKey)) {
