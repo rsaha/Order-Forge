@@ -1539,6 +1539,23 @@ export default function OrdersPage() {
                 <div className="text-sm text-muted-foreground">
                   Order Total: {formatINR(selectedOrder.total)}
                 </div>
+                {selectedOrder.actualOrderValue && (
+                  <div className="text-sm">
+                    <span className="font-medium">Actual Invoice Value: </span>
+                    <span className="text-muted-foreground">{formatINR(Number(selectedOrder.actualOrderValue))}</span>
+                  </div>
+                )}
+                {pendingOrderLookup.has(selectedOrder.id) && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Has Pending Order
+                    </Badge>
+                    <span className="text-muted-foreground text-xs">
+                      #{pendingOrderLookup.get(selectedOrder.id)?.id.slice(-6)}
+                    </span>
+                  </div>
+                )}
                 {((selectedOrder as any).createdByName || (selectedOrder as any).createdByEmail) && (
                   <div className="text-sm">
                     <span className="font-medium">Created By: </span>
@@ -1945,17 +1962,19 @@ export default function OrdersPage() {
                           data-testid="input-cases"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="deliveryCost">Delivery Cost</Label>
-                        <Input
-                          id="deliveryCost"
-                          value={editFormData.deliveryCost}
-                          onChange={(e) => setEditFormData({ ...editFormData, deliveryCost: e.target.value })}
-                          placeholder="0.00"
-                          disabled={selectedOrder.status === "PODReceived"}
-                          data-testid="input-delivery-cost"
-                        />
-                      </div>
+                      {isAdmin && (
+                        <div>
+                          <Label htmlFor="deliveryCost">Delivery Cost</Label>
+                          <Input
+                            id="deliveryCost"
+                            value={editFormData.deliveryCost}
+                            onChange={(e) => setEditFormData({ ...editFormData, deliveryCost: e.target.value })}
+                            placeholder="0.00"
+                            disabled={selectedOrder.status === "PODReceived"}
+                            data-testid="input-delivery-cost"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
