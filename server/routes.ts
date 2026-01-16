@@ -956,8 +956,26 @@ export async function registerRoutes(
   // Create order
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { items, whatsappPhone, email, total, partyName, deliveryNote, deliveryCompany, brand, specialNotes, importText } = req.body;
+      const currentUserId = req.user.claims.sub;
+      const { items, whatsappPhone, email, total, partyName, deliveryNote, deliveryCompany, brand, specialNotes, importText, orderUserId } = req.body;
+      
+      // Get current user to check permissions
+      const currentUser = await storage.getUser(currentUserId);
+
+      // Determine order owner: Admin can create on behalf of another user
+      let orderOwnerUserId = currentUserId;
+      if (orderUserId && orderUserId !== currentUserId) {
+        // Only Admin can create orders on behalf of others
+        if (!currentUser?.isAdmin) {
+          return res.status(403).json({ message: "Only Admin can create orders on behalf of other users" });
+        }
+        // Verify the target user exists
+        const targetUser = await storage.getUser(orderUserId);
+        if (!targetUser) {
+          return res.status(400).json({ message: "Selected user not found" });
+        }
+        orderOwnerUserId = orderUserId;
+      }
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: "No items in order" });
@@ -990,7 +1008,8 @@ export async function registerRoutes(
       }
 
       const order = await storage.createOrder({
-        userId,
+        userId: orderOwnerUserId, // Order owner (sales user)
+        createdBy: currentUserId, // Who actually created the order (for audit)
         brand: brand.trim(),
         total: String(total),
         whatsappPhone,
@@ -1014,12 +1033,14 @@ export async function registerRoutes(
       await storage.createOrderItems(orderItemsData);
 
       const orderItems = await storage.getOrderItems(order.id);
-      const user = await storage.getUser(userId);
+      const orderOwner = await storage.getUser(orderOwnerUserId);
+      const createdByUser = orderOwnerUserId !== currentUserId ? await storage.getUser(currentUserId) : null;
       
       res.json({
         ...order,
         items: orderItems,
-        user: user ? { firstName: user.firstName, lastName: user.lastName } : null,
+        user: orderOwner ? { firstName: orderOwner.firstName, lastName: orderOwner.lastName } : null,
+        createdByUser: createdByUser ? { firstName: createdByUser.firstName, lastName: createdByUser.lastName } : null,
       });
     } catch (error) {
       console.error("Error creating order:", error);

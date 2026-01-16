@@ -27,6 +27,14 @@ export interface CartItemData {
   freeQuantity: number;
 }
 
+interface SalesUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  role: string | null;
+}
+
 interface MobileCartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -43,6 +51,11 @@ interface MobileCartDrawerProps {
   onVerifyParty?: (name: string) => void;
   isCustomer?: boolean;
   allowedDeliveryCompanies?: string[];
+  // Admin order on behalf of user
+  isAdmin?: boolean;
+  salesUsers?: SalesUser[];
+  selectedOrderUserId?: string | null;
+  onSelectOrderUser?: (userId: string | null) => void;
 }
 
 type DrawerStep = "cart" | "details";
@@ -189,6 +202,10 @@ export default function MobileCartDrawer({
   onVerifyParty,
   isCustomer = false,
   allowedDeliveryCompanies,
+  isAdmin = false,
+  salesUsers = [],
+  selectedOrderUserId,
+  onSelectOrderUser,
 }: MobileCartDrawerProps) {
   const [step, setStep] = useState<DrawerStep>("cart");
   

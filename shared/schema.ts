@@ -108,7 +108,8 @@ export const userDeliveryCompanyAccess = pgTable("user_delivery_company_access",
 // Orders table
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().references(() => users.id), // Order owner (sales user)
+  createdBy: varchar("created_by").references(() => users.id), // Who actually created the order (for audit)
   brand: varchar("brand").notNull(),
   status: varchar("status").notNull().default("Created"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),

@@ -16,6 +16,14 @@ function getEffectivePrice(product: Product): number {
   return product.price;
 }
 
+interface SalesUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  role: string | null;
+}
+
 interface MobileCartPageProps {
   cartItems: CartItemData[];
   orderDetails: OrderDetails;
@@ -31,6 +39,11 @@ interface MobileCartPageProps {
   onVerifyParty?: (name: string) => void;
   isCustomer?: boolean;
   allowedDeliveryCompanies?: string[];
+  // Admin order on behalf of user
+  isAdmin?: boolean;
+  salesUsers?: SalesUser[];
+  selectedOrderUserId?: string | null;
+  onSelectOrderUser?: (userId: string | null) => void;
 }
 
 type PageStep = "cart" | "details";
@@ -175,6 +188,10 @@ export default function MobileCartPage({
   onVerifyParty,
   isCustomer = false,
   allowedDeliveryCompanies,
+  isAdmin = false,
+  salesUsers = [],
+  selectedOrderUserId,
+  onSelectOrderUser,
 }: MobileCartPageProps) {
   const [step, setStep] = useState<PageStep>("cart");
 

@@ -3,7 +3,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Trash2, Minus, Plus, X, Send, Loader2, ArrowLeft, ChevronRight, Users } from "lucide-react";
 import { type CartItemData } from "./CartItem";
 import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm, { type PartyVerificationStatus } from "./OrderDetailsForm";
@@ -15,6 +17,14 @@ function getEffectivePrice(product: Product): number {
     if (!isNaN(dp) && dp > 0) return dp;
   }
   return product.price;
+}
+
+interface SalesUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  role: string | null;
 }
 
 interface CartPanelProps {
@@ -33,6 +43,11 @@ interface CartPanelProps {
   onVerifyParty?: (name: string) => void;
   isCustomer?: boolean;
   allowedDeliveryCompanies?: string[];
+  // Admin order on behalf of user
+  isAdmin?: boolean;
+  salesUsers?: SalesUser[];
+  selectedOrderUserId?: string | null;
+  onSelectOrderUser?: (userId: string | null) => void;
 }
 
 type PanelStep = "cart" | "details";
@@ -179,6 +194,10 @@ export default function CartPanel({
   onVerifyParty,
   isCustomer = false,
   allowedDeliveryCompanies,
+  isAdmin = false,
+  salesUsers = [],
+  selectedOrderUserId,
+  onSelectOrderUser,
 }: CartPanelProps) {
   const [step, setStep] = useState<PanelStep>("cart");
   
@@ -304,7 +323,42 @@ export default function CartPanel({
             
             <div className="flex-1 flex flex-col overflow-hidden">
               <ScrollArea className="flex-1">
-                <div className="p-4">
+                <div className="p-4 space-y-4">
+                  {/* Admin user selector - create order on behalf of sales user */}
+                  {isAdmin && salesUsers.length > 0 && onSelectOrderUser && (
+                    <div className="space-y-2 pb-4 border-b">
+                      <Label className="flex items-center gap-2 text-sm font-medium">
+                        <Users className="w-4 h-4" />
+                        Create Order For
+                      </Label>
+                      <Select
+                        value={selectedOrderUserId || "self"}
+                        onValueChange={(value) => onSelectOrderUser(value === "self" ? null : value)}
+                      >
+                        <SelectTrigger data-testid="select-order-user">
+                          <SelectValue placeholder="Select user (or self)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="self">Myself (Admin)</SelectItem>
+                          {salesUsers.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.firstName || u.lastName 
+                                ? `${u.firstName || ""} ${u.lastName || ""}`.trim()
+                                : u.email || u.id
+                              }
+                              {u.role && ` (${u.role})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedOrderUserId && (
+                        <p className="text-xs text-muted-foreground">
+                          This order will be created on behalf of the selected user and will be visible to them.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
                   <OrderDetailsForm
                     orderDetails={orderDetails}
                     onOrderDetailsChange={onOrderDetailsChange}

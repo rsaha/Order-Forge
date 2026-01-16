@@ -150,6 +150,9 @@ export default function Home() {
   const isAdmin = user?.isAdmin === true;
   const isCustomer = user?.role === "Customer";
   const cartRestoredRef = useRef(false);
+  
+  // State for Admin to create orders on behalf of other users
+  const [selectedOrderUserId, setSelectedOrderUserId] = useState<string | null>(null);
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -172,6 +175,20 @@ export default function Home() {
     staleTime: 10 * 60 * 1000, // 10 minutes - rarely changes
     refetchOnWindowFocus: false,
   });
+  
+  // Fetch users for Admin to create orders on behalf of sales users
+  const { data: allUsers = [] } = useQuery<Array<{ id: string; firstName: string | null; lastName: string | null; email: string | null; role: string | null }>>({
+    queryKey: ["/api/admin/users"],
+    enabled: isAdmin,
+    staleTime: 10 * 60 * 1000, // 10 minutes - users don't change often
+    refetchOnWindowFocus: false,
+  });
+  
+  // Filter to get sales users (User and BrandAdmin roles, exclude Customers)
+  const salesUsers = useMemo(() => 
+    allUsers.filter(u => u.role === "User" || u.role === "BrandAdmin"),
+    [allUsers]
+  );
   
   const allowedDeliveryCompanies = isCustomer ? deliveryCompanyAccess?.deliveryCompanies : undefined;
   
@@ -620,6 +637,8 @@ export default function Home() {
           deliveryCompany: orderDetails.deliveryCompany || "Guided",
           specialNotes: orderDetails.specialNotes || null,
           importText: importText || null,
+          // Admin can create orders on behalf of sales users
+          orderUserId: isAdmin && selectedOrderUserId ? selectedOrderUserId : undefined,
         }),
         credentials: "include",
       });
@@ -660,6 +679,7 @@ export default function Home() {
       });
       setPartyVerificationStatus("idle");
       setVerifiedPartyName("");
+      setSelectedOrderUserId(null);
       setIsCartOpen(false);
       setImportText("");
       setParsedItems([]);
@@ -1085,6 +1105,7 @@ export default function Home() {
             });
             setPartyVerificationStatus("idle");
             setVerifiedPartyName("");
+            setSelectedOrderUserId(null);
           }}
           onSendOrder={handleSendOrder}
           onClose={() => setIsCartOpen(false)}
@@ -1093,6 +1114,10 @@ export default function Home() {
           onVerifyParty={verifyPartyName}
           isCustomer={isCustomer}
           allowedDeliveryCompanies={allowedDeliveryCompanies}
+          isAdmin={isAdmin}
+          salesUsers={salesUsers}
+          selectedOrderUserId={selectedOrderUserId}
+          onSelectOrderUser={setSelectedOrderUserId}
         />
       ) : isMobile ? (
         <MobileCartDrawer
@@ -1115,6 +1140,7 @@ export default function Home() {
             });
             setPartyVerificationStatus("idle");
             setVerifiedPartyName("");
+            setSelectedOrderUserId(null);
           }}
           onSendOrder={handleSendOrder}
           isSending={isSendingOrder}
@@ -1122,6 +1148,10 @@ export default function Home() {
           onVerifyParty={verifyPartyName}
           isCustomer={isCustomer}
           allowedDeliveryCompanies={allowedDeliveryCompanies}
+          isAdmin={isAdmin}
+          salesUsers={salesUsers}
+          selectedOrderUserId={selectedOrderUserId}
+          onSelectOrderUser={setSelectedOrderUserId}
         />
       ) : (
         <CartPanel
@@ -1144,6 +1174,7 @@ export default function Home() {
             });
             setPartyVerificationStatus("idle");
             setVerifiedPartyName("");
+            setSelectedOrderUserId(null);
           }}
           onSendOrder={handleSendOrder}
           isSending={isSendingOrder}
@@ -1151,6 +1182,10 @@ export default function Home() {
           onVerifyParty={verifyPartyName}
           isCustomer={isCustomer}
           allowedDeliveryCompanies={allowedDeliveryCompanies}
+          isAdmin={isAdmin}
+          salesUsers={salesUsers}
+          selectedOrderUserId={selectedOrderUserId}
+          onSelectOrderUser={setSelectedOrderUserId}
         />
       )}
 
