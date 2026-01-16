@@ -2090,6 +2090,27 @@ export async function registerRoutes(
         'HEAVY DUTY', 'ALUMINIUM', 'REGULAR', 'PLUS', 'SHORT', 'LONG'
       ]);
       
+      // Helper function to detect if a line is a "Do" prefix continuation line
+      // "Do" means same product as previous line but with different sizing
+      // Formats: "Do (M) 60", "do M-10", "Do (XL) 20", "DO (uni) 5"
+      const isDoPrefixContinuationLine = (line: string): { size: string; qty: number } | null => {
+        const cleanLine = line.replace(/^\d+\.\s*/, '').trim();
+        
+        // Pattern 1: "Do (SIZE) QTY" - e.g., "Do (M) 60", "do (XL) 20"
+        const parenMatch = cleanLine.match(/^do\s*\(([A-Za-z0-9"]+)\)\s*(\d+)$/i);
+        if (parenMatch) {
+          return { size: parenMatch[1].toUpperCase(), qty: parseInt(parenMatch[2]) || 1 };
+        }
+        
+        // Pattern 2: "Do SIZE-QTY" or "Do SIZE QTY" - e.g., "Do M-10", "Do XL 5"
+        const spaceMatch = cleanLine.match(/^do\s+([A-Za-z0-9"]+)\s*[-\s]\s*(\d+)$/i);
+        if (spaceMatch) {
+          return { size: spaceMatch[1].toUpperCase(), qty: parseInt(spaceMatch[2]) || 1 };
+        }
+        
+        return null;
+      };
+      
       // Helper function to detect if a line is a STRICT "continuation line" (size-only + quantity)
       // These inherit the product name from the previous full product line
       // Only matches: "L- 10", "Xl- 8", "S- 2", "uni- 5", "14"- 1", "19"- 2" (measurements)
@@ -2190,6 +2211,31 @@ export async function registerRoutes(
           });
           processedByContinuation.add(i);
           continue;
+        }
+        
+        // Check if this is a "Do" prefix continuation (same product, different size)
+        // "Do (M) 60" means: use previous product with size M and quantity 60
+        const doContinuation = isDoPrefixContinuationLine(cleanLine);
+        if (doContinuation) {
+          // "Do" continuations prefer lastProductFromSizeLine (from product-size-qty lines)
+          // but can also use lastProductFromAnyLine as fallback
+          const contextProduct = lastProductFromSizeLine || lastProductFromAnyLine;
+          
+          if (contextProduct) {
+            console.log(`[PARSE DEBUG] -> "Do" continuation to ${contextProduct}: ${doContinuation.size} x${doContinuation.qty}`);
+            parsedItems.push({
+              rawText: cleanLine,
+              productRef: `${contextProduct} ${doContinuation.size}`,
+              quantity: doContinuation.qty,
+              freeQuantity: 0,
+            });
+            processedByContinuation.add(i);
+            continue;
+          } else {
+            console.log(`[PARSE DEBUG] -> "Do" continuation found but no context product - marking as unmatched`);
+            // No context product - this will fall through to be handled by other parsers
+            // and likely end up as unmatched, which is the intended behavior
+          }
         }
         
         // Check if this is a strict continuation line (size-only or known variant)
