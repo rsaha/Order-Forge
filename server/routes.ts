@@ -456,6 +456,8 @@ export async function registerRoutes(
   app.post('/api/auth/phone-login', async (req: any, res) => {
     try {
       const { phone, password } = req.body;
+      console.log("[phone-login] Attempt for phone:", phone?.trim());
+      
       if (!phone || !phone.trim()) {
         return res.status(400).json({ message: "Phone number is required" });
       }
@@ -464,18 +466,24 @@ export async function registerRoutes(
       }
 
       const user = await storage.getUserByPhone(phone.trim());
+      console.log("[phone-login] User found:", user ? `yes (id: ${user.id})` : "no");
+      
       if (!user) {
         // Generic message to prevent phone enumeration
         return res.status(401).json({ message: "Invalid phone number or password" });
       }
 
       if (!user.passwordHash) {
+        console.log("[phone-login] User has no password hash");
         // User exists but password not set - shouldn't happen with new flow
         // but handle gracefully with generic message
         return res.status(401).json({ message: "Invalid phone number or password" });
       }
 
+      console.log("[phone-login] Comparing password...");
       const isValid = await bcrypt.compare(password, user.passwordHash);
+      console.log("[phone-login] Password valid:", isValid);
+      
       if (!isValid) {
         return res.status(401).json({ message: "Invalid phone number or password" });
       }
