@@ -64,12 +64,13 @@ export default function UsersPage() {
     User: true,
     Customer: true,
   });
-  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUser, setNewUser] = useState({
     email: "",
     firstName: "",
     lastName: "",
     partyName: "",
+    role: "User" as "Admin" | "BrandAdmin" | "User" | "Customer",
     brands: [] as string[],
     deliveryCompanies: [] as string[],
   });
@@ -192,25 +193,26 @@ export default function UsersPage() {
     },
   });
 
-  const createCustomerMutation = useMutation({
-    mutationFn: async (data: typeof newCustomer) => {
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof newUser) => {
       return apiRequest("POST", "/api/admin/customers", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setShowAddCustomerModal(false);
-      setNewCustomer({
+      setShowAddUserModal(false);
+      setNewUser({
         email: "",
         firstName: "",
         lastName: "",
         partyName: "",
+        role: "User",
         brands: [],
         deliveryCompanies: [],
       });
-      toast({ title: "Customer created successfully" });
+      toast({ title: "User created successfully" });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to create customer", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to create user", description: error.message, variant: "destructive" });
     },
   });
 
@@ -663,9 +665,9 @@ export default function UsersPage() {
             <Badge variant="outline" className="ml-auto">
               {users.length} users
             </Badge>
-            <Button size="sm" onClick={() => setShowAddCustomerModal(true)} data-testid="button-add-customer">
+            <Button size="sm" onClick={() => setShowAddUserModal(true)} data-testid="button-add-user">
               <Plus className="w-4 h-4 mr-1" />
-              Add Customer
+              Add User
             </Button>
           </div>
         </div>
@@ -719,66 +721,85 @@ export default function UsersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={showAddCustomerModal} onOpenChange={setShowAddCustomerModal}>
+      <Dialog open={showAddUserModal} onOpenChange={setShowAddUserModal}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Customer</DialogTitle>
+            <DialogTitle>Add New User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="customer-email">Email *</Label>
+              <Label htmlFor="new-user-role">Role *</Label>
+              <Select
+                value={newUser.role}
+                onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value as typeof newUser.role }))}
+              >
+                <SelectTrigger id="new-user-role" data-testid="select-new-user-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="User">User (Sales Rep)</SelectItem>
+                  <SelectItem value="BrandAdmin">Brand Admin</SelectItem>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Customer">Customer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-user-email">Email *</Label>
               <Input
-                id="customer-email"
+                id="new-user-email"
                 type="email"
-                placeholder="customer@example.com"
-                value={newCustomer.email}
-                onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
-                data-testid="input-customer-email"
+                placeholder="user@example.com"
+                value={newUser.email}
+                onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                data-testid="input-new-user-email"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="customer-first-name">First Name</Label>
+                <Label htmlFor="new-user-first-name">First Name</Label>
                 <Input
-                  id="customer-first-name"
+                  id="new-user-first-name"
                   placeholder="First name"
-                  value={newCustomer.firstName}
-                  onChange={(e) => setNewCustomer(prev => ({ ...prev, firstName: e.target.value }))}
-                  data-testid="input-customer-first-name"
+                  value={newUser.firstName}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, firstName: e.target.value }))}
+                  data-testid="input-new-user-first-name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customer-last-name">Last Name</Label>
+                <Label htmlFor="new-user-last-name">Last Name</Label>
                 <Input
-                  id="customer-last-name"
+                  id="new-user-last-name"
                   placeholder="Last name"
-                  value={newCustomer.lastName}
-                  onChange={(e) => setNewCustomer(prev => ({ ...prev, lastName: e.target.value }))}
-                  data-testid="input-customer-last-name"
+                  value={newUser.lastName}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, lastName: e.target.value }))}
+                  data-testid="input-new-user-last-name"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer-party-name">Party Name *</Label>
-              <Input
-                id="customer-party-name"
-                placeholder="Business or party name"
-                value={newCustomer.partyName}
-                onChange={(e) => setNewCustomer(prev => ({ ...prev, partyName: e.target.value }))}
-                data-testid="input-customer-party-name"
-              />
-              <p className="text-xs text-muted-foreground">This will be auto-filled when the customer creates orders</p>
-            </div>
+            {newUser.role === "Customer" && (
+              <div className="space-y-2">
+                <Label htmlFor="new-user-party-name">Party Name *</Label>
+                <Input
+                  id="new-user-party-name"
+                  placeholder="Business or party name"
+                  value={newUser.partyName}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, partyName: e.target.value }))}
+                  data-testid="input-new-user-party-name"
+                />
+                <p className="text-xs text-muted-foreground">This will be auto-filled when the customer creates orders</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Allowed Brands</Label>
               <div className="flex flex-wrap gap-2 p-2 border rounded-md">
                 {brandRecords.filter(b => b.isActive).map((brand) => (
                   <div key={brand.id} className="flex items-center gap-1">
                     <Checkbox
-                      id={`new-customer-brand-${brand.id}`}
-                      checked={newCustomer.brands.includes(brand.name)}
+                      id={`new-user-brand-${brand.id}`}
+                      checked={newUser.brands.includes(brand.name)}
                       onCheckedChange={(checked) => {
-                        setNewCustomer(prev => ({
+                        setNewUser(prev => ({
                           ...prev,
                           brands: checked
                             ? [...prev.brands, brand.name]
@@ -786,7 +807,7 @@ export default function UsersPage() {
                         }));
                       }}
                     />
-                    <Label htmlFor={`new-customer-brand-${brand.id}`} className="text-sm cursor-pointer">
+                    <Label htmlFor={`new-user-brand-${brand.id}`} className="text-sm cursor-pointer">
                       {brand.name}
                     </Label>
                   </div>
@@ -799,10 +820,10 @@ export default function UsersPage() {
                 {DELIVERY_COMPANIES.map((company) => (
                   <div key={company} className="flex items-center gap-1">
                     <Checkbox
-                      id={`new-customer-delivery-${company}`}
-                      checked={newCustomer.deliveryCompanies.includes(company)}
+                      id={`new-user-delivery-${company}`}
+                      checked={newUser.deliveryCompanies.includes(company)}
                       onCheckedChange={(checked) => {
-                        setNewCustomer(prev => ({
+                        setNewUser(prev => ({
                           ...prev,
                           deliveryCompanies: checked
                             ? [...prev.deliveryCompanies, company]
@@ -810,7 +831,7 @@ export default function UsersPage() {
                         }));
                       }}
                     />
-                    <Label htmlFor={`new-customer-delivery-${company}`} className="text-sm cursor-pointer">
+                    <Label htmlFor={`new-user-delivery-${company}`} className="text-sm cursor-pointer">
                       {company}
                     </Label>
                   </div>
@@ -821,22 +842,22 @@ export default function UsersPage() {
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={() => setShowAddCustomerModal(false)}
-              data-testid="button-cancel-add-customer"
+              onClick={() => setShowAddUserModal(false)}
+              data-testid="button-cancel-add-user"
             >
               Cancel
             </Button>
             <Button 
-              onClick={() => createCustomerMutation.mutate(newCustomer)}
-              disabled={!newCustomer.email.trim() || !newCustomer.partyName.trim() || createCustomerMutation.isPending}
-              data-testid="button-save-customer"
+              onClick={() => createUserMutation.mutate(newUser)}
+              disabled={!newUser.email.trim() || (newUser.role === "Customer" && !newUser.partyName.trim()) || createUserMutation.isPending}
+              data-testid="button-save-user"
             >
-              {createCustomerMutation.isPending ? (
+              {createUserMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
               ) : (
                 <Plus className="w-4 h-4 mr-2" />
               )}
-              Create Customer
+              Create {newUser.role === "Customer" ? "Customer" : newUser.role === "BrandAdmin" ? "Brand Admin" : newUser.role}
             </Button>
           </DialogFooter>
         </DialogContent>

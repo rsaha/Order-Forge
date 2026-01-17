@@ -2891,7 +2891,7 @@ export async function registerRoutes(
     }
   });
 
-  // Create new Customer account (Admin only)
+  // Create new user account (Admin only) - supports all roles
   app.post('/api/admin/customers', isAuthenticated, async (req: any, res) => {
     try {
       const adminId = req.user.claims.sub;
@@ -2900,13 +2900,21 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const { email, firstName, lastName, partyName, brands, deliveryCompanies } = req.body;
+      const { email, firstName, lastName, partyName, brands, deliveryCompanies, role } = req.body;
+      const userRole = role || "Customer";
+      const validRoles = ["Admin", "BrandAdmin", "User", "Customer"];
+      
+      if (!validRoles.includes(userRole)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
 
       if (!email || !email.trim()) {
         return res.status(400).json({ message: "Email is required" });
       }
-      if (!partyName || !partyName.trim()) {
-        return res.status(400).json({ message: "Party name is required" });
+      
+      // Party name is required only for Customer role
+      if (userRole === "Customer" && (!partyName || !partyName.trim())) {
+        return res.status(400).json({ message: "Party name is required for Customer accounts" });
       }
 
       // Check if user with this email already exists (handles both Replit Auth users and manually created customers)
@@ -2915,46 +2923,46 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A user with this email already exists" });
       }
 
-      // Generate a unique ID for the customer (using email hash for consistency)
+      // Generate a unique ID for the user (using email hash for consistency)
       const crypto = await import('crypto');
-      const customerId = crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex');
+      const userId = crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex');
 
-      // Create the customer user
-      const customerData = {
-        id: customerId,
+      // Create the user
+      const userData = {
+        id: userId,
         email: email.toLowerCase().trim(),
         firstName: firstName?.trim() || null,
         lastName: lastName?.trim() || null,
         profileImageUrl: null,
-        isAdmin: false,
-        role: "Customer" as const,
-        partyName: partyName.trim(),
+        isAdmin: userRole === "Admin",
+        role: userRole as "Admin" | "BrandAdmin" | "User" | "Customer",
+        partyName: partyName?.trim() || null,
       };
 
-      const newCustomer = await storage.upsertUser(customerData);
+      const newUser = await storage.upsertUser(userData);
 
       // Set brand access if provided
       if (brands && Array.isArray(brands) && brands.length > 0) {
-        await storage.setUserBrandAccess(customerId, brands);
+        await storage.setUserBrandAccess(userId, brands);
       }
 
       // Set delivery company access if provided
       if (deliveryCompanies && Array.isArray(deliveryCompanies) && deliveryCompanies.length > 0) {
-        await storage.setUserDeliveryCompanyAccess(customerId, deliveryCompanies);
+        await storage.setUserDeliveryCompanyAccess(userId, deliveryCompanies);
       }
 
-      // Return the customer with their access info
-      const brandAccess = await storage.getUserBrandAccess(customerId);
-      const deliveryCompanyAccess = await storage.getUserDeliveryCompanyAccess(customerId);
+      // Return the user with their access info
+      const brandAccess = await storage.getUserBrandAccess(userId);
+      const deliveryCompanyAccess = await storage.getUserDeliveryCompanyAccess(userId);
 
       res.status(201).json({
-        ...newCustomer,
+        ...newUser,
         brandAccess,
         deliveryCompanyAccess,
       });
     } catch (error: any) {
-      console.error("Error creating customer:", error);
-      res.status(500).json({ message: error.message || "Failed to create customer" });
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: error.message || "Failed to create user" });
     }
   });
 
