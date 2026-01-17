@@ -967,7 +967,14 @@ export default function AnalyticsPage() {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={velocityChartData} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis type="number" unit="h" />
+                            <XAxis 
+                              type="number" 
+                              tickFormatter={(value) => {
+                                if (value >= 24) return `${Math.round(value / 24)}d`;
+                                return `${Math.round(value)}h`;
+                              }}
+                              tick={{ fontSize: 12 }}
+                            />
                             <YAxis dataKey="stage" type="category" width={130} tick={{ fontSize: 12 }} />
                             <Tooltip
                               formatter={(value: number) => [formatDuration(value), "Avg Time"]}
