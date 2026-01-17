@@ -24,7 +24,8 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Upload, ArrowLeft } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Upload, ArrowLeft, Tag } from "lucide-react";
+import { Link } from "wouter";
 import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -919,6 +920,15 @@ export default function Home() {
                     <div className="flex-1 min-w-[200px]">
                       <SearchBar value={searchQuery} onChange={setSearchQuery} />
                     </div>
+                    <Link href="/brands">
+                      <Button
+                        variant="outline"
+                        data-testid="button-manage-brands"
+                      >
+                        <Tag className="w-4 h-4 mr-2" />
+                        Brands
+                      </Button>
+                    </Link>
                     <Button
                       variant="outline"
                       onClick={() => setShowUploadSection(true)}
