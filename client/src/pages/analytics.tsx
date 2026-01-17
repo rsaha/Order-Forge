@@ -969,9 +969,12 @@ export default function AnalyticsPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis 
                               type="number" 
-                              domain={[0, 'auto']}
+                              domain={[0, 'dataMax']}
+                              allowDataOverflow={false}
                               tickFormatter={(value) => {
+                                if (value < 0) return '0h';
                                 if (value >= 24) return `${Math.round(value / 24)}d`;
+                                if (value < 1) return '<1h';
                                 return `${Math.round(value)}h`;
                               }}
                               tick={{ fontSize: 12 }}
