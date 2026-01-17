@@ -24,7 +24,7 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Upload, ArrowLeft } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -99,7 +99,8 @@ export default function Home() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const isVerySmallScreen = useIsMobile(376);
-  const [activeTab, setActiveTab] = useState<"products" | "order" | "import" | "upload">("order");
+  const [activeTab, setActiveTab] = useState<"products" | "order" | "import">("order");
+  const [showUploadSection, setShowUploadSection] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -880,12 +881,37 @@ export default function Home() {
       <main className="flex-1 overflow-hidden">
         {activeTab === "products" && (
           <div className="h-full flex flex-col">
-            {isLoading ? (
+            {showUploadSection ? (
+              <div className="p-4 max-w-2xl mx-auto">
+                <div className="flex items-center gap-3 mb-6">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowUploadSection(false)}
+                    data-testid="button-back-from-upload"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-semibold">Upload Product Inventory</h2>
+                    <p className="text-muted-foreground text-sm">
+                      Import product lists from your brands. Upload Excel files (.xlsx, .xls) with columns: Brand, Name, Product SKU ID, Size, and optionally MRP.
+                    </p>
+                  </div>
+                </div>
+                <UploadDropzone
+                  onFileUpload={handleFileUpload}
+                  uploadedFiles={uploadedFiles}
+                  onRemoveFile={handleRemoveFile}
+                  isUploading={uploadMutation.isPending}
+                />
+              </div>
+            ) : isLoading ? (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-muted-foreground">Loading products...</p>
               </div>
             ) : products.length === 0 ? (
-              <EmptyState type="no-products" onUploadClick={() => setActiveTab(isAdmin ? "upload" : "import")} />
+              <EmptyState type="no-products" onUploadClick={() => isAdmin ? setShowUploadSection(true) : setActiveTab("import")} />
             ) : (
               <>
                 <div className="p-4 space-y-4 border-b bg-background sticky top-16 z-40">
@@ -893,6 +919,14 @@ export default function Home() {
                     <div className="flex-1 min-w-[200px]">
                       <SearchBar value={searchQuery} onChange={setSearchQuery} />
                     </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUploadSection(true)}
+                      data-testid="button-upload-products"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={handleExportProducts}
@@ -1069,22 +1103,6 @@ export default function Home() {
           )
         )}
 
-        {activeTab === "upload" && isAdmin && (
-          <div className="p-4 max-w-2xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">Upload Product Inventory</h2>
-              <p className="text-muted-foreground">
-                Import product lists from your brands. Upload Excel files (.xlsx, .xls) with columns: Brand, Name, Product SKU ID, Size, and optionally MRP.
-              </p>
-            </div>
-            <UploadDropzone
-              onFileUpload={handleFileUpload}
-              uploadedFiles={uploadedFiles}
-              onRemoveFile={handleRemoveFile}
-              isUploading={uploadMutation.isPending}
-            />
-          </div>
-        )}
       </main>
 
       {/* Cart - Desktop uses Sheet, Larger Mobile uses Drawer, Small Mobile uses Full Page */}

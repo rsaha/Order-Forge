@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Tag, TrendingUp } from "lucide-react";
+import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Tag, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
 interface HeaderProps {
   cartItemCount: number;
-  activeTab?: "products" | "order" | "import" | "upload";
-  onTabChange?: (tab: "products" | "order" | "import" | "upload") => void;
+  activeTab?: "products" | "order" | "import";
+  onTabChange?: (tab: "products" | "order" | "import") => void;
   onCartClick: () => void;
   isAdmin?: boolean;
   isBrandAdmin?: boolean;
@@ -59,17 +59,6 @@ export default function Header({
               >
                 <Package className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Products</span>
-              </Button>
-            )}
-            {isAdmin && (
-              <Button
-                variant={activeTab === "upload" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => onTabChange("upload")}
-                data-testid="tab-upload"
-              >
-                <Upload className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Upload</span>
               </Button>
             )}
           </>
