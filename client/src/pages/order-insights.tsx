@@ -39,7 +39,6 @@ import {
 
 interface FlowMetrics {
   created: number;
-  approved: number;
   invoiced: number;
   dispatched: number;
   delivered: number;
@@ -48,8 +47,7 @@ interface FlowMetrics {
 }
 
 interface VelocityMetrics {
-  createdToApproved: { avgHours: number; count: number };
-  approvedToInvoiced: { avgHours: number; count: number };
+  createdToInvoiced: { avgHours: number; count: number };
   invoicedToDispatched: { avgHours: number; count: number };
   dispatchedToDelivered: { avgHours: number; count: number };
   totalCycleTime: { avgHours: number; count: number };
@@ -57,7 +55,6 @@ interface VelocityMetrics {
 
 interface BlockerMetrics {
   stuckAtCreated: Order[];
-  stuckAtApproved: Order[];
   stuckAtInvoiced: Order[];
   stuckAtDispatched: Order[];
 }
@@ -166,7 +163,6 @@ export default function OrderInsightsPage() {
   const flowMetrics = useMemo((): FlowMetrics => {
     const metrics: FlowMetrics = {
       created: 0,
-      approved: 0,
       invoiced: 0,
       dispatched: 0,
       delivered: 0,
@@ -175,8 +171,7 @@ export default function OrderInsightsPage() {
     };
     ordersData.forEach((order) => {
       const status = order.status.toLowerCase();
-      if (status === "created") metrics.created++;
-      else if (status === "approved") metrics.approved++;
+      if (status === "created" || status === "approved") metrics.created++;
       else if (status === "invoiced") metrics.invoiced++;
       else if (status === "dispatched") metrics.dispatched++;
       else if (status === "delivered" || status === "podreceived") metrics.delivered++;
@@ -188,16 +183,14 @@ export default function OrderInsightsPage() {
 
   const velocityMetrics = useMemo((): VelocityMetrics => {
     const metrics: VelocityMetrics = {
-      createdToApproved: { avgHours: 0, count: 0 },
-      approvedToInvoiced: { avgHours: 0, count: 0 },
+      createdToInvoiced: { avgHours: 0, count: 0 },
       invoicedToDispatched: { avgHours: 0, count: 0 },
       dispatchedToDelivered: { avgHours: 0, count: 0 },
       totalCycleTime: { avgHours: 0, count: 0 },
     };
 
     const durations = {
-      createdToApproved: [] as number[],
-      approvedToInvoiced: [] as number[],
+      createdToInvoiced: [] as number[],
       invoicedToDispatched: [] as number[],
       dispatchedToDelivered: [] as number[],
       totalCycle: [] as number[],
@@ -205,16 +198,12 @@ export default function OrderInsightsPage() {
 
     ordersData.forEach((order) => {
       const createdAt = order.createdAt ? new Date(order.createdAt) : null;
-      const approvedAt = order.approvedAt ? new Date(order.approvedAt) : null;
       const invoiceDate = order.invoiceDate ? new Date(order.invoiceDate) : null;
       const dispatchDate = order.dispatchDate ? new Date(order.dispatchDate) : null;
       const deliveryDate = order.actualDeliveryDate ? new Date(order.actualDeliveryDate) : null;
 
-      if (createdAt && approvedAt) {
-        durations.createdToApproved.push(differenceInHours(approvedAt, createdAt));
-      }
-      if (approvedAt && invoiceDate) {
-        durations.approvedToInvoiced.push(differenceInHours(invoiceDate, approvedAt));
+      if (createdAt && invoiceDate) {
+        durations.createdToInvoiced.push(differenceInHours(invoiceDate, createdAt));
       }
       if (invoiceDate && dispatchDate) {
         durations.invoicedToDispatched.push(differenceInHours(dispatchDate, invoiceDate));
@@ -229,8 +218,7 @@ export default function OrderInsightsPage() {
 
     const avg = (arr: number[]) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
 
-    metrics.createdToApproved = { avgHours: avg(durations.createdToApproved), count: durations.createdToApproved.length };
-    metrics.approvedToInvoiced = { avgHours: avg(durations.approvedToInvoiced), count: durations.approvedToInvoiced.length };
+    metrics.createdToInvoiced = { avgHours: avg(durations.createdToInvoiced), count: durations.createdToInvoiced.length };
     metrics.invoicedToDispatched = { avgHours: avg(durations.invoicedToDispatched), count: durations.invoicedToDispatched.length };
     metrics.dispatchedToDelivered = { avgHours: avg(durations.dispatchedToDelivered), count: durations.dispatchedToDelivered.length };
     metrics.totalCycleTime = { avgHours: avg(durations.totalCycle), count: durations.totalCycle.length };
@@ -242,14 +230,12 @@ export default function OrderInsightsPage() {
     const now = new Date();
     const STUCK_THRESHOLDS = {
       created: 48,
-      approved: 72,
       invoiced: 48,
       dispatched: 0,
     };
 
     const blockers: BlockerMetrics = {
       stuckAtCreated: [],
-      stuckAtApproved: [],
       stuckAtInvoiced: [],
       stuckAtDispatched: [],
     };
@@ -257,21 +243,13 @@ export default function OrderInsightsPage() {
     ordersData.forEach((order) => {
       const status = order.status.toLowerCase();
       const createdAt = order.createdAt ? new Date(order.createdAt) : null;
-      const approvedAt = order.approvedAt ? new Date(order.approvedAt) : null;
       const invoiceDate = order.invoiceDate ? new Date(order.invoiceDate) : null;
-      const dispatchDate = order.dispatchDate ? new Date(order.dispatchDate) : null;
       const estimatedDelivery = order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate) : null;
 
-      if (status === "created" && createdAt) {
+      if ((status === "created" || status === "approved") && createdAt) {
         const hoursStuck = differenceInHours(now, createdAt);
         if (hoursStuck > STUCK_THRESHOLDS.created) {
           blockers.stuckAtCreated.push(order);
-        }
-      }
-      if (status === "approved" && approvedAt) {
-        const hoursStuck = differenceInHours(now, approvedAt);
-        if (hoursStuck > STUCK_THRESHOLDS.approved) {
-          blockers.stuckAtApproved.push(order);
         }
       }
       if (status === "invoiced" && invoiceDate) {
@@ -292,9 +270,6 @@ export default function OrderInsightsPage() {
     const total = ordersData.length;
     if (total === 0) return [];
 
-    const completedOrders = ordersData.filter(
-      (o) => ["approved", "invoiced", "dispatched", "delivered", "podreceived"].includes(o.status.toLowerCase())
-    ).length;
     const invoicedOrders = ordersData.filter(
       (o) => ["invoiced", "dispatched", "delivered", "podreceived"].includes(o.status.toLowerCase())
     ).length;
@@ -307,7 +282,6 @@ export default function OrderInsightsPage() {
 
     return [
       { stage: "Created", count: total, percentage: 100, color: STAGE_COLORS.created },
-      { stage: "Approved", count: completedOrders, percentage: Math.round((completedOrders / total) * 100), color: STAGE_COLORS.approved },
       { stage: "Invoiced", count: invoicedOrders, percentage: Math.round((invoicedOrders / total) * 100), color: STAGE_COLORS.invoiced },
       { stage: "Dispatched", count: dispatchedOrders, percentage: Math.round((dispatchedOrders / total) * 100), color: STAGE_COLORS.dispatched },
       { stage: "Delivered", count: deliveredOrders, percentage: Math.round((deliveredOrders / total) * 100), color: STAGE_COLORS.delivered },
@@ -315,8 +289,7 @@ export default function OrderInsightsPage() {
   }, [ordersData]);
 
   const velocityChartData = useMemo(() => [
-    { stage: "Created → Approved", hours: velocityMetrics.createdToApproved.avgHours, count: velocityMetrics.createdToApproved.count },
-    { stage: "Approved → Invoiced", hours: velocityMetrics.approvedToInvoiced.avgHours, count: velocityMetrics.approvedToInvoiced.count },
+    { stage: "Created → Invoiced", hours: velocityMetrics.createdToInvoiced.avgHours, count: velocityMetrics.createdToInvoiced.count },
     { stage: "Invoiced → Dispatched", hours: velocityMetrics.invoicedToDispatched.avgHours, count: velocityMetrics.invoicedToDispatched.count },
     { stage: "Dispatched → Delivered", hours: velocityMetrics.dispatchedToDelivered.avgHours, count: velocityMetrics.dispatchedToDelivered.count },
   ], [velocityMetrics]);
@@ -349,7 +322,6 @@ export default function OrderInsightsPage() {
 
   const totalBlockers =
     blockerMetrics.stuckAtCreated.length +
-    blockerMetrics.stuckAtApproved.length +
     blockerMetrics.stuckAtInvoiced.length +
     blockerMetrics.stuckAtDispatched.length;
 
@@ -533,36 +505,6 @@ export default function OrderInsightsPage() {
                               <span>{order.partyName || "Unknown"}</span>
                               <span className="text-muted-foreground">
                                 {order.createdAt ? differenceInDays(new Date(), new Date(order.createdAt)) : 0}d ago
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </Card>
-                  )}
-
-                  {blockerMetrics.stuckAtApproved.length > 0 && (
-                    <Card className="p-4 bg-green-50/50 dark:bg-green-950/20">
-                      <div
-                        className="flex items-center justify-between cursor-pointer"
-                        onClick={() => setExpandedBlocker(expandedBlocker === "approved" ? null : "approved")}
-                        data-testid="button-toggle-approved-blockers"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500" />
-                          <CheckCircle className="w-5 h-5 text-green-500" />
-                          <span className="font-medium">Stuck at Approved</span>
-                        </div>
-                        <span className="text-lg font-bold text-green-600" data-testid="text-approved-blockers-count">{blockerMetrics.stuckAtApproved.length}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">Waiting for invoice &gt; 72 hours</p>
-                      {expandedBlocker === "approved" && (
-                        <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
-                          {blockerMetrics.stuckAtApproved.slice(0, 10).map((order) => (
-                            <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-approved-${order.id}`}>
-                              <span>{order.partyName || "Unknown"}</span>
-                              <span className="text-muted-foreground">
-                                {order.approvedAt ? differenceInDays(new Date(), new Date(order.approvedAt)) : 0}d ago
                               </span>
                             </div>
                           ))}
