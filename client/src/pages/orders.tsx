@@ -983,8 +983,6 @@ export default function OrdersPage() {
         <div className="flex items-center justify-between gap-4 px-4 h-16">
           <Header
             cartItemCount={0}
-            activeTab={undefined}
-            onTabChange={() => {}}
             onCartClick={() => {}}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}

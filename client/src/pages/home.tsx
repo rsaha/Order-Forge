@@ -100,7 +100,18 @@ export default function Home() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const isVerySmallScreen = useIsMobile(376);
-  const [activeTab, setActiveTab] = useState<"products" | "order" | "import">("order");
+  
+  // Read tab from URL query parameter
+  const getInitialTab = (): "products" | "order" | "import" => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab === "products" || tab === "order" || tab === "import") {
+      return tab;
+    }
+    return "order";
+  };
+  
+  const [activeTab, setActiveTab] = useState<"products" | "order" | "import">(getInitialTab);
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

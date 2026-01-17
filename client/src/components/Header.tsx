@@ -30,36 +30,63 @@ export default function Header({
       </div>
 
       <nav className="flex gap-1">
-        {showTabs && onTabChange && (
+        {showTabs && (
           <>
-            <Button
-              variant={activeTab === "order" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onTabChange("order")}
-              data-testid="tab-order"
-            >
-              <ClipboardList className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Order</span>
-            </Button>
-            <Button
-              variant={activeTab === "import" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onTabChange("import")}
-              data-testid="tab-import"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Import</span>
-            </Button>
-            {isAdmin && (
+            {onTabChange ? (
               <Button
-                variant={activeTab === "products" ? "default" : "ghost"}
+                variant={activeTab === "order" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => onTabChange("products")}
-                data-testid="tab-products"
+                onClick={() => onTabChange("order")}
+                data-testid="tab-order"
               >
-                <Package className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Products</span>
+                <ClipboardList className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Order</span>
               </Button>
+            ) : (
+              <Link href="/?tab=order">
+                <Button variant="ghost" size="sm" data-testid="tab-order">
+                  <ClipboardList className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Order</span>
+                </Button>
+              </Link>
+            )}
+            {onTabChange ? (
+              <Button
+                variant={activeTab === "import" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => onTabChange("import")}
+                data-testid="tab-import"
+              >
+                <FileText className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Import</span>
+              </Button>
+            ) : (
+              <Link href="/?tab=import">
+                <Button variant="ghost" size="sm" data-testid="tab-import">
+                  <FileText className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Import</span>
+                </Button>
+              </Link>
+            )}
+            {isAdmin && (
+              onTabChange ? (
+                <Button
+                  variant={activeTab === "products" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => onTabChange("products")}
+                  data-testid="tab-products"
+                >
+                  <Package className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Products</span>
+                </Button>
+              ) : (
+                <Link href="/?tab=products">
+                  <Button variant="ghost" size="sm" data-testid="tab-products">
+                    <Package className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Products</span>
+                  </Button>
+                </Link>
+              )
             )}
           </>
         )}
