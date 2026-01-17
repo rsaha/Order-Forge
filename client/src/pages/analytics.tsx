@@ -969,6 +969,7 @@ export default function AnalyticsPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis 
                               type="number" 
+                              domain={[0, 'auto']}
                               tickFormatter={(value) => {
                                 if (value >= 24) return `${Math.round(value / 24)}d`;
                                 return `${Math.round(value)}h`;
