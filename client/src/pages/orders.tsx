@@ -2754,9 +2754,11 @@ export default function OrdersPage() {
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="Created">Created</SelectItem>
                   <SelectItem value="Approved">Approved</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
                   <SelectItem value="Invoiced">Invoiced</SelectItem>
                   <SelectItem value="Dispatched">Dispatched</SelectItem>
                   <SelectItem value="Delivered">Delivered</SelectItem>
+                  <SelectItem value="PODReceived">POD Received</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
