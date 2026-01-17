@@ -148,6 +148,7 @@ export default function Home() {
   });
   
   const isAdmin = user?.isAdmin === true;
+  const isBrandAdmin = user?.role === 'BrandAdmin';
   const isCustomer = user?.role === "Customer";
   const cartRestoredRef = useRef(false);
   
@@ -813,6 +814,7 @@ export default function Home() {
             onTabChange={setActiveTab}
             onCartClick={() => setIsCartOpen(true)}
             isAdmin={isAdmin}
+            isBrandAdmin={isBrandAdmin}
           />
           
           {user && (

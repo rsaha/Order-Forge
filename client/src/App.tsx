@@ -10,6 +10,7 @@ import Landing from "@/pages/landing";
 import OrdersPage from "@/pages/orders";
 import UsersPage from "@/pages/users";
 import AnalyticsPage from "@/pages/analytics";
+import OrderInsightsPage from "@/pages/order-insights";
 import BrandsPage from "@/pages/brands";
 
 function Router() {
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/orders" component={OrdersPage} />
       <Route path="/users" component={UsersPage} />
       <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/insights" component={OrderInsightsPage} />
       <Route path="/brands" component={BrandsPage} />
       <Route component={NotFound} />
     </Switch>

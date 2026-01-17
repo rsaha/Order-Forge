@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Tag } from "lucide-react";
+import { ShoppingCart, Upload, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Tag, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
@@ -9,6 +9,7 @@ interface HeaderProps {
   onTabChange?: (tab: "products" | "order" | "import" | "upload") => void;
   onCartClick: () => void;
   isAdmin?: boolean;
+  isBrandAdmin?: boolean;
   showTabs?: boolean;
 }
 
@@ -18,6 +19,7 @@ export default function Header({
   onTabChange,
   onCartClick,
   isAdmin = false,
+  isBrandAdmin = false,
   showTabs = true,
 }: HeaderProps) {
   return (
@@ -103,6 +105,18 @@ export default function Header({
             >
               <BarChart3 className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Analytics</span>
+            </Button>
+          </Link>
+        )}
+        {(isAdmin || isBrandAdmin) && (
+          <Link href="/insights">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="tab-insights"
+            >
+              <TrendingUp className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Insights</span>
             </Button>
           </Link>
         )}
