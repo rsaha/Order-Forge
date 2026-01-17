@@ -906,14 +906,28 @@ export async function registerRoutes(
       }
       
       // Check if we have any results
-      // The API might return an array of debtors or a single object
-      const hasResults = Array.isArray(data) 
-        ? data.length > 0 
-        : (data && typeof data === 'object' && (data.found || data.exists || data.count > 0 || (Object.keys(data).length > 0 && !data.error && !data.message)));
+      // The API might return an array of debtors or a single object with found: true/false
+      let hasResults = false;
+      if (Array.isArray(data)) {
+        hasResults = data.length > 0;
+      } else if (data && typeof data === 'object') {
+        // Explicitly check 'found' field first - external API returns {found: true/false}
+        if ('found' in data) {
+          hasResults = data.found === true;
+        } else if ('exists' in data) {
+          hasResults = data.exists === true;
+        } else if ('count' in data) {
+          hasResults = data.count > 0;
+        } else {
+          // Fallback for other response formats - only if no explicit found/exists field
+          hasResults = Object.keys(data).length > 0 && !data.error && !data.message;
+        }
+      }
       
       if (hasResults) {
         // Extract the first match if it's an array
-        const match = Array.isArray(data) ? data[0] : data;
+        // External API returns {found: true, match: {name: "...", ...}}
+        const match = Array.isArray(data) ? data[0] : (data.match || data);
         return res.json({ 
           verified: true, 
           found: true,
