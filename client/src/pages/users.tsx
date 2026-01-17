@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2, 
-  ChevronDown, ChevronRight, Pencil, X, Check, Plus
+  ChevronDown, ChevronRight, Pencil, X, Check, Plus, Mail, Phone
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -427,10 +427,6 @@ export default function UsersPage() {
             </div>
           )}
 
-          <span className="text-xs text-muted-foreground truncate max-w-[150px] hidden sm:block" data-testid={`text-user-email-${u.id}`}>
-            {u.email}
-          </span>
-
           <Select
             value={u.role || "User"}
             onValueChange={(value) => handleRoleChange(u.id, value)}
@@ -462,6 +458,17 @@ export default function UsersPage() {
               <Trash2 className="w-4 h-4" />
             </Button>
           )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 ml-9 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1" data-testid={`text-user-email-${u.id}`}>
+            <Mail className="w-3 h-3" />
+            <span className="truncate max-w-[180px]">{u.email || "—"}</span>
+          </div>
+          <div className="flex items-center gap-1" data-testid={`text-user-phone-${u.id}`}>
+            <Phone className="w-3 h-3" />
+            <span>{u.phone || "—"}</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 ml-9">
