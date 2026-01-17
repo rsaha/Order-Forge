@@ -748,8 +748,9 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            <p className="text-xs text-muted-foreground">Provide either email (for Google login) or phone number (for password login)</p>
             <div className="space-y-2">
-              <Label htmlFor="new-user-email">Email</Label>
+              <Label htmlFor="new-user-email">Email {newUser.phone.trim() ? "(optional)" : ""}</Label>
               <Input
                 id="new-user-email"
                 type="email"
@@ -760,7 +761,7 @@ export default function UsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-user-phone">Phone Number</Label>
+              <Label htmlFor="new-user-phone">Phone Number {newUser.email.trim() ? "(optional)" : ""}</Label>
               <Input
                 id="new-user-phone"
                 type="tel"
