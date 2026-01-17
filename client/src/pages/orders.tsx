@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -978,14 +979,21 @@ export default function OrdersPage() {
 
   return (
     <div className="flex flex-col h-screen min-h-0">
-      <header className="flex-shrink-0 flex flex-col gap-3 p-4 border-b bg-background">
+      <header className="flex-shrink-0 sticky top-0 z-50 bg-background border-b">
+        <div className="flex items-center justify-between gap-4 px-4 h-16">
+          <Header
+            cartItemCount={0}
+            activeTab={undefined}
+            onTabChange={() => {}}
+            onCartClick={() => {}}
+            isAdmin={isAdmin}
+            isBrandAdmin={isBrandAdmin}
+          />
+        </div>
+      </header>
+      <div className="flex-shrink-0 flex flex-col gap-3 p-4 border-b bg-background">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="icon" data-testid="button-back">
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-            </Link>
             <h1 className="text-xl font-semibold">Orders</h1>
             <Badge variant="secondary" data-testid="badge-order-count">
               {orders.length} orders
@@ -1115,7 +1123,7 @@ export default function OrdersPage() {
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
           {isLoading ? (
