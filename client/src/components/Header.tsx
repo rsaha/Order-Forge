@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, TrendingUp } from "lucide-react";
+import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
@@ -94,18 +94,6 @@ export default function Header({
             >
               <BarChart3 className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Analytics</span>
-            </Button>
-          </Link>
-        )}
-        {isAdmin && (
-          <Link href="/insights">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="tab-insights"
-            >
-              <TrendingUp className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Insights</span>
             </Button>
           </Link>
         )}
