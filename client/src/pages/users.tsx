@@ -67,6 +67,8 @@ export default function UsersPage() {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUser, setNewUser] = useState({
     email: "",
+    phone: "",
+    initialPassword: "",
     firstName: "",
     lastName: "",
     partyName: "",
@@ -202,6 +204,8 @@ export default function UsersPage() {
       setShowAddUserModal(false);
       setNewUser({
         email: "",
+        phone: "",
+        initialPassword: "",
         firstName: "",
         lastName: "",
         partyName: "",
@@ -745,7 +749,7 @@ export default function UsersPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-user-email">Email *</Label>
+              <Label htmlFor="new-user-email">Email</Label>
               <Input
                 id="new-user-email"
                 type="email"
@@ -755,6 +759,31 @@ export default function UsersPage() {
                 data-testid="input-new-user-email"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-user-phone">Phone Number</Label>
+              <Input
+                id="new-user-phone"
+                type="tel"
+                placeholder="9876543210"
+                value={newUser.phone}
+                onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
+                data-testid="input-new-user-phone"
+              />
+            </div>
+            {newUser.phone.trim() && (
+              <div className="space-y-2">
+                <Label htmlFor="new-user-password">Initial Password *</Label>
+                <Input
+                  id="new-user-password"
+                  type="text"
+                  placeholder="Minimum 6 characters"
+                  value={newUser.initialPassword}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, initialPassword: e.target.value }))}
+                  data-testid="input-new-user-password"
+                />
+                <p className="text-xs text-muted-foreground">Share this password with the user for phone login</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="new-user-first-name">First Name</Label>
@@ -849,7 +878,7 @@ export default function UsersPage() {
             </Button>
             <Button 
               onClick={() => createUserMutation.mutate(newUser)}
-              disabled={!newUser.email.trim() || (newUser.role === "Customer" && !newUser.partyName.trim()) || createUserMutation.isPending}
+              disabled={(!newUser.email.trim() && !newUser.phone.trim()) || (newUser.phone.trim() && newUser.initialPassword.length < 6) || (newUser.role === "Customer" && !newUser.partyName.trim()) || createUserMutation.isPending}
               data-testid="button-save-user"
             >
               {createUserMutation.isPending ? (

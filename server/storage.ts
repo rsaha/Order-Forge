@@ -31,10 +31,12 @@ export interface IStorage {
   // User operations - required for Replit Auth
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByPhone(phone: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
   updateUserName(userId: string, firstName: string | null, lastName: string | null): Promise<User | undefined>;
+  updateUserPassword(userId: string, passwordHash: string): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
   
   // Product operations
@@ -174,6 +176,12 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByPhone(phone: string): Promise<User | undefined> {
+    const normalizedPhone = phone.trim();
+    const [user] = await db.select().from(users).where(eq(users.phone, normalizedPhone));
+    return user;
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     // First try to find existing user by ID or email
     const existingById = userData.id ? await this.getUser(userData.id) : null;
@@ -282,6 +290,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(users)
       .set({ firstName, lastName, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return updated;

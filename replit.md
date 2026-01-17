@@ -42,10 +42,24 @@ Key tables:
 - `sessions` - Session storage for authentication
 
 ### Authentication Flow
+The app supports two authentication methods:
+
+**1. Replit Auth (Google Login)**
 - Uses Replit's OIDC provider for authentication
+- User data automatically synced on login via `upsertUser`
+
+**2. Phone/Password Authentication**
+- Admin creates users with phone numbers in Users page
+- Admin sets an initial password (minimum 6 characters) when creating the user
+- Admin shares the password with the user for their first login
+- Users log in with phone number + password
+- Passwords are securely hashed using bcrypt
+
+**Session Management**
 - Sessions stored in PostgreSQL with 1-week TTL
 - Protected routes use `isAuthenticated` middleware
-- User data automatically synced on login via `upsertUser`
+- Both auth methods use the same session storage
+- Logout clears session for both methods
 
 ### File Processing (Admin Only)
 - Only Excel files (.xlsx, .xls) are supported for product uploads

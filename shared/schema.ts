@@ -33,6 +33,8 @@ export type UserRole = typeof USER_ROLES[number];
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  phone: varchar("phone").unique(), // Phone number for phone/password auth
+  passwordHash: varchar("password_hash"), // Hashed password for phone/password auth
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),

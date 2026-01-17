@@ -449,6 +449,48 @@ export async function registerRoutes(
     }
   });
 
+  // Phone/password auth endpoint
+  const bcrypt = await import('bcryptjs');
+
+  // Login with phone + password
+  app.post('/api/auth/phone-login', async (req: any, res) => {
+    try {
+      const { phone, password } = req.body;
+      if (!phone || !phone.trim()) {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+      if (!password) {
+        return res.status(400).json({ message: "Password is required" });
+      }
+
+      const user = await storage.getUserByPhone(phone.trim());
+      if (!user) {
+        // Generic message to prevent phone enumeration
+        return res.status(401).json({ message: "Invalid phone number or password" });
+      }
+
+      if (!user.passwordHash) {
+        // User exists but password not set - shouldn't happen with new flow
+        // but handle gracefully with generic message
+        return res.status(401).json({ message: "Invalid phone number or password" });
+      }
+
+      const isValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid phone number or password" });
+      }
+
+      // Create session for the user
+      req.session.userId = user.id;
+      req.session.phoneAuth = true;
+
+      return res.json({ success: true, user });
+    } catch (error) {
+      console.error("Error during phone login:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
   // Get user's assigned products (filtered by brand access for all non-admin users)
   app.get('/api/products', isAuthenticated, async (req: any, res) => {
     try {
@@ -2914,7 +2956,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const { email, firstName, lastName, partyName, brands, deliveryCompanies, role } = req.body;
+      const { email, phone, initialPassword, firstName, lastName, partyName, brands, deliveryCompanies, role } = req.body;
       const userRole = role || "Customer";
       const validRoles = ["Admin", "BrandAdmin", "User", "Customer"];
       
@@ -2922,8 +2964,16 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid role" });
       }
 
-      if (!email || !email.trim()) {
-        return res.status(400).json({ message: "Email is required" });
+      // Require either email or phone
+      const hasEmail = email && email.trim();
+      const hasPhone = phone && phone.trim();
+      if (!hasEmail && !hasPhone) {
+        return res.status(400).json({ message: "Either email or phone number is required" });
+      }
+      
+      // If phone is provided, initial password is required
+      if (hasPhone && (!initialPassword || initialPassword.length < 6)) {
+        return res.status(400).json({ message: "Initial password (min 6 characters) is required for phone login users" });
       }
       
       // Party name is required only for Customer role
@@ -2931,20 +2981,41 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Party name is required for Customer accounts" });
       }
 
-      // Check if user with this email already exists (handles both Replit Auth users and manually created customers)
-      const existingUser = await storage.getUserByEmail(email.toLowerCase().trim());
-      if (existingUser) {
-        return res.status(400).json({ message: "A user with this email already exists" });
+      // Check if user with this email already exists
+      if (hasEmail) {
+        const existingUser = await storage.getUserByEmail(email.toLowerCase().trim());
+        if (existingUser) {
+          return res.status(400).json({ message: "A user with this email already exists" });
+        }
       }
 
-      // Generate a unique ID for the user (using email hash for consistency)
+      // Check if user with this phone already exists
+      if (hasPhone) {
+        const existingPhoneUser = await storage.getUserByPhone(phone.trim());
+        if (existingPhoneUser) {
+          return res.status(400).json({ message: "A user with this phone number already exists" });
+        }
+      }
+
+      // Hash the initial password if provided
+      const bcrypt = await import('bcryptjs');
+      let passwordHash = null;
+      if (hasPhone && initialPassword) {
+        const saltRounds = 10;
+        passwordHash = await bcrypt.hash(initialPassword, saltRounds);
+      }
+
+      // Generate a unique ID for the user (using email or phone hash for consistency)
       const crypto = await import('crypto');
-      const userId = crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex');
+      const idSource = hasEmail ? email.toLowerCase().trim() : phone.trim();
+      const userId = crypto.createHash('md5').update(idSource).digest('hex');
 
       // Create the user
       const userData = {
         id: userId,
-        email: email.toLowerCase().trim(),
+        email: hasEmail ? email.toLowerCase().trim() : null,
+        phone: hasPhone ? phone.trim() : null,
+        passwordHash: passwordHash,
         firstName: firstName?.trim() || null,
         lastName: lastName?.trim() || null,
         profileImageUrl: null,

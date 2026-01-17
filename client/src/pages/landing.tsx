@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Package, FileText, MessageCircle, ShoppingCart, ArrowRight } from "lucide-react";
+import { Package, FileText, MessageCircle, ShoppingCart, ArrowRight, Phone } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Landing() {
   return (
@@ -29,12 +30,20 @@ export default function Landing() {
             <p className="text-lg text-muted-foreground mb-8">
               Log in to browse products, create orders, and send them via WhatsApp or email.
             </p>
-            <Button size="lg" asChild data-testid="button-get-started">
-              <a href="/api/login">
-                Log In to Order Entry
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </a>
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Button size="lg" asChild data-testid="button-get-started">
+                <a href="/api/login">
+                  Log In with Google
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </a>
+              </Button>
+              <Button size="lg" variant="outline" asChild data-testid="button-phone-login">
+                <Link href="/phone-login">
+                  <Phone className="w-5 h-5 mr-2" />
+                  Log In with Phone
+                </Link>
+              </Button>
+            </div>
           </div>
         </section>
       </main>

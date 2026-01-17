@@ -127,7 +127,21 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
+  app.get("/api/logout", (req: any, res) => {
+    const session = req.session as any;
+    
+    // Check if this is a phone-based session
+    if (session?.phoneAuth) {
+      // Clear phone-based session
+      session.userId = null;
+      session.phoneAuth = false;
+      req.session.destroy(() => {
+        res.redirect("/");
+      });
+      return;
+    }
+    
+    // Standard Replit OIDC logout
     req.logout(() => {
       res.redirect(
         client.buildEndSessionUrl(config, {
@@ -141,8 +155,21 @@ export async function setupAuth(app: Express) {
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
+  const session = req.session as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  // Check for phone-based authentication (session.userId set during phone login)
+  if (session?.userId && session?.phoneAuth) {
+    // Set req.user to match the format expected by routes
+    req.user = {
+      claims: {
+        sub: session.userId,
+      },
+    } as any;
+    return next();
+  }
+
+  // Replit OIDC auth check
+  if (!req.isAuthenticated() || !user?.expires_at) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
