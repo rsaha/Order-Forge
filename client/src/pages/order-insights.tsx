@@ -113,7 +113,7 @@ export default function OrderInsightsPage() {
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === "BrandAdmin";
-  const canViewInsights = isAdmin || isBrandAdmin;
+  const canViewInsights = isAdmin;
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();

@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
-  const canViewAnalytics = isAdmin || isBrandAdmin;
+  const canViewAnalytics = isAdmin;
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();

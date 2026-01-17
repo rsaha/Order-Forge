@@ -97,7 +97,7 @@ export default function Header({
             </Button>
           </Link>
         )}
-        {(isAdmin || isBrandAdmin) && (
+        {isAdmin && (
           <Link href="/insights">
             <Button
               variant="ghost"
