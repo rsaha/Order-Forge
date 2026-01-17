@@ -46,7 +46,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { format, parseISO, differenceInHours, differenceInDays } from "date-fns";
+import { format, parseISO, differenceInHours, differenceInDays, differenceInMinutes } from "date-fns";
 
 interface StatusMetric {
   count: number;
@@ -95,7 +95,7 @@ interface FlowMetrics {
 }
 
 interface VelocityMetrics {
-  createdToInvoiced: { avgHours: number; count: number };
+  createdToInvoiced: { avgMinutes: number; count: number };
   invoicedToDispatched: { avgHours: number; count: number };
   dispatchedToDelivered: { avgHours: number; count: number };
   totalCycleTime: { avgHours: number; count: number };
@@ -119,6 +119,13 @@ function formatDuration(hours: number): string {
   if (hours < 24) return `${Math.round(hours)} hours`;
   const days = Math.round(hours / 24);
   return days === 1 ? "1 day" : `${days} days`;
+}
+
+function formatDurationMinutes(minutes: number): string {
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
 function formatINR(amount: number): string {
@@ -319,7 +326,7 @@ export default function AnalyticsPage() {
   // Velocity metrics for stage transitions
   const velocityMetrics = useMemo((): VelocityMetrics => {
     const metrics: VelocityMetrics = {
-      createdToInvoiced: { avgHours: 0, count: 0 },
+      createdToInvoiced: { avgMinutes: 0, count: 0 },
       invoicedToDispatched: { avgHours: 0, count: 0 },
       dispatchedToDelivered: { avgHours: 0, count: 0 },
       totalCycleTime: { avgHours: 0, count: 0 },
@@ -339,7 +346,7 @@ export default function AnalyticsPage() {
       const deliveryDate = order.actualDeliveryDate ? new Date(order.actualDeliveryDate) : null;
 
       if (createdAt && invoiceDate) {
-        durations.createdToInvoiced.push(differenceInHours(invoiceDate, createdAt));
+        durations.createdToInvoiced.push(differenceInMinutes(invoiceDate, createdAt));
       }
       if (invoiceDate && dispatchDate) {
         durations.invoicedToDispatched.push(differenceInHours(dispatchDate, invoiceDate));
@@ -354,7 +361,7 @@ export default function AnalyticsPage() {
 
     const avg = (arr: number[]) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
 
-    metrics.createdToInvoiced = { avgHours: avg(durations.createdToInvoiced), count: durations.createdToInvoiced.length };
+    metrics.createdToInvoiced = { avgMinutes: avg(durations.createdToInvoiced), count: durations.createdToInvoiced.length };
     metrics.invoicedToDispatched = { avgHours: avg(durations.invoicedToDispatched), count: durations.invoicedToDispatched.length };
     metrics.dispatchedToDelivered = { avgHours: avg(durations.dispatchedToDelivered), count: durations.dispatchedToDelivered.length };
     metrics.totalCycleTime = { avgHours: avg(durations.totalCycle), count: durations.totalCycle.length };
@@ -425,9 +432,12 @@ export default function AnalyticsPage() {
     ];
   }, [ordersData]);
 
-  // Velocity chart data
-  const velocityChartData = useMemo(() => [
-    { stage: "Created → Invoiced", hours: velocityMetrics.createdToInvoiced.avgHours, count: velocityMetrics.createdToInvoiced.count },
+  // Velocity chart data - split into minutes (for fast transitions) and hours (for longer transitions)
+  const velocityChartDataMinutes = useMemo(() => [
+    { stage: "Created → Invoiced", minutes: velocityMetrics.createdToInvoiced.avgMinutes, count: velocityMetrics.createdToInvoiced.count },
+  ], [velocityMetrics]);
+
+  const velocityChartDataHours = useMemo(() => [
     { stage: "Invoiced → Dispatched", hours: velocityMetrics.invoicedToDispatched.avgHours, count: velocityMetrics.invoicedToDispatched.count },
     { stage: "Dispatched → Delivered", hours: velocityMetrics.dispatchedToDelivered.avgHours, count: velocityMetrics.dispatchedToDelivered.count },
   ], [velocityMetrics]);
@@ -968,24 +978,49 @@ export default function AnalyticsPage() {
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="p-4">
-                      <h3 className="text-sm font-medium text-muted-foreground mb-4">Average Time at Each Stage</h3>
-                      <div className="h-[250px]">
+                      <h3 className="text-sm font-medium text-muted-foreground mb-4">Order Processing (Minutes)</h3>
+                      <div className="h-[100px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={velocityChartData} layout="vertical">
+                          <BarChart data={velocityChartDataMinutes} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis 
                               type="number" 
                               domain={[0, 'dataMax']}
                               allowDataOverflow={false}
                               tickFormatter={(value) => {
-                                if (value < 0) return '0h';
+                                if (value < 0) return '0';
+                                if (value >= 60) return `${Math.round(value / 60)}h`;
+                                return `${Math.round(value)}m`;
+                              }}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <YAxis dataKey="stage" type="category" width={130} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(value: number) => [formatDurationMinutes(value), "Avg Time"]}
+                              labelFormatter={(label) => label}
+                            />
+                            <Bar dataKey="minutes" fill="#22c55e" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-4 mt-6">Fulfillment (Hours)</h3>
+                      <div className="h-[150px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={velocityChartDataHours} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              type="number" 
+                              domain={[0, 'dataMax']}
+                              allowDataOverflow={false}
+                              tickFormatter={(value) => {
+                                if (value < 0) return '0';
                                 if (value >= 24) return `${Math.round(value / 24)}d`;
                                 if (value < 1) return '<1h';
                                 return `${Math.round(value)}h`;
                               }}
                               tick={{ fontSize: 12 }}
                             />
-                            <YAxis dataKey="stage" type="category" width={130} tick={{ fontSize: 12 }} />
+                            <YAxis dataKey="stage" type="category" width={140} tick={{ fontSize: 12 }} />
                             <Tooltip
                               formatter={(value: number) => [formatDuration(value), "Avg Time"]}
                               labelFormatter={(label) => label}
@@ -999,7 +1034,14 @@ export default function AnalyticsPage() {
                     <Card className="p-4">
                       <h3 className="text-sm font-medium text-muted-foreground mb-4">Stage Details</h3>
                       <div className="space-y-4">
-                        {velocityChartData.map((item) => (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Created → Invoiced</span>
+                          <div className="text-right">
+                            <span className="font-medium">{formatDurationMinutes(velocityMetrics.createdToInvoiced.avgMinutes)}</span>
+                            <span className="text-xs text-muted-foreground ml-2">({velocityMetrics.createdToInvoiced.count} orders)</span>
+                          </div>
+                        </div>
+                        {velocityChartDataHours.map((item) => (
                           <div key={item.stage} className="flex items-center justify-between">
                             <span className="text-sm">{item.stage}</span>
                             <div className="text-right">
