@@ -2721,6 +2721,46 @@ export async function registerRoutes(
     }
   });
 
+  // Reset user password (Admin only)
+  app.patch('/api/admin/users/:id/password', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.id;
+      const { password } = req.body;
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (!targetUser.phone) {
+        return res.status(400).json({ message: "User does not have a phone number for password login" });
+      }
+
+      const bcrypt = await import('bcryptjs');
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      const updatedUser = await storage.updateUserPassword(targetUserId, passwordHash);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+      console.error("Error resetting user password:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
   // Delete a user (Admin only)
   app.delete('/api/admin/users/:id', isAuthenticated, async (req: any, res) => {
     try {

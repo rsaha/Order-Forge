@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2, 
-  ChevronDown, ChevronRight, Pencil, X, Check, Plus, Mail, Phone
+  ChevronDown, ChevronRight, Pencil, X, Check, Plus, Mail, Phone, Key
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -65,6 +65,8 @@ export default function UsersPage() {
     Customer: true,
   });
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [passwordResetUser, setPasswordResetUser] = useState<UserWithBrands | null>(null);
+  const [newPassword, setNewPassword] = useState("");
   const [newUser, setNewUser] = useState({
     email: "",
     phone: "",
@@ -217,6 +219,20 @@ export default function UsersPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to create user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      return apiRequest("PATCH", `/api/admin/users/${userId}/password`, { password });
+    },
+    onSuccess: () => {
+      setPasswordResetUser(null);
+      setNewPassword("");
+      toast({ title: "Password updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to reset password", description: error.message, variant: "destructive" });
     },
   });
 
@@ -447,6 +463,17 @@ export default function UsersPage() {
             </SelectContent>
           </Select>
 
+          {u.phone && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPasswordResetUser(u)}
+              title="Set Password"
+              data-testid={`button-set-password-${u.id}`}
+            >
+              <Key className="w-4 h-4" />
+            </Button>
+          )}
           {u.id !== user?.id && (
             <Button
               variant="ghost"
@@ -895,6 +922,52 @@ export default function UsersPage() {
                 <Plus className="w-4 h-4 mr-2" />
               )}
               Create {newUser.role === "Customer" ? "Customer" : newUser.role === "BrandAdmin" ? "Brand Admin" : newUser.role}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!passwordResetUser} onOpenChange={(open) => { if (!open) { setPasswordResetUser(null); setNewPassword(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Set a new password for <span className="font-medium">{passwordResetUser?.firstName || passwordResetUser?.lastName || passwordResetUser?.phone}</span>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                data-testid="input-new-password"
+              />
+              <p className="text-xs text-muted-foreground">Share this password with the user for phone login</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => { setPasswordResetUser(null); setNewPassword(""); }}
+              data-testid="button-cancel-password-reset"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => passwordResetUser && resetPasswordMutation.mutate({ userId: passwordResetUser.id, password: newPassword })}
+              disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
+              data-testid="button-save-password"
+            >
+              {resetPasswordMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Key className="w-4 h-4 mr-2" />
+              )}
+              Set Password
             </Button>
           </DialogFooter>
         </DialogContent>
