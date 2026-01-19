@@ -814,7 +814,6 @@ export default function UsersPage() {
                   placeholder="Min 6 characters"
                   value={newUser.initialPassword}
                   onChange={(e) => setNewUser(prev => ({ ...prev, initialPassword: e.target.value }))}
-                  disabled={!newUser.phone.trim()}
                   data-testid="input-new-user-password"
                 />
               </div>
