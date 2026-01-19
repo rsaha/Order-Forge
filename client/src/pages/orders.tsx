@@ -234,7 +234,7 @@ export default function OrdersPage() {
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [dateRange, setDateRange] = useState<"7days" | "30days" | "lastMonth" | "thisMonth" | "today" | "all">("today");
+  const [dateRange, setDateRange] = useState<"7days" | "30days" | "lastMonth" | "thisMonth" | "today" | "all">("7days");
   const [showBulkWhatsApp, setShowBulkWhatsApp] = useState(false);
   const [bulkType, setBulkType] = useState<"dispatched" | "delivered">("dispatched");
   const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
