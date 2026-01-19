@@ -1387,8 +1387,13 @@ export async function registerRoutes(
       }
 
       // Auto-set podTimestamp when POD status changes to Received or Digital Received
+      console.log("[update-order] Incoming podStatus:", req.body.podStatus);
+      console.log("[update-order] Current order podStatus:", order.podStatus);
+      
       const isPodReceived = req.body.podStatus === 'Received' || req.body.podStatus === 'Digital Received';
       const wasPodReceived = order.podStatus === 'Received' || order.podStatus === 'Digital Received';
+      console.log("[update-order] isPodReceived:", isPodReceived, "wasPodReceived:", wasPodReceived);
+      
       if (isPodReceived && !wasPodReceived) {
         req.body.podTimestamp = new Date().toISOString();
       }
@@ -1397,6 +1402,8 @@ export async function registerRoutes(
       if (isPodReceived && order.status === 'Delivered') {
         req.body.status = 'PODReceived';
       }
+      
+      console.log("[update-order] Final req.body before parse:", JSON.stringify(req.body));
 
       const parseResult = updateOrderSchema.safeParse(req.body);
       if (!parseResult.success) {
