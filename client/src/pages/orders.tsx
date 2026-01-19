@@ -182,6 +182,25 @@ function getTodayDate(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+function getLastMonthRange(): { fromDate: string; toDate: string } {
+  const today = new Date();
+  const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+  return {
+    fromDate: firstDayLastMonth.toISOString().split('T')[0],
+    toDate: lastDayLastMonth.toISOString().split('T')[0],
+  };
+}
+
+function getThisMonthRange(): { fromDate: string; toDate: string } {
+  const today = new Date();
+  const firstDayThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  return {
+    fromDate: firstDayThisMonth.toISOString().split('T')[0],
+    toDate: today.toISOString().split('T')[0],
+  };
+}
+
 interface BulkOrderSummary {
   brand: string;
   deliveryCompany: string;
@@ -215,7 +234,7 @@ export default function OrdersPage() {
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [dateRange, setDateRange] = useState<"7days" | "today" | "all">("today");
+  const [dateRange, setDateRange] = useState<"7days" | "30days" | "lastMonth" | "thisMonth" | "today" | "all">("today");
   const [showBulkWhatsApp, setShowBulkWhatsApp] = useState(false);
   const [bulkType, setBulkType] = useState<"dispatched" | "delivered">("dispatched");
   const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -281,6 +300,18 @@ export default function OrdersPage() {
           const range = getDateRange(7);
           params.append("fromDate", range.fromDate);
           params.append("toDate", range.toDate);
+        } else if (dateRange === "30days") {
+          const range = getDateRange(30);
+          params.append("fromDate", range.fromDate);
+          params.append("toDate", range.toDate);
+        } else if (dateRange === "lastMonth") {
+          const range = getLastMonthRange();
+          params.append("fromDate", range.fromDate);
+          params.append("toDate", range.toDate);
+        } else if (dateRange === "thisMonth") {
+          const range = getThisMonthRange();
+          params.append("fromDate", range.fromDate);
+          params.append("toDate", range.toDate);
         } else if (dateRange === "today") {
           const today = getTodayDate();
           params.append("fromDate", today);
@@ -315,6 +346,29 @@ export default function OrdersPage() {
         
         if (dateRange === "7days") {
           const range = getDateRange(7);
+          const fromDate = new Date(range.fromDate);
+          sorted = sorted.filter(o => {
+            const orderDate = new Date(o.createdAt || 0);
+            return orderDate >= fromDate;
+          });
+        } else if (dateRange === "30days") {
+          const range = getDateRange(30);
+          const fromDate = new Date(range.fromDate);
+          sorted = sorted.filter(o => {
+            const orderDate = new Date(o.createdAt || 0);
+            return orderDate >= fromDate;
+          });
+        } else if (dateRange === "lastMonth") {
+          const range = getLastMonthRange();
+          const fromDate = new Date(range.fromDate);
+          const toDate = new Date(range.toDate);
+          toDate.setHours(23, 59, 59, 999);
+          sorted = sorted.filter(o => {
+            const orderDate = new Date(o.createdAt || 0);
+            return orderDate >= fromDate && orderDate <= toDate;
+          });
+        } else if (dateRange === "thisMonth") {
+          const range = getThisMonthRange();
           const fromDate = new Date(range.fromDate);
           sorted = sorted.filter(o => {
             const orderDate = new Date(o.createdAt || 0);
@@ -1056,13 +1110,16 @@ export default function OrdersPage() {
             )}
           </div>
           <Filter className="w-4 h-4 text-muted-foreground" />
-          <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "today" | "all")}>
-            <SelectTrigger className="w-28" data-testid="select-date-filter">
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as "7days" | "30days" | "lastMonth" | "thisMonth" | "today" | "all")}>
+            <SelectTrigger className="w-32" data-testid="select-date-filter">
               <SelectValue placeholder="Date" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7days">7 Days</SelectItem>
               <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="7days">Last 7 Days</SelectItem>
+              <SelectItem value="30days">Last 30 Days</SelectItem>
+              <SelectItem value="thisMonth">This Month</SelectItem>
+              <SelectItem value="lastMonth">Last Month</SelectItem>
               <SelectItem value="all">All Time</SelectItem>
             </SelectContent>
           </Select>
