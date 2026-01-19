@@ -794,30 +794,33 @@ export default function UsersPage() {
                 data-testid="input-new-user-email"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-phone">Phone Number {newUser.email.trim() ? "(optional)" : ""}</Label>
-              <Input
-                id="new-user-phone"
-                type="tel"
-                placeholder="9876543210"
-                value={newUser.phone}
-                onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
-                data-testid="input-new-user-phone"
-              />
-            </div>
-            {newUser.phone.trim() && (
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="new-user-password">Initial Password *</Label>
+                <Label htmlFor="new-user-phone">Phone Number {newUser.email.trim() ? "(optional)" : ""}</Label>
+                <Input
+                  id="new-user-phone"
+                  type="tel"
+                  placeholder="9876543210"
+                  value={newUser.phone}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
+                  data-testid="input-new-user-phone"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-user-password">Password {newUser.phone.trim() ? "*" : "(for phone login)"}</Label>
                 <Input
                   id="new-user-password"
                   type="text"
-                  placeholder="Minimum 6 characters"
+                  placeholder="Min 6 characters"
                   value={newUser.initialPassword}
                   onChange={(e) => setNewUser(prev => ({ ...prev, initialPassword: e.target.value }))}
+                  disabled={!newUser.phone.trim()}
                   data-testid="input-new-user-password"
                 />
-                <p className="text-xs text-muted-foreground">Share this password with the user for phone login</p>
               </div>
+            </div>
+            {newUser.phone.trim() && (
+              <p className="text-xs text-muted-foreground">Share this password with the user for phone login</p>
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
