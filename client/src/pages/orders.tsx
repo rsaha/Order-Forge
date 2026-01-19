@@ -1528,7 +1528,16 @@ export default function OrdersPage() {
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
-                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.podTimestamp ? new Date(order.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">
+                              <span className={order.podStatus === "Digital Received" ? "text-blue-600 dark:text-blue-400 font-medium" : ""}>
+                                {order.podStatus === "Digital Received" ? "Digital" : "Yes"}
+                              </span>
+                              {order.podTimestamp && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({new Date(order.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })})
+                                </span>
+                              )}
+                            </td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
