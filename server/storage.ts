@@ -800,6 +800,9 @@ export class DatabaseStorage implements IStorage {
     if (updates.approvedBy !== undefined) updateData.approvedBy = updates.approvedBy;
     if (updates.approvedAt !== undefined) updateData.approvedAt = updates.approvedAt ? new Date(updates.approvedAt) : null;
     if (updates.importText !== undefined) updateData.importText = updates.importText;
+    if (updates.podStatus !== undefined) updateData.podStatus = updates.podStatus;
+    if (updates.podTimestamp !== undefined) updateData.podTimestamp = updates.podTimestamp ? new Date(updates.podTimestamp) : null;
+    if (updates.parentOrderId !== undefined) updateData.parentOrderId = updates.parentOrderId;
 
     if (Object.keys(updateData).length === 0) {
       return this.getOrderById(id);
