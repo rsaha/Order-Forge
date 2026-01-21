@@ -594,11 +594,18 @@ export default function AnalyticsPage() {
           />
         </div>
       </header>
-      <div className="flex items-center gap-4 p-4 border-b">
+      <div className="flex items-center gap-4 p-4 border-b flex-wrap">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-5 h-5" />
           <h1 className="text-xl font-semibold">Order Analytics</h1>
         </div>
+        <div className="flex-1" />
+        <Link href="/analytics/products">
+          <Button variant="outline" size="sm" data-testid="button-product-popularity">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Product Popularity
+          </Button>
+        </Link>
       </div>
 
       <div className="p-4 space-y-6">

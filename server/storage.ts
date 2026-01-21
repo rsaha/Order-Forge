@@ -90,6 +90,8 @@ export interface IStorage {
   
   // Product popularity operations
   getProductOrderCounts(): Promise<Map<string, number>>;
+  getTopProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; sku: string; orderCount: number }[] }[]>;
+  getUnorderedProducts(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ name: string; brand: string; skuCount: number }[]>;
 }
 
 export interface StatusMetric {
@@ -1247,6 +1249,128 @@ export class DatabaseStorage implements IStorage {
     for (const row of counts) {
       result.set(row.productId, row.orderCount);
     }
+    return result;
+  }
+
+  async getTopProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; sku: string; orderCount: number }[] }[]> {
+    // Build date filter conditions
+    const dateConditions: any[] = [];
+    if (filters.fromDate) {
+      dateConditions.push(sql`${orders.createdAt} >= ${filters.fromDate}`);
+    }
+    if (filters.toDate) {
+      dateConditions.push(sql`${orders.createdAt} <= ${filters.toDate}`);
+    }
+
+    // Query to get product order counts with brand info, filtered by date
+    const query = db
+      .select({
+        productId: orderItems.productId,
+        productName: products.name,
+        productSku: products.sku,
+        brand: products.brand,
+        orderCount: sql<number>`cast(sum(${orderItems.quantity}) as integer)`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(products, eq(orderItems.productId, products.id));
+    
+    // Add date filters if present
+    let finalQuery = query;
+    if (dateConditions.length > 0) {
+      finalQuery = query.where(and(...dateConditions)) as any;
+    }
+    
+    const counts = await finalQuery
+      .groupBy(orderItems.productId, products.name, products.sku, products.brand)
+      .orderBy(sql`sum(${orderItems.quantity}) desc`);
+
+    // Group by brand and take top N per brand
+    const brandMap = new Map<string, { name: string; sku: string; orderCount: number }[]>();
+    
+    for (const row of counts) {
+      if (!row.brand) continue;
+      
+      if (!brandMap.has(row.brand)) {
+        brandMap.set(row.brand, []);
+      }
+      
+      const brandProducts = brandMap.get(row.brand)!;
+      if (brandProducts.length < limit) {
+        brandProducts.push({
+          name: row.productName || '',
+          sku: row.productSku || '',
+          orderCount: row.orderCount,
+        });
+      }
+    }
+
+    // Convert to array sorted by brand name
+    const result: { brand: string; products: { name: string; sku: string; orderCount: number }[] }[] = [];
+    const sortedBrands = Array.from(brandMap.keys()).sort();
+    
+    for (const brand of sortedBrands) {
+      result.push({
+        brand,
+        products: brandMap.get(brand)!,
+      });
+    }
+
+    return result;
+  }
+
+  async getUnorderedProducts(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ name: string; brand: string; skuCount: number }[]> {
+    // Get all product IDs that were ordered in the time frame
+    const dateConditions: any[] = [];
+    if (filters.fromDate) {
+      dateConditions.push(sql`${orders.createdAt} >= ${filters.fromDate}`);
+    }
+    if (filters.toDate) {
+      dateConditions.push(sql`${orders.createdAt} <= ${filters.toDate}`);
+    }
+
+    // Subquery to get ordered product IDs
+    let orderedProductIdsQuery = db
+      .select({ productId: orderItems.productId })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id));
+    
+    if (dateConditions.length > 0) {
+      orderedProductIdsQuery = orderedProductIdsQuery.where(and(...dateConditions)) as any;
+    }
+    
+    const orderedProductIds = await orderedProductIdsQuery;
+    const orderedIds = new Set(orderedProductIds.map(r => r.productId));
+
+    // Get all products and filter out those that were ordered
+    const allProducts = await db.select().from(products);
+    
+    // Group by product name (not SKU) and count SKUs per name
+    const productNameMap = new Map<string, { name: string; brand: string; skuCount: number }>();
+    
+    for (const product of allProducts) {
+      if (orderedIds.has(product.id)) continue; // Skip ordered products
+      
+      const key = `${product.name}|${product.brand}`;
+      if (!productNameMap.has(key)) {
+        productNameMap.set(key, {
+          name: product.name,
+          brand: product.brand,
+          skuCount: 1,
+        });
+      } else {
+        productNameMap.get(key)!.skuCount++;
+      }
+    }
+
+    // Convert to array and take top N (sorted by SKU count desc, then name)
+    const result = Array.from(productNameMap.values())
+      .sort((a, b) => {
+        if (b.skuCount !== a.skuCount) return b.skuCount - a.skuCount;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, limit);
+
     return result;
   }
 }

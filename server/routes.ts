@@ -15,6 +15,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 const analyticsCache = new Map<string, { data: any; timestamp: number }>();
 const ANALYTICS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 
+// In-memory cache for product popularity with 1-hour TTL
+let popularityCache: { data: Record<string, number>; timestamp: number } | null = null;
+const POPULARITY_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
 async function getCachedAnalytics(filters: any): Promise<any> {
   // Create a stable cache key from filters
   const cacheKey = JSON.stringify({
@@ -759,18 +763,75 @@ export async function registerRoutes(
     }
   });
 
-  // Get product order counts for popularity ranking
+  // Get product order counts for popularity ranking (cached for 1 hour)
   app.get('/api/products/popularity', isAuthenticated, async (req: any, res) => {
     try {
+      const now = Date.now();
+      
+      // Check cache
+      if (popularityCache && (now - popularityCache.timestamp) < POPULARITY_CACHE_TTL) {
+        return res.json(popularityCache.data);
+      }
+      
+      // Fetch fresh data
       const orderCounts = await storage.getProductOrderCounts();
       const result: Record<string, number> = {};
       orderCounts.forEach((count, productId) => {
         result[productId] = count;
       });
+      
+      // Update cache
+      popularityCache = { data: result, timestamp: now };
+      
       res.json(result);
     } catch (error) {
       console.error("Error fetching product popularity:", error);
       res.status(500).json({ message: "Failed to fetch product popularity" });
+    }
+  });
+
+  // Get brand-wise top 10 popular products (for analytics)
+  app.get('/api/analytics/products/top-by-brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { fromDate, toDate } = req.query;
+      const filters: { fromDate?: Date; toDate?: Date } = {};
+      
+      if (fromDate) filters.fromDate = new Date(fromDate as string);
+      if (toDate) filters.toDate = new Date(toDate as string);
+      
+      const result = await storage.getTopProductsByBrand(filters, 10);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching top products by brand:", error);
+      res.status(500).json({ message: "Failed to fetch top products by brand" });
+    }
+  });
+
+  // Get products (by name) that were not ordered in the given time frame
+  app.get('/api/analytics/products/unordered', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { fromDate, toDate, limit } = req.query;
+      const filters: { fromDate?: Date; toDate?: Date } = {};
+      
+      if (fromDate) filters.fromDate = new Date(fromDate as string);
+      if (toDate) filters.toDate = new Date(toDate as string);
+      
+      const productLimit = parseInt(limit as string) || 5;
+      const result = await storage.getUnorderedProducts(filters, productLimit);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching unordered products:", error);
+      res.status(500).json({ message: "Failed to fetch unordered products" });
     }
   });
 

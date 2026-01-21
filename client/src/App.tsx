@@ -11,6 +11,7 @@ import PhoneLogin from "@/pages/phone-login";
 import OrdersPage from "@/pages/orders";
 import UsersPage from "@/pages/users";
 import AnalyticsPage from "@/pages/analytics";
+import ProductPopularityPage from "@/pages/product-popularity";
 import BrandsPage from "@/pages/brands";
 
 function Router() {
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/orders" component={OrdersPage} />
       <Route path="/users" component={UsersPage} />
       <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/analytics/products" component={ProductPopularityPage} />
       <Route path="/brands" component={BrandsPage} />
       <Route component={NotFound} />
     </Switch>
