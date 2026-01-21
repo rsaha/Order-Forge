@@ -81,9 +81,8 @@ export function groupProductsByName(products: ProductVariant[]): GroupedProduct[
     });
   }
   
-  return result.sort((a: GroupedProduct, b: GroupedProduct) => 
-    a.name.localeCompare(b.name)
-  );
+  // Preserve original order (don't sort alphabetically - preserve popularity order)
+  return result;
 }
 
 export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddToCart }: ProductCardCompactProps) {
