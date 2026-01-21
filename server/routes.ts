@@ -813,7 +813,7 @@ export async function registerRoutes(
     }
   });
 
-  // Get products (by name) that were not ordered in the given time frame
+  // Get products (by name) that were not ordered in the given time frame, grouped by brand
   app.get('/api/analytics/products/unordered', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -829,7 +829,7 @@ export async function registerRoutes(
       if (toDate) filters.toDate = new Date(toDate as string);
       
       const productLimit = parseInt(limit as string) || 5;
-      const result = await storage.getUnorderedProducts(filters, productLimit);
+      const result = await storage.getUnorderedProductsByBrand(filters, productLimit);
       res.json(result);
     } catch (error) {
       console.error("Error fetching unordered products:", error);

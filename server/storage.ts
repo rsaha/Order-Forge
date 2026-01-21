@@ -91,7 +91,7 @@ export interface IStorage {
   // Product popularity operations
   getProductOrderCounts(): Promise<Map<string, number>>;
   getTopProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; sku: string; orderCount: number }[] }[]>;
-  getUnorderedProducts(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ name: string; brand: string; skuCount: number }[]>;
+  getUnorderedProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; skuCount: number }[] }[]>;
 }
 
 export interface StatusMetric {
@@ -1319,7 +1319,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getUnorderedProducts(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ name: string; brand: string; skuCount: number }[]> {
+  async getUnorderedProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; skuCount: number }[] }[]> {
     // Get all product IDs that were ordered in the time frame
     const dateConditions: any[] = [];
     if (filters.fromDate) {
@@ -1345,31 +1345,44 @@ export class DatabaseStorage implements IStorage {
     // Get all products and filter out those that were ordered
     const allProducts = await db.select().from(products);
     
-    // Group by product name (not SKU) and count SKUs per name
-    const productNameMap = new Map<string, { name: string; brand: string; skuCount: number }>();
+    // Group by brand, then by product name (not SKU) and count SKUs per name
+    const brandMap = new Map<string, Map<string, { name: string; skuCount: number }>>();
     
     for (const product of allProducts) {
       if (orderedIds.has(product.id)) continue; // Skip ordered products
       
-      const key = `${product.name}|${product.brand}`;
-      if (!productNameMap.has(key)) {
-        productNameMap.set(key, {
+      if (!brandMap.has(product.brand)) {
+        brandMap.set(product.brand, new Map());
+      }
+      
+      const productMap = brandMap.get(product.brand)!;
+      if (!productMap.has(product.name)) {
+        productMap.set(product.name, {
           name: product.name,
-          brand: product.brand,
           skuCount: 1,
         });
       } else {
-        productNameMap.get(key)!.skuCount++;
+        productMap.get(product.name)!.skuCount++;
       }
     }
 
-    // Convert to array and take top N (sorted by SKU count desc, then name)
-    const result = Array.from(productNameMap.values())
-      .sort((a, b) => {
-        if (b.skuCount !== a.skuCount) return b.skuCount - a.skuCount;
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, limit);
+    // Convert to result format: array of { brand, products[] }
+    const result: { brand: string; products: { name: string; skuCount: number }[] }[] = [];
+    const sortedBrands = Array.from(brandMap.keys()).sort();
+    
+    for (const brand of sortedBrands) {
+      const productMap = brandMap.get(brand)!;
+      const products = Array.from(productMap.values())
+        .sort((a, b) => {
+          if (b.skuCount !== a.skuCount) return b.skuCount - a.skuCount;
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, limit);
+      
+      if (products.length > 0) {
+        result.push({ brand, products });
+      }
+    }
 
     return result;
   }

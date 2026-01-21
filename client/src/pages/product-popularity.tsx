@@ -35,8 +35,12 @@ interface BrandTopProducts {
 
 interface UnorderedProduct {
   name: string;
-  brand: string;
   skuCount: number;
+}
+
+interface BrandUnorderedProducts {
+  brand: string;
+  products: UnorderedProduct[];
 }
 
 function getDateRange(days: number) {
@@ -118,7 +122,7 @@ export default function ProductPopularityPage() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: unorderedProducts = [], isLoading: loadingUnordered } = useQuery<UnorderedProduct[]>({
+  const { data: unorderedByBrand = [], isLoading: loadingUnordered } = useQuery<BrandUnorderedProducts[]>({
     queryKey: ["/api/analytics/products/unordered", dateRange],
     queryFn: async () => {
       const url = queryParams 
@@ -210,8 +214,8 @@ export default function ProductPopularityPage() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2 space-y-4">
+          <div className="space-y-8">
+            <div className="space-y-4">
               <h2 className="text-lg font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-600" />
                 Top 10 Products by Brand
@@ -230,9 +234,9 @@ export default function ProductPopularityPage() {
                       <div className="space-y-2">
                         {brandData.products.map((product, idx) => (
                           <div 
-                            key={product.sku} 
+                            key={`${product.sku}-${idx}`} 
                             className="flex items-start gap-2 text-sm"
-                            data-testid={`row-product-${product.sku}`}
+                            data-testid={`row-product-${product.sku}-${idx}`}
                           >
                             <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">
                               {idx + 1}
@@ -259,42 +263,43 @@ export default function ProductPopularityPage() {
             <div className="space-y-4">
               <h2 className="text-lg font-medium flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-amber-600" />
-                Products Not Ordered
+                Products Not Ordered (Top 5 per Brand)
               </h2>
               
-              <Card className="p-4" data-testid="card-unordered-products">
-                {unorderedProducts.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-4">
-                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">All products have been ordered!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      Products (by name) with no orders in this period:
-                    </p>
-                    {unorderedProducts.map((product, idx) => (
-                      <div 
-                        key={`${product.name}-${product.brand}`}
-                        className="flex items-start gap-2 text-sm p-2 rounded-md bg-amber-50 dark:bg-amber-950/20"
-                        data-testid={`row-unordered-${idx}`}
-                      >
-                        <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {product.brand} • {product.skuCount} SKU{product.skuCount > 1 ? 's' : ''}
-                          </p>
-                        </div>
+              {unorderedByBrand.length === 0 ? (
+                <Card className="p-6 text-center text-muted-foreground">
+                  <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>All products have been ordered in this period!</p>
+                </Card>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {unorderedByBrand.map((brandData) => (
+                    <Card key={brandData.brand} className="p-4 border-amber-200 dark:border-amber-800" data-testid={`card-unordered-${brandData.brand}`}>
+                      <h3 className="font-semibold text-sm mb-3 text-amber-700 dark:text-amber-400">{brandData.brand}</h3>
+                      <div className="space-y-2">
+                        {brandData.products.map((product, idx) => (
+                          <div 
+                            key={product.name} 
+                            className="flex items-start gap-2 text-sm p-2 rounded-md bg-amber-50 dark:bg-amber-950/20"
+                            data-testid={`row-unordered-${brandData.brand}-${idx}`}
+                          >
+                            <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{product.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {product.skuCount} SKU{product.skuCount > 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {brandData.products.length === 0 && (
+                          <p className="text-xs text-muted-foreground italic">All products ordered</p>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-              
-              <p className="text-xs text-muted-foreground">
-                Showing top 5 product names without orders. Products are grouped by name, not SKU.
-              </p>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
