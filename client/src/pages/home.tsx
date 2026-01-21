@@ -182,6 +182,14 @@ export default function Home() {
     staleTime: 5 * 60 * 1000, // 5 minutes - products don't change often
     refetchOnWindowFocus: false,
   });
+
+  // Fetch product popularity counts for smart sorting
+  const { data: popularityCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ["/api/products/popularity"],
+    retry: false,
+    staleTime: 10 * 60 * 1000, // 10 minutes - doesn't need frequent updates
+    refetchOnWindowFocus: false,
+  });
   
   // Fetch delivery company access for Customer role
   const { data: deliveryCompanyAccess } = useQuery<{ deliveryCompanies: string[] }>({
@@ -430,8 +438,8 @@ export default function Home() {
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    return filterProductsWithFuzzySearch(products, searchQuery, selectedBrand);
-  }, [products, searchQuery, selectedBrand]);
+    return filterProductsWithFuzzySearch(products, searchQuery, selectedBrand, popularityCounts);
+  }, [products, searchQuery, selectedBrand, popularityCounts]);
 
   const cartItemCount = cart.length;
 

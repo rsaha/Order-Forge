@@ -87,6 +87,9 @@ export interface IStorage {
   
   // Pending order operations
   createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null>;
+  
+  // Product popularity operations
+  getProductOrderCounts(): Promise<Map<string, number>>;
 }
 
 export interface StatusMetric {
@@ -1229,6 +1232,22 @@ export class DatabaseStorage implements IStorage {
     const pendingItems = await this.createOrderItems(pendingItemsData);
 
     return { pendingOrder, pendingItems };
+  }
+
+  async getProductOrderCounts(): Promise<Map<string, number>> {
+    const counts = await db
+      .select({
+        productId: orderItems.productId,
+        orderCount: sql<number>`cast(sum(${orderItems.quantity}) as integer)`,
+      })
+      .from(orderItems)
+      .groupBy(orderItems.productId);
+    
+    const result = new Map<string, number>();
+    for (const row of counts) {
+      result.set(row.productId, row.orderCount);
+    }
+    return result;
   }
 }
 

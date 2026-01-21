@@ -93,11 +93,15 @@ export interface ProductSearchResult {
 export function fuzzySearchProducts(
   products: Product[],
   query: string,
-  minScore: number = 20
+  minScore: number = 20,
+  popularityCounts?: Record<string, number>
 ): ProductSearchResult[] {
   if (!query.trim()) return [];
   
   const results: ProductSearchResult[] = [];
+  const maxPopularity = popularityCounts 
+    ? Math.max(1, ...Object.values(popularityCounts)) 
+    : 1;
   
   for (const product of products) {
     const nameScore = getMatchScore(query, product.name);
@@ -116,10 +120,14 @@ export function fuzzySearchProducts(
     
     const best = scores.reduce((a, b) => a.score > b.score ? a : b);
     
+    // Add popularity boost (up to 15 points for most popular items)
+    const popularity = popularityCounts?.[product.id] || 0;
+    const popularityBoost = (popularity / maxPopularity) * 15;
+    
     if (best.score >= minScore) {
       results.push({
         product,
-        score: best.score,
+        score: best.score + popularityBoost,
         matchField: best.field,
       });
     }
@@ -131,7 +139,8 @@ export function fuzzySearchProducts(
 export function filterProductsWithFuzzySearch(
   products: Product[],
   query: string,
-  selectedBrand: string | null = null
+  selectedBrand: string | null = null,
+  popularityCounts?: Record<string, number>
 ): Product[] {
   let filtered = products;
   
@@ -139,10 +148,19 @@ export function filterProductsWithFuzzySearch(
     filtered = filtered.filter(p => p.brand === selectedBrand);
   }
   
+  // When search is empty, sort by popularity (most ordered first)
   if (!query.trim()) {
+    if (popularityCounts && Object.keys(popularityCounts).length > 0) {
+      return [...filtered].sort((a, b) => {
+        const popA = popularityCounts[a.id] || 0;
+        const popB = popularityCounts[b.id] || 0;
+        if (popB !== popA) return popB - popA;
+        return a.name.localeCompare(b.name);
+      });
+    }
     return filtered.sort((a, b) => a.name.localeCompare(b.name));
   }
   
-  const results = fuzzySearchProducts(filtered, query, 15);
+  const results = fuzzySearchProducts(filtered, query, 15, popularityCounts);
   return results.map(r => r.product);
 }

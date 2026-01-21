@@ -759,6 +759,21 @@ export async function registerRoutes(
     }
   });
 
+  // Get product order counts for popularity ranking
+  app.get('/api/products/popularity', isAuthenticated, async (req: any, res) => {
+    try {
+      const orderCounts = await storage.getProductOrderCounts();
+      const result: Record<string, number> = {};
+      orderCounts.forEach((count, productId) => {
+        result[productId] = count;
+      });
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching product popularity:", error);
+      res.status(500).json({ message: "Failed to fetch product popularity" });
+    }
+  });
+
   // Get user's brand access
   app.get('/api/users/:userId/brand-access', isAuthenticated, async (req: any, res) => {
     try {

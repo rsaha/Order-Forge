@@ -488,6 +488,14 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch product popularity counts for smart sorting in Add Items dialog
+  const { data: popularityCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ["/api/products/popularity"],
+    enabled: !!user && showAddItems,
+    staleTime: 10 * 60 * 1000, // 10 minutes - doesn't need frequent updates
+    refetchOnWindowFocus: false,
+  });
+
   const addItemsMutation = useMutation({
     mutationFn: async ({ orderId, items }: { orderId: string; items: Array<{ productId: string; quantity: number }> }) => {
       return apiRequest("POST", `/api/orders/${orderId}/items`, { items });
@@ -835,8 +843,8 @@ export default function OrdersPage() {
   const filteredProducts = useMemo(() => {
     if (!selectedOrder?.brand) return [];
     const brandProducts = products.filter(p => p.brand === selectedOrder.brand);
-    return filterProductsWithFuzzySearch(brandProducts, addItemsSearch, null);
-  }, [products, selectedOrder?.brand, addItemsSearch]);
+    return filterProductsWithFuzzySearch(brandProducts, addItemsSearch, null, popularityCounts);
+  }, [products, selectedOrder?.brand, addItemsSearch, popularityCounts]);
 
   const handleAddProductToList = (product: Product) => {
     const existing = itemsToAdd.find(i => i.product.id === product.id);
