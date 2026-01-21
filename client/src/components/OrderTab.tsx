@@ -33,6 +33,7 @@ interface OrderTabProps {
   cart: CartItemData[];
   onAddToCart: (product: { id: string; sku: string; name: string; brand: string; price: string | number; distributorPrice?: string | number | null; stock: number }, quantity: number) => void;
   onOpenCart: () => void;
+  popularityCounts?: Record<string, number>;
 }
 
 export default function OrderTab({
@@ -44,6 +45,7 @@ export default function OrderTab({
   cart,
   onAddToCart,
   onOpenCart,
+  popularityCounts = {},
 }: OrderTabProps) {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -53,7 +55,7 @@ export default function OrderTab({
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    return products.filter(product => {
+    let filtered = products.filter(product => {
       const matchesSearch = 
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -61,7 +63,19 @@ export default function OrderTab({
       const matchesBrand = selectedBrand === null || product.brand === selectedBrand;
       return matchesSearch && matchesBrand;
     });
-  }, [products, searchQuery, selectedBrand]);
+    
+    // Sort by popularity (most ordered first)
+    if (Object.keys(popularityCounts).length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        const popA = popularityCounts[a.id] || 0;
+        const popB = popularityCounts[b.id] || 0;
+        if (popB !== popA) return popB - popA;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    
+    return filtered;
+  }, [products, searchQuery, selectedBrand, popularityCounts]);
 
   useEffect(() => {
     setCurrentPage(1);

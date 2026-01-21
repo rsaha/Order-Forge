@@ -1073,6 +1073,7 @@ export default function Home() {
               cart={cart}
               onAddToCart={handleAddToCart}
               onOpenCart={() => setIsCartOpen(true)}
+              popularityCounts={popularityCounts}
             />
           )
         )}
