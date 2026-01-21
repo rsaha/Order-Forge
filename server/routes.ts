@@ -735,6 +735,30 @@ export async function registerRoutes(
     }
   });
 
+  // Get products for a specific brand (for Add Items dialog)
+  app.get('/api/products/by-brand/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const brand = req.params.brand;
+      const isAdmin = user?.isAdmin || false;
+      
+      // Check if user has access to this brand (admins have access to all)
+      if (!isAdmin) {
+        const userBrands = await storage.getUserBrandAccess(userId);
+        if (!userBrands.includes(brand)) {
+          return res.status(403).json({ message: "No access to this brand" });
+        }
+      }
+      
+      const products = await storage.getProductsByBrand(brand);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products by brand:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
   // Get user's brand access
   app.get('/api/users/:userId/brand-access', isAuthenticated, async (req: any, res) => {
     try {

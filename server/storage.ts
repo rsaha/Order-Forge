@@ -51,6 +51,7 @@ export interface IStorage {
   getUserBrandAccess(userId: string): Promise<string[]>;
   setUserBrandAccess(userId: string, brands: string[]): Promise<void>;
   getUserProductsByBrand(userId: string, isAdmin: boolean): Promise<Product[]>;
+  getProductsByBrand(brand: string): Promise<Product[]>;
   
   // User-Delivery Company access operations
   getUserDeliveryCompanyAccess(userId: string): Promise<string[]>;
@@ -397,6 +398,10 @@ export class DatabaseStorage implements IStorage {
     }
     
     return db.select().from(products).where(inArray(products.brand, allowedBrands));
+  }
+
+  async getProductsByBrand(brand: string): Promise<Product[]> {
+    return db.select().from(products).where(eq(products.brand, brand));
   }
 
   // User-Delivery Company access operations
