@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
 import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -831,13 +832,11 @@ export default function OrdersPage() {
     return order.status === "Created" || order.status === "Approved" || order.status === "Pending";
   };
 
-  const filteredProducts = products.filter((p) => {
-    if (!selectedOrder?.brand) return false;
-    if (p.brand !== selectedOrder.brand) return false;
-    const search = addItemsSearch.toLowerCase();
-    return p.name.toLowerCase().includes(search) ||
-           p.sku.toLowerCase().includes(search);
-  });
+  const filteredProducts = useMemo(() => {
+    if (!selectedOrder?.brand) return [];
+    const brandProducts = products.filter(p => p.brand === selectedOrder.brand);
+    return filterProductsWithFuzzySearch(brandProducts, addItemsSearch, null);
+  }, [products, selectedOrder?.brand, addItemsSearch]);
 
   const handleAddProductToList = (product: Product) => {
     const existing = itemsToAdd.find(i => i.product.id === product.id);

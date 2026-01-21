@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
@@ -429,16 +430,7 @@ export default function Home() {
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    return products
-      .filter(product => {
-        const matchesSearch = 
-          product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.brand.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesBrand = selectedBrand === null || product.brand === selectedBrand;
-        return matchesSearch && matchesBrand;
-      })
-      .sort((a, b) => a.id.localeCompare(b.id));
+    return filterProductsWithFuzzySearch(products, searchQuery, selectedBrand);
   }, [products, searchQuery, selectedBrand]);
 
   const cartItemCount = cart.length;
