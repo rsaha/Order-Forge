@@ -793,7 +793,8 @@ export async function registerRoutes(
   // Get brand-wise top 10 popular products (for analytics)
   app.get('/api/analytics/products/top-by-brand', isAuthenticated, async (req: any, res) => {
     try {
-      const user = req.user;
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
       if (!user?.isAdmin) {
         return res.status(403).json({ message: "Admin access required" });
       }
@@ -815,7 +816,8 @@ export async function registerRoutes(
   // Get products (by name) that were not ordered in the given time frame
   app.get('/api/analytics/products/unordered', isAuthenticated, async (req: any, res) => {
     try {
-      const user = req.user;
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
       if (!user?.isAdmin) {
         return res.status(403).json({ message: "Admin access required" });
       }
