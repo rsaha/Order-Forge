@@ -481,8 +481,8 @@ export default function OrdersPage() {
   });
 
   const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ["/api/products/by-brand"],
-    enabled: !!user && showAddItems,
+    queryKey: ["/api/products/by-brand", selectedOrder?.brand],
+    enabled: !!user && showAddItems && !!selectedOrder?.brand,
     staleTime: 5 * 60 * 1000, // 5 minutes - products rarely change
     refetchOnWindowFocus: false,
   });
@@ -500,7 +500,11 @@ export default function OrdersPage() {
       setAddItemsSearch("");
       
       if (selectedOrder) {
-        const res = await fetch(`/api/admin/orders/${selectedOrder.id}`, { credentials: "include" });
+        // Use appropriate endpoint based on user access level
+        const endpoint = hasAdminAccess 
+          ? `/api/admin/orders/${selectedOrder.id}` 
+          : `/api/orders/${selectedOrder.id}`;
+        const res = await fetch(endpoint, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           setOrderItems(data.items || []);
@@ -1738,7 +1742,7 @@ export default function OrdersPage() {
               <div className="border rounded-md">
                 <div className="p-3 border-b bg-muted/50 flex justify-between items-center gap-2">
                   <h4 className="font-medium text-sm">Products Ordered</h4>
-                  {isOrderEditable(selectedOrder) && hasAdminAccess && (
+                  {isOrderEditable(selectedOrder) && (hasAdminAccess || selectedOrder.userId === user?.id) && (
                     <Button
                       size="sm"
                       variant="outline"
