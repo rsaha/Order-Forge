@@ -3998,5 +3998,111 @@ export async function registerRoutes(
     }
   });
 
+  // Get All Parties with Order Values by Brand
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  // Optional: brand (filter to specific brand)
+  app.get('/api/sales/parties', validateApiKey, async (req: any, res) => {
+    try {
+      const { startDate, endDate, brand } = req.query;
+      
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1);
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
+      
+      const allOrders = await storage.getAllOrders({});
+      
+      const validStatuses = ['Invoiced', 'Dispatched', 'Delivered'];
+      const filteredOrders = allOrders.filter(order => {
+        if (!validStatuses.includes(order.status)) return false;
+        if (!order.createdAt) return false;
+        if (!order.partyName) return false;
+        
+        const createdDate = new Date(order.createdAt);
+        if (createdDate < rangeStart || createdDate >= rangeEnd) return false;
+        
+        if (brand && order.brand?.toLowerCase() !== brand.toLowerCase()) return false;
+        
+        return true;
+      });
+      
+      // Group by party, then by brand
+      const partyMap: Record<string, {
+        totalValue: number;
+        totalOrders: number;
+        byBrand: Record<string, { orderCount: number; value: number }>;
+        byStatus: Record<string, { count: number; value: number }>;
+      }> = {};
+      
+      for (const order of filteredOrders) {
+        const party = order.partyName!;
+        const orderBrand = order.brand || 'Unknown';
+        const orderValue = Number(order.actualOrderValue || order.total || 0);
+        
+        if (!partyMap[party]) {
+          partyMap[party] = {
+            totalValue: 0,
+            totalOrders: 0,
+            byBrand: {},
+            byStatus: {
+              Invoiced: { count: 0, value: 0 },
+              Dispatched: { count: 0, value: 0 },
+              Delivered: { count: 0, value: 0 },
+            },
+          };
+        }
+        
+        partyMap[party].totalValue += orderValue;
+        partyMap[party].totalOrders++;
+        partyMap[party].byStatus[order.status].count++;
+        partyMap[party].byStatus[order.status].value += orderValue;
+        
+        if (!partyMap[party].byBrand[orderBrand]) {
+          partyMap[party].byBrand[orderBrand] = { orderCount: 0, value: 0 };
+        }
+        partyMap[party].byBrand[orderBrand].orderCount++;
+        partyMap[party].byBrand[orderBrand].value += orderValue;
+      }
+      
+      // Convert to array and sort by total value descending
+      const parties = Object.entries(partyMap)
+        .map(([partyName, data]) => ({
+          partyName,
+          totalOrders: data.totalOrders,
+          totalValue: data.totalValue,
+          byStatus: data.byStatus,
+          byBrand: Object.entries(data.byBrand)
+            .map(([brand, stats]) => ({ brand, ...stats }))
+            .sort((a, b) => b.value - a.value),
+        }))
+        .sort((a, b) => b.totalValue - a.totalValue);
+      
+      const grandTotal = parties.reduce((sum, p) => sum + p.totalValue, 0);
+      const totalOrderCount = parties.reduce((sum, p) => sum + p.totalOrders, 0);
+      
+      res.json({
+        dateRange: { startDate, endDate },
+        ...(brand && { brandFilter: brand }),
+        totalParties: parties.length,
+        totalOrders: totalOrderCount,
+        totalValue: grandTotal,
+        parties,
+      });
+    } catch (error: any) {
+      console.error("Error getting parties sales data:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
