@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
   TrendingDown,
   Package,
   AlertCircle,
+  Trophy,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +75,26 @@ function getLastMonthRange() {
   };
 }
 
+interface TopOrderCreator {
+  userId: string;
+  userName: string;
+  orderCount: number;
+  totalValue: number;
+}
+
+function formatINR(amount: number): string {
+  if (amount >= 100000) {
+    return `₹${(amount / 100000).toFixed(1)}L`;
+  } else if (amount >= 1000) {
+    return `₹${(amount / 1000).toFixed(1)}K`;
+  }
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+  }).format(amount);
+}
+
 export default function ProductPopularityPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
@@ -80,6 +102,7 @@ export default function ProductPopularityPage() {
   const [activeTab, setActiveTab] = useState<"popular" | "unordered">("popular");
 
   const isAdmin = user?.isAdmin || false;
+  const isBrandAdmin = user?.role === 'BrandAdmin';
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();
@@ -135,6 +158,28 @@ export default function ProductPopularityPage() {
       return res.json();
     },
     enabled: isAdmin,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: topCreator } = useQuery<TopOrderCreator | null>({
+    queryKey: ["/api/analytics/top-order-creator", dateRange, selectedBrand],
+    queryFn: async () => {
+      let url = `/api/analytics/top-order-creator`;
+      const params = new URLSearchParams();
+      if (queryParams) {
+        params.append("fromDate", queryParams.split("fromDate=")[1]?.split("&")[0] || "");
+        params.append("toDate", queryParams.split("toDate=")[1]?.split("&")[0] || "");
+      }
+      if (selectedBrand !== "all") {
+        params.append("brand", selectedBrand);
+      }
+      const paramStr = params.toString();
+      if (paramStr) url += `?${paramStr}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch top order creator");
+      return res.json();
+    },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -202,53 +247,90 @@ export default function ProductPopularityPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header cartItemCount={0} onCartClick={() => {}} />
-      
-      <main className="flex-1 p-4 max-w-3xl mx-auto w-full">
-        <div className="flex items-center gap-2 mb-4">
-          <Link href="/analytics">
-            <Button variant="ghost" size="sm" data-testid="button-back-analytics">
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-          </Link>
-          <div className="flex-1" />
-          <Badge variant="outline">{dateRangeLabel}</Badge>
+      <header className="sticky top-0 z-50 bg-background border-b">
+        <div className="flex items-center justify-between gap-4 px-4 h-16">
+          <Header
+            cartItemCount={0}
+            onCartClick={() => {}}
+            isAdmin={isAdmin}
+            isBrandAdmin={isBrandAdmin}
+          />
         </div>
+      </header>
+      <div className="flex items-center gap-4 p-4 border-b flex-wrap">
+        <Link href="/analytics">
+          <Button variant="ghost" size="sm" data-testid="button-back-analytics">
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Package className="w-5 h-5" />
+          <h1 className="text-xl font-semibold">Product Analytics</h1>
+        </div>
+        <div className="flex-1" />
+      </div>
+
+      <div className="p-4 space-y-4">
+        <Card className="p-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[120px]">
+              <Label className="text-sm text-muted-foreground">Date Range</Label>
+              <Select value={dateRange} onValueChange={(v: any) => setDateRange(v)}>
+                <SelectTrigger data-testid="select-date-range">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7days">Last 7 Days</SelectItem>
+                  <SelectItem value="30days">Last 30 Days</SelectItem>
+                  <SelectItem value="90days">Last 90 Days</SelectItem>
+                  <SelectItem value="thisMonth">This Month</SelectItem>
+                  <SelectItem value="lastMonth">Last Month</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex-1 min-w-[120px]">
+              <Label className="text-sm text-muted-foreground">Brand</Label>
+              <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                <SelectTrigger data-testid="select-brand">
+                  <SelectValue placeholder="Select Brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {brands.map(brand => (
+                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
+
+        {topCreator && (
+          <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40">
+                <Trophy className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-muted-foreground">Top Order Creator</p>
+                <p className="font-semibold truncate">{topCreator.userName}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-amber-600">{topCreator.orderCount}</p>
+                <p className="text-xs text-muted-foreground">invoiced orders</p>
+              </div>
+              <div className="text-right border-l pl-3">
+                <p className="text-lg font-bold">{formatINR(topCreator.totalValue)}</p>
+                <p className="text-xs text-muted-foreground">total value</p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <Card className="p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Package className="h-5 w-5 text-primary" />
-            <h1 className="text-lg font-semibold">Product Analytics</h1>
-          </div>
-
-          <div className="flex flex-wrap gap-3 mb-4">
-            <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-              <SelectTrigger className="w-[160px]" data-testid="select-brand">
-                <SelectValue placeholder="Select Brand" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Brands</SelectItem>
-                {brands.map(brand => (
-                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={dateRange} onValueChange={(v: any) => setDateRange(v)}>
-              <SelectTrigger className="w-[140px]" data-testid="select-date-range">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7days">Last 7 Days</SelectItem>
-                <SelectItem value="30days">Last 30 Days</SelectItem>
-                <SelectItem value="90days">Last 90 Days</SelectItem>
-                <SelectItem value="thisMonth">This Month</SelectItem>
-                <SelectItem value="lastMonth">Last Month</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -337,7 +419,7 @@ export default function ProductPopularityPage() {
             </Tabs>
           )}
         </Card>
-      </main>
+      </div>
     </div>
   );
 }

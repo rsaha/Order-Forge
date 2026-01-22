@@ -92,6 +92,9 @@ export interface IStorage {
   getProductOrderCounts(): Promise<Map<string, number>>;
   getTopProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; sku: string; orderCount: number }[] }[]>;
   getUnorderedProductsByBrand(filters: { fromDate?: Date; toDate?: Date }, limit: number): Promise<{ brand: string; products: { name: string; skuCount: number }[] }[]>;
+  
+  // Top order creator operations
+  getTopOrderCreator(filters: { fromDate?: Date; toDate?: Date; brand?: string }): Promise<{ userId: string; userName: string; orderCount: number; totalValue: number } | null>;
 }
 
 export interface StatusMetric {
@@ -1385,6 +1388,47 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result;
+  }
+  
+  async getTopOrderCreator(filters: { fromDate?: Date; toDate?: Date; brand?: string }): Promise<{ userId: string; userName: string; orderCount: number; totalValue: number } | null> {
+    const conditions: any[] = [
+      eq(orders.status, 'Invoiced'),
+    ];
+    
+    if (filters.fromDate) {
+      conditions.push(sql`${orders.invoiceDate} >= ${filters.fromDate}`);
+    }
+    if (filters.toDate) {
+      conditions.push(sql`${orders.invoiceDate} <= ${filters.toDate}`);
+    }
+    if (filters.brand) {
+      conditions.push(eq(orders.brand, filters.brand));
+    }
+    
+    const result = await db
+      .select({
+        userId: orders.userId,
+        userName: users.firstName,
+        orderCount: sql<number>`count(*)::int`,
+        totalValue: sql<number>`coalesce(sum(${orders.total}), 0)::numeric`,
+      })
+      .from(orders)
+      .innerJoin(users, eq(orders.userId, users.id))
+      .where(and(...conditions, eq(users.isAdmin, false)))
+      .groupBy(orders.userId, users.firstName)
+      .orderBy(sql`count(*) desc`)
+      .limit(1);
+    
+    if (result.length === 0) {
+      return null;
+    }
+    
+    return {
+      userId: result[0].userId,
+      userName: result[0].userName || 'Unknown',
+      orderCount: result[0].orderCount,
+      totalValue: Number(result[0].totalValue) || 0,
+    };
   }
 }
 

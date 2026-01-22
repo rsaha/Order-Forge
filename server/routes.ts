@@ -837,6 +837,24 @@ export async function registerRoutes(
     }
   });
 
+  // Get top order creator (non-admin) with invoiced order count and value
+  app.get('/api/analytics/top-order-creator', isAuthenticated, async (req: any, res) => {
+    try {
+      const { fromDate, toDate, brand } = req.query;
+      const filters: { fromDate?: Date; toDate?: Date; brand?: string } = {};
+      
+      if (fromDate) filters.fromDate = new Date(fromDate as string);
+      if (toDate) filters.toDate = new Date(toDate as string);
+      if (brand) filters.brand = brand as string;
+      
+      const result = await storage.getTopOrderCreator(filters);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching top order creator:", error);
+      res.status(500).json({ message: "Failed to fetch top order creator" });
+    }
+  });
+
   // Get user's brand access
   app.get('/api/users/:userId/brand-access', isAuthenticated, async (req: any, res) => {
     try {
