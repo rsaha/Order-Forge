@@ -1799,8 +1799,8 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Verify Party - Admin only for Invoiced orders */}
-              {isAdmin && selectedOrder.status === "Invoiced" && (
+              {/* Verify Party - Admin only for Invoiced orders (shows when status is changed to Invoiced) */}
+              {isAdmin && (selectedOrder.status === "Invoiced" || editFormData.status === "Invoiced") && (
                 <div className="p-3 rounded-md border bg-muted/30 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
