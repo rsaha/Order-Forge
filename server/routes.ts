@@ -1121,6 +1121,129 @@ export async function registerRoutes(
     }
   });
 
+  // Admin-only: Verify and fix party name for Invoiced orders with outstanding balance
+  app.post('/api/admin/orders/:orderId/verify-party', isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      if (!req.user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { orderId } = req.params;
+      const { partyName, updateOrder } = req.body;
+      
+      if (!orderId) {
+        return res.status(400).json({ message: "Order ID required" });
+      }
+      
+      // Get the order
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Check if order is in Invoiced state
+      if (order.status !== 'Invoiced') {
+        return res.status(400).json({ 
+          message: `Party verification only available for Invoiced orders. Current status: ${order.status}` 
+        });
+      }
+      
+      // Use provided partyName or order's current partyName
+      const searchName = partyName || order.partyName;
+      if (!searchName) {
+        return res.status(400).json({ message: "Party name required" });
+      }
+      
+      // Call external API to verify party
+      const externalApiUrl = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(searchName.trim())}`;
+      const apiKey = process.env.CASHDESK_API_KEY;
+      
+      if (!apiKey) {
+        return res.status(500).json({ message: "API key not configured" });
+      }
+      
+      const externalResponse = await fetch(externalApiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+      });
+      
+      if (!externalResponse.ok) {
+        return res.status(502).json({ message: "Failed to verify party with external service" });
+      }
+      
+      const responseText = await externalResponse.text();
+      if (!responseText || responseText.trim() === '') {
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Party not found in database",
+          order: { id: order.id, partyName: order.partyName, status: order.status }
+        });
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Unexpected response from verification service" 
+        });
+      }
+      
+      if (!data.found || !data.match) {
+        return res.json({ 
+          verified: false, 
+          found: false,
+          message: "Party not found in database",
+          searchedName: searchName,
+          order: { id: order.id, partyName: order.partyName, status: order.status }
+        });
+      }
+      
+      const match = data.match;
+      const verifiedPartyName = match.name || match.Name;
+      
+      // If updateOrder is true and we found a match, update the order's party name
+      if (updateOrder && verifiedPartyName && verifiedPartyName !== order.partyName) {
+        await storage.updateOrder(orderId, { partyName: verifiedPartyName });
+        console.log(`Admin ${req.user.id} updated order ${orderId} party name from "${order.partyName}" to "${verifiedPartyName}"`);
+      }
+      
+      // Return verification result with outstanding balance
+      res.json({
+        verified: true,
+        found: true,
+        searchedName: searchName,
+        verifiedName: verifiedPartyName,
+        debtorId: match.debtorId,
+        location: match.location,
+        salesOwner: match.salesOwner,
+        creditLimit: match.creditLimit || 0,
+        outstandingAmount: match.outstandingAmount || 0,
+        availableCredit: match.availableCredit || 0,
+        creditStatus: match.creditStatus,
+        partyUpdated: updateOrder && verifiedPartyName !== order.partyName,
+        order: {
+          id: order.id,
+          partyName: updateOrder ? verifiedPartyName : order.partyName,
+          status: order.status,
+          invoiceNumber: order.invoiceNumber,
+          total: order.total,
+          actualOrderValue: order.actualOrderValue,
+        }
+      });
+    } catch (error: any) {
+      console.error("Error verifying party for order:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get available brand and delivery company options
   app.get('/api/options', isAuthenticated, async (req: any, res) => {
     try {
