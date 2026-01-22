@@ -1204,6 +1204,7 @@ export async function registerRoutes(
       }
       
       const match = data.match;
+      console.log("CashDesk API response match object:", JSON.stringify(match, null, 2));
       const verifiedPartyName = match.name || match.Name;
       
       // If updateOrder is true and we found a match, update the order's party name
