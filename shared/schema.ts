@@ -87,6 +87,24 @@ export const brands = pgTable("brands", {
 export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"] as const;
 export type DeliveryCompany = typeof DELIVERY_COMPANY_OPTIONS[number];
 
+// Announcement priority levels
+export const ANNOUNCEMENT_PRIORITIES = ["info", "warning", "urgent"] as const;
+export type AnnouncementPriority = typeof ANNOUNCEMENT_PRIORITIES[number];
+
+// Announcements table - for admin-managed announcements
+export const announcements = pgTable("announcements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  message: text("message").notNull(),
+  priority: varchar("priority").notNull().default("info"),
+  targetBrands: text("target_brands").notNull().default("all"), // "all" or JSON array of brand names
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // User-Brand access - which brands each user can see
 export const userBrandAccess = pgTable("user_brand_access", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -247,6 +265,13 @@ export const updateProductSchema = z.object({
 });
 export type UpdateProduct = z.infer<typeof updateProductSchema>;
 
+// Announcement insert schema
+export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -262,3 +287,5 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 export type BrandRecord = typeof brands.$inferSelect;
 export type InsertBrand = z.infer<typeof insertBrandSchema>;
+export type Announcement = typeof announcements.$inferSelect;
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
