@@ -1125,7 +1125,9 @@ export async function registerRoutes(
   app.post('/api/admin/orders/:orderId/verify-party', isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin
-      if (!req.user?.isAdmin) {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
         return res.status(403).json({ message: "Admin access required" });
       }
       
