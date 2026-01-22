@@ -74,6 +74,16 @@ The app supports two authentication methods:
 - **Product Matching**: Parsed items are matched against the user's product catalog by SKU or name
 - **Review Flow**: Users can review matched items, adjust quantities, and add to cart
 
+### Announcement System
+- **Config-based**: Announcements are configured in `client/src/config/announcements.ts`
+- **Priority levels**: info (blue), warning (amber), urgent (red)
+- **Brand targeting**: Target 'all' users or specific brands via `targetBrands` field
+- **Expiration**: Optional `expiresAt` date to auto-hide expired announcements
+- **Dismissal**: Users can dismiss announcements, stored in localStorage
+- **Display locations**: Order tab and Orders page show up to 3 announcements
+- **Admin visibility**: Admin users see all announcements regardless of brand targeting
+- **Update process**: Edit the announcements array in the config file and redeploy
+
 ### User Roles
 - **Regular Users (User)**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email. See only products from their assigned brands.
 - **Brand Admin (BrandAdmin)**: All regular user access plus can view orders for their assigned brands. Can change order status from Created to Approved only. When approving, their name and approval timestamp are recorded on the order.
