@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES } from "@shared/schema";
+import { z } from "zod";
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
@@ -3118,6 +3119,144 @@ export async function registerRoutes(
       res.json({ message: "Brand deleted successfully" });
     } catch (error: any) {
       console.error("Error deleting brand:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Announcement endpoints
+  app.get('/api/announcements', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userBrands = await storage.getUserBrandAccess(user.id);
+      const isAdmin = user.isAdmin || user.role === "Admin";
+      
+      const announcements = await storage.getActiveAnnouncements(isAdmin ? undefined : userBrands);
+      res.json(announcements);
+    } catch (error: any) {
+      console.error("Error fetching announcements:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get('/api/admin/announcements', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const announcements = await storage.getAnnouncements();
+      res.json(announcements);
+    } catch (error: any) {
+      console.error("Error fetching announcements:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  const createAnnouncementSchema = z.object({
+    title: z.string().min(1, "Title is required"),
+    message: z.string().min(1, "Message is required"),
+    priority: z.enum(["info", "warning", "urgent"]).default("info"),
+    targetBrands: z.string().default("all"),
+    expiresAt: z.string().nullable().optional(),
+    isActive: z.boolean().default(true),
+  });
+
+  app.post('/api/admin/announcements', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const parseResult = createAnnouncementSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: parseResult.error.errors[0]?.message || "Invalid request body" });
+      }
+      
+      const { title, message, priority, targetBrands, expiresAt, isActive } = parseResult.data;
+      
+      const announcement = await storage.createAnnouncement({
+        title,
+        message,
+        priority,
+        targetBrands,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        isActive,
+        createdBy: user.id,
+      });
+      
+      res.status(201).json(announcement);
+    } catch (error: any) {
+      console.error("Error creating announcement:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  const updateAnnouncementSchema = z.object({
+    title: z.string().min(1).optional(),
+    message: z.string().min(1).optional(),
+    priority: z.enum(["info", "warning", "urgent"]).optional(),
+    targetBrands: z.string().optional(),
+    expiresAt: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
+  });
+
+  app.patch('/api/admin/announcements/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { id } = req.params;
+      const parseResult = updateAnnouncementSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: parseResult.error.errors[0]?.message || "Invalid request body" });
+      }
+      
+      const { title, message, priority, targetBrands, expiresAt, isActive } = parseResult.data;
+      
+      const updates: any = {};
+      if (title !== undefined) updates.title = title;
+      if (message !== undefined) updates.message = message;
+      if (priority !== undefined) updates.priority = priority;
+      if (targetBrands !== undefined) updates.targetBrands = targetBrands;
+      if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+      if (isActive !== undefined) updates.isActive = isActive;
+      
+      const announcement = await storage.updateAnnouncement(id, updates);
+      if (!announcement) {
+        return res.status(404).json({ message: "Announcement not found" });
+      }
+      
+      res.json(announcement);
+    } catch (error: any) {
+      console.error("Error updating announcement:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete('/api/admin/announcements/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.isAdmin && user?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { id } = req.params;
+      const deleted = await storage.deleteAnnouncement(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Announcement not found" });
+      }
+      
+      res.json({ message: "Announcement deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting announcement:", error);
       res.status(500).json({ message: error.message });
     }
   });

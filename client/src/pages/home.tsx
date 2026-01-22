@@ -26,7 +26,7 @@ import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Upload, ArrowLeft, Tag } from "lucide-react";
+import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Upload, ArrowLeft, Tag, Megaphone } from "lucide-react";
 import { Link } from "wouter";
 import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -942,6 +942,15 @@ export default function Home() {
                       >
                         <Tag className="w-4 h-4 mr-2" />
                         Brands
+                      </Button>
+                    </Link>
+                    <Link href="/announcements">
+                      <Button
+                        variant="outline"
+                        data-testid="button-manage-announcements"
+                      >
+                        <Megaphone className="w-4 h-4 mr-2" />
+                        Announcements
                       </Button>
                     </Link>
                     <Button

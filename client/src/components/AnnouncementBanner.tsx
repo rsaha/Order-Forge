@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { X, Info, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getActiveAnnouncements, type Announcement, type AnnouncementPriority } from '@/config/announcements';
+import type { Announcement } from '@shared/schema';
+
+type AnnouncementPriority = 'info' | 'warning' | 'urgent';
 
 interface AnnouncementBannerProps {
-  userBrands: string[];
+  userBrands?: string[];
 }
 
 const DISMISSED_KEY = 'dismissed-announcements';
@@ -71,8 +74,8 @@ function AnnouncementItem({
   announcement: Announcement; 
   onDismiss: (id: string) => void;
 }) {
-  const styles = getPriorityStyles(announcement.priority);
-  const Icon = getPriorityIcon(announcement.priority);
+  const styles = getPriorityStyles(announcement.priority as AnnouncementPriority);
+  const Icon = getPriorityIcon(announcement.priority as AnnouncementPriority);
   
   return (
     <div 
@@ -103,19 +106,23 @@ function AnnouncementItem({
 }
 
 export default function AnnouncementBanner({ userBrands }: AnnouncementBannerProps) {
-  const [visibleAnnouncements, setVisibleAnnouncements] = useState<Announcement[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  
+  const { data: announcements = [] } = useQuery<Announcement[]>({
+    queryKey: ['/api/announcements'],
+    staleTime: 60000,
+  });
   
   useEffect(() => {
-    const active = getActiveAnnouncements(userBrands);
-    const dismissed = getDismissedIds();
-    const visible = active.filter(a => !dismissed.includes(a.id));
-    setVisibleAnnouncements(visible);
-  }, [userBrands]);
+    setDismissedIds(getDismissedIds());
+  }, []);
   
   const handleDismiss = (id: string) => {
     dismissAnnouncement(id);
-    setVisibleAnnouncements(prev => prev.filter(a => a.id !== id));
+    setDismissedIds(prev => [...prev, id]);
   };
+  
+  const visibleAnnouncements = announcements.filter(a => !dismissedIds.includes(a.id));
   
   if (visibleAnnouncements.length === 0) {
     return null;

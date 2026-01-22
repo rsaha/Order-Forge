@@ -6,6 +6,7 @@ import {
   orders,
   orderItems,
   brands,
+  announcements,
   type User,
   type UpsertUser,
   type Product,
@@ -22,6 +23,8 @@ import {
   type UpdateProduct,
   type BrandRecord,
   type InsertBrand,
+  type Announcement,
+  type InsertAnnouncement,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
@@ -95,6 +98,14 @@ export interface IStorage {
   
   // Top order creator operations
   getTopOrderCreator(filters: { fromDate?: Date; toDate?: Date; brand?: string }): Promise<{ userId: string; userName: string; orderCount: number; totalValue: number } | null>;
+  
+  // Announcement operations
+  getAnnouncements(): Promise<Announcement[]>;
+  getActiveAnnouncements(userBrands?: string[]): Promise<Announcement[]>;
+  getAnnouncementById(id: string): Promise<Announcement | undefined>;
+  createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
+  updateAnnouncement(id: string, updates: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
+  deleteAnnouncement(id: string): Promise<boolean>;
 }
 
 export interface StatusMetric {
@@ -1429,6 +1440,63 @@ export class DatabaseStorage implements IStorage {
       orderCount: result[0].orderCount,
       totalValue: Number(result[0].totalValue) || 0,
     };
+  }
+  
+  async getAnnouncements(): Promise<Announcement[]> {
+    return await db.select().from(announcements).orderBy(desc(announcements.createdAt));
+  }
+  
+  async getActiveAnnouncements(userBrands?: string[]): Promise<Announcement[]> {
+    const now = new Date();
+    const allActive = await db
+      .select()
+      .from(announcements)
+      .where(eq(announcements.isActive, true))
+      .orderBy(desc(announcements.createdAt));
+    
+    return allActive.filter(ann => {
+      if (ann.expiresAt && new Date(ann.expiresAt) < now) {
+        return false;
+      }
+      if (ann.targetBrands === 'all') {
+        return true;
+      }
+      if (!userBrands || userBrands.length === 0) {
+        return ann.targetBrands === 'all';
+      }
+      try {
+        const targetBrandsArray = JSON.parse(ann.targetBrands);
+        return targetBrandsArray.some((brand: string) => 
+          userBrands.some(ub => ub.toLowerCase() === brand.toLowerCase())
+        );
+      } catch {
+        return ann.targetBrands === 'all';
+      }
+    });
+  }
+  
+  async getAnnouncementById(id: string): Promise<Announcement | undefined> {
+    const result = await db.select().from(announcements).where(eq(announcements.id, id));
+    return result[0];
+  }
+  
+  async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
+    const result = await db.insert(announcements).values(announcement).returning();
+    return result[0];
+  }
+  
+  async updateAnnouncement(id: string, updates: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
+    const result = await db
+      .update(announcements)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(announcements.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    const result = await db.delete(announcements).where(eq(announcements.id, id)).returning();
+    return result.length > 0;
   }
 }
 

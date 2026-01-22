@@ -75,14 +75,21 @@ The app supports two authentication methods:
 - **Review Flow**: Users can review matched items, adjust quantities, and add to cart
 
 ### Announcement System
-- **Config-based**: Announcements are configured in `client/src/config/announcements.ts`
+- **Database-driven**: Announcements are stored in the `announcements` table and managed via admin UI
+- **Admin UI**: Admin users can create, edit, and delete announcements at `/announcements` page
 - **Priority levels**: info (blue), warning (amber), urgent (red)
-- **Brand targeting**: Target 'all' users or specific brands via `targetBrands` field
+- **Brand targeting**: Target 'all' users or specific brands via `targetBrands` field (stored as "all" or JSON array)
 - **Expiration**: Optional `expiresAt` date to auto-hide expired announcements
+- **Active status**: Announcements can be toggled active/inactive
 - **Dismissal**: Users can dismiss announcements, stored in localStorage
 - **Display locations**: Order tab and Orders page show up to 3 announcements
 - **Admin visibility**: Admin users see all announcements regardless of brand targeting
-- **Update process**: Edit the announcements array in the config file and redeploy
+- **API endpoints**:
+  - `GET /api/announcements` - Get active announcements for current user (filtered by brand access)
+  - `GET /api/admin/announcements` - Get all announcements (admin only)
+  - `POST /api/admin/announcements` - Create announcement (admin only)
+  - `PATCH /api/admin/announcements/:id` - Update announcement (admin only)
+  - `DELETE /api/admin/announcements/:id` - Delete announcement (admin only)
 
 ### User Roles
 - **Regular Users (User)**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email. See only products from their assigned brands.

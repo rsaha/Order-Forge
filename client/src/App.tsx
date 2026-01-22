@@ -13,6 +13,7 @@ import UsersPage from "@/pages/users";
 import AnalyticsPage from "@/pages/analytics";
 import ProductPopularityPage from "@/pages/product-popularity";
 import BrandsPage from "@/pages/brands";
+import AnnouncementsPage from "@/pages/announcements";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/analytics/products" component={ProductPopularityPage} />
       <Route path="/brands" component={BrandsPage} />
+      <Route path="/announcements" component={AnnouncementsPage} />
       <Route component={NotFound} />
     </Switch>
   );
