@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a productivity-focused order entry application built for sales representatives and small businesses. Users can upload product inventory from Excel/CSV files, create orders by searching and selecting products, and send orders via WhatsApp or email. The app follows Material Design principles with a mobile-first approach optimized for touch interactions and efficient data entry.
+This project is a productivity-focused order entry application designed for sales representatives and small businesses. Its primary purpose is to streamline the order creation and management process. Key capabilities include uploading product inventory via Excel/CSV, generating orders by searching and selecting products, and facilitating order communication through WhatsApp or email. The application prioritizes a mobile-first, touch-optimized user experience, adhering to Material Design principles for efficient data entry. The business vision is to empower sales teams and small businesses with a robust, intuitive tool that enhances sales efficiency and order fulfillment, tapping into a market segment seeking streamlined digital solutions for order management.
 
 ## User Preferences
 
@@ -10,265 +10,84 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter (lightweight alternative to React Router)
-- **State Management**: TanStack React Query for server state, local React state for UI
-- **Styling**: Tailwind CSS with shadcn/ui component library (New York style)
-- **Build Tool**: Vite with custom plugins for Replit integration
+### Frontend
+The frontend is built with React 18 and TypeScript, using Wouter for routing and TanStack React Query for server state management. UI styling is managed with Tailwind CSS and the shadcn/ui component library, following the New York style. Vite is used as the build tool, including custom plugins for Replit integration. The architecture promotes a pages-based structure with a clear separation of reusable UI components and feature-specific components.
 
-The frontend follows a pages-based structure with reusable components. Components are organized into UI primitives (`components/ui/`), feature components, and example components for documentation.
-
-### Backend Architecture
-- **Runtime**: Node.js with Express
-- **Language**: TypeScript with ESM modules
-- **API Pattern**: RESTful JSON API with `/api` prefix
-- **Authentication**: Replit Auth using OpenID Connect with Passport.js
-- **Session Management**: PostgreSQL-backed sessions via connect-pg-simple
-- **File Uploads**: Multer with memory storage for Excel/CSV parsing
-
-The server uses a clean separation between routes, storage layer, and authentication. The storage pattern abstracts database operations through an interface for testability.
+### Backend
+The backend utilizes Node.js with Express and TypeScript, employing ESM modules. It exposes a RESTful JSON API. Authentication is handled via Replit Auth (OpenID Connect) integrated with Passport.js, with session management backed by PostgreSQL using `connect-pg-simple`. File uploads for inventory are processed using Multer. The backend design emphasizes a clean separation between routes, storage logic, and authentication layers, with a storage interface for enhanced testability.
 
 ### Data Storage
-- **Database**: PostgreSQL with Drizzle ORM
-- **Schema Location**: `shared/schema.ts` (shared between frontend and backend)
-- **Migrations**: Drizzle Kit with `db:push` command
+PostgreSQL serves as the primary database, managed with Drizzle ORM. The database schema, defined in `shared/schema.ts`, is shared across both frontend and backend. Drizzle Kit is used for migrations. Key tables include `users`, `products`, `userProducts` (for user-specific catalogs), `orders`, `orderItems` (including `freeQuantity`), and `sessions`.
 
-Key tables:
-- `users` - User accounts linked to Replit Auth
-- `products` - Product catalog with SKU, name, brand, price, stock
-- `userProducts` - Junction table for user-product assignments (each user has their own catalog)
-- `orders` and `orderItems` - Order tracking (orderItems includes freeQuantity for complimentary items)
-- `sessions` - Session storage for authentication
+### Authentication
+The application supports two authentication methods:
+1.  **Replit Auth**: Utilizes Replit's OIDC provider, automatically syncing user data.
+2.  **Phone/Password Authentication**: Admin-created users log in with a phone number and a bcrypt-hashed password.
+Both methods share a PostgreSQL-backed session management system with a one-week TTL.
 
-### Authentication Flow
-The app supports two authentication methods:
-
-**1. Replit Auth (Google Login)**
-- Uses Replit's OIDC provider for authentication
-- User data automatically synced on login via `upsertUser`
-
-**2. Phone/Password Authentication**
-- Admin creates users with phone numbers in Users page
-- Admin sets an initial password (minimum 6 characters) when creating the user
-- Admin shares the password with the user for their first login
-- Users log in with phone number + password
-- Passwords are securely hashed using bcrypt
-
-**Session Management**
-- Sessions stored in PostgreSQL with 1-week TTL
-- Protected routes use `isAuthenticated` middleware
-- Both auth methods use the same session storage
-- Logout clears session for both methods
-
-### File Processing (Admin Only)
-- Only Excel files (.xlsx, .xls) are supported for product uploads
-- Required Excel columns: Brand, Name, Product SKU ID, Size
-- Optional column: MRP (price)
-- Files are parsed server-side using the `xlsx` library
-- Products are extracted and assigned to the uploading admin's catalog
-
-### Order Import Feature
-- **Import Tab**: All users can access the Import tab to paste order text
-- **Text Parsing**: Simple pattern matching extracts product names and quantities from free-form text
-- **Product Matching**: Parsed items are matched against the user's product catalog by SKU or name
-- **Review Flow**: Users can review matched items, adjust quantities, and add to cart
-
-### Announcement System
-- **Database-driven**: Announcements are stored in the `announcements` table and managed via admin UI
-- **Admin UI**: Admin users can create, edit, and delete announcements at `/announcements` page
-- **Priority levels**: info (blue), warning (amber), urgent (red)
-- **Brand targeting**: Target 'all' users or specific brands via `targetBrands` field (stored as "all" or JSON array)
-- **Expiration**: Optional `expiresAt` date to auto-hide expired announcements
-- **Active status**: Announcements can be toggled active/inactive
-- **Dismissal**: Users can dismiss announcements, stored in localStorage
-- **Display locations**: Order tab and Orders page show up to 3 announcements
-- **Admin visibility**: Admin users see all announcements regardless of brand targeting
-- **API endpoints**:
-  - `GET /api/announcements` - Get active announcements for current user (filtered by brand access)
-  - `GET /api/admin/announcements` - Get all announcements (admin only)
-  - `POST /api/admin/announcements` - Create announcement (admin only)
-  - `PATCH /api/admin/announcements/:id` - Update announcement (admin only)
-  - `DELETE /api/admin/announcements/:id` - Delete announcement (admin only)
-
-### User Roles
-- **Regular Users (User)**: Can use Order tab and Import tab for text-based order entry, manage cart, send orders via WhatsApp/email. See only products from their assigned brands.
-- **Brand Admin (BrandAdmin)**: All regular user access plus can view orders for their assigned brands. Can change order status from Created to Approved only. When approving, their name and approval timestamp are recorded on the order.
-- **Admin Users**: Full access including Products tab, Upload tab (product inventory), Users management, and complete order management with all status transitions. Can create orders on behalf of sales users.
-
-### Admin Order Creation on Behalf of Sales Users
-- Admin users can create orders for any sales user via a dropdown in the cart panel
-- Order ownership model:
-  - `userId` = order owner (the sales user the order is created for)
-  - `createdBy` = actual creator (the admin who created the order)
-- The order appears in the sales user's order list but includes full audit trail
-- Display format: "Owner Name (by Admin Name)" when creator differs from owner
-- Regular users and brand admins cannot create orders on behalf of others
-
-### Single-Brand Order Requirement
-- Each order must contain products from only one brand
-- Cart enforces single-brand constraint: users cannot add products from different brands to the same cart
-- Backend validates all products in order belong to the same brand before creation
-- Orders table has a required `brand` field that stores the brand of all products in the order
-
-### Orders Page Status Tab Navigation
-- Orders page uses horizontal status tabs instead of dropdown filter
-- Color-coded tabs: Created (Blue), Approved (Green), Invoiced (Purple), Pending (Amber), Dispatched (Orange), Delivered (Teal), POD Received (Indigo), Cancelled (Gray)
-- Each tab shows a badge with count of orders in that status
-- Status-specific table columns:
-  - **Created**: Date, Party, Created By, Brand, Notes, Total
-  - **Approved**: Date, Party, Approved By, Approved At, Brand, Notes, Total
-  - **Invoiced**: Date, Party, Invoice #, Invoice Date, Order Value, Delivery Co.
-  - **Pending**: Date, Party, Brand, Parent Order, Notes, Total
-  - **Dispatched**: Date, Party, Invoice #, Dispatch By, Cases, Order Value, Est. Delivery, Delivery Co.
-  - **Delivered**: Date, Party, Invoice #, Delivered On, Order Value, On Time?
-  - **POD Received**: Date, Party, Invoice #, Delivered On, POD Received, Total
-  - **Cancelled**: Date, Party, Brand, Total
-- All orders are fetched once and filtered client-side for responsive tab switching
-
-### POD (Proof of Delivery) Status Tracking
-- Orders have a `podStatus` field: Pending (default) or Received
-- When an order is Dispatched or Delivered, Admin users can mark POD as "Received"
-- When POD is marked as Received:
-  - `podTimestamp` is set to the current timestamp
-  - Order status automatically changes to "POD Received"
-- POD Received orders appear in the dedicated "POD Received" tab
-
-### Pending Orders (Out-of-Stock Items)
-- Pending orders are created from Created or Approved orders when some items are out of stock
-- Admin/BrandAdmin can click "Create Pending Order" button (fork icon) on Created or Approved orders
-- The system clones the order with only out-of-stock items (stock < quantity ordered)
-- The new Pending order has:
-  - `parentOrderId` linking to the original order
-  - `status` set to "Pending"
-  - Only the items that are out of stock
-  - Recalculated total based on included items
-- If all items have sufficient stock, the pending order creation fails with a message
-- Pending orders can be edited: users can update quantity/free quantity or remove items
+### Core Features
+-   **File Processing (Admin)**: Supports Excel (.xlsx, .xls) uploads for product inventory. Required columns: Brand, Name, Product SKU ID, Size, with an optional MRP. Products are parsed server-side and assigned to the admin's catalog.
+-   **Order Import**: Users can paste free-form text, which is parsed to match products against their catalog by SKU or name, allowing review and cart addition.
+-   **Announcement System**: Admin-managed announcements stored in the database, with priority levels, brand targeting, expiration dates, and user dismissal functionality.
+-   **User Roles**: Differentiates between Regular Users (order creation, cart management), Brand Admins (order viewing for assigned brands, status changes), and Admin Users (full access including product/user management, all order statuses, and creating orders on behalf of sales users).
+-   **Admin Order Creation**: Admins can create orders for sales users, maintaining `userId` (owner) and `createdBy` (admin creator) for audit trails.
+-   **Single-Brand Order Enforcement**: Each order must contain products from a single brand, enforced at both frontend (cart) and backend (validation) levels.
+-   **Orders Page**: Features status-based navigation via color-coded tabs (Created, Approved, Invoiced, Pending, Dispatched, Delivered, POD Received, Cancelled) with status-specific table columns and client-side filtering.
+-   **POD (Proof of Delivery) Tracking**: Orders include a `podStatus`. Admins can mark POD as "Received," triggering a status change to "POD Received" and recording a timestamp.
+-   **Pending Orders**: Out-of-stock items from "Created" or "Approved" orders can be moved to a "Pending" order, linked to the original order via `parentOrderId`, and can be edited.
+-   **WhatsApp Sharing**: Generates and shares order details via WhatsApp with status-dependent messaging.
 
 ## External Dependencies
 
 ### Third-Party Services
-- **Replit Auth**: OpenID Connect authentication via Replit's identity provider
-- **PostgreSQL**: Database provisioned through Replit (requires `DATABASE_URL` environment variable)
+-   **Replit Auth**: OpenID Connect authentication service.
+-   **PostgreSQL**: Database service provided through Replit.
 
 ### Key NPM Packages
-- `drizzle-orm` / `drizzle-kit`: Database ORM and migrations
-- `xlsx`: Excel file parsing for SKU uploads
-- `@tanstack/react-query`: Server state management
-- `openid-client`: OIDC client for Replit Auth
-- `passport` / `passport-local`: Authentication middleware
-- `express-session` / `connect-pg-simple`: Session management
+-   `drizzle-orm`, `drizzle-kit`: ORM for database interactions and migrations.
+-   `xlsx`: Library for parsing Excel files.
+-   `@tanstack/react-query`: For server state management in the frontend.
+-   `openid-client`: OpenID Connect client for authentication.
+-   `passport`, `passport-local`: Authentication middleware for Node.js.
+-   `express-session`, `connect-pg-simple`: For session management with PostgreSQL.
 
-### Environment Variables Required
-- `DATABASE_URL`: PostgreSQL connection string
-- `SESSION_SECRET`: Secret for session encryption
-- `REPL_ID`: Automatically provided by Replit
-- `ISSUER_URL`: OIDC issuer (defaults to Replit's OIDC endpoint)
-
-## User Guide
-
-### Getting Started
-1. Log in using your Replit account
-2. You'll be assigned a role by an Admin: User, Brand Admin, or Admin
-3. Navigate using the sidebar to access different features
-
-### Orders Page
-The Orders page displays orders organized by status using color-coded horizontal tabs:
-
-#### Status Tabs
-- **Created** (Blue): New orders waiting for approval
-- **Approved** (Green): Orders approved and ready for invoicing
-- **Invoiced** (Purple): Orders with invoice details added
-- **Dispatched** (Orange): Orders shipped and in transit
-- **Delivered** (Teal): Successfully delivered orders
-- **Cancelled** (Gray): Cancelled orders
-
-Each tab shows a badge with the count of orders in that status.
-
-#### Order Visibility by Role
-- **Regular Users**: See only orders they created themselves
-- **Brand Admins**: See all orders for their assigned brands
-- **Admins**: See all orders across all brands
-
-#### Table Columns by Status
-Different information is shown depending on the status tab:
-- **Created/Approved**: Date, Party, Created/Approved By, Brand, Notes, Total
-- **Invoiced**: Date, Party, Invoice #, Invoice Date, Order Value, Delivery Co.
-- **Dispatched**: Date, Party, Invoice #, Dispatch By, Cases, Order Value, Est. Delivery, Delivery Co.
-- **Delivered**: Date, Party, Invoice #, Delivered On, Order Value, On Time indicator
-- **Cancelled**: Date, Party, Brand, Total
-
-#### Filters
-- **Date Filter**: Filter by Today, Last 7 Days, or All Time
-- **Brand Filter**: Filter by specific brand (visible on larger screens)
-- **Delivery Company Filter**: Filter by delivery company (visible on larger screens)
-
-### Creating Orders
-1. Go to the Order tab
-2. Search for products by name or SKU
-3. Add items to your cart (all items must be from the same brand)
-4. Enter party name and delivery notes
-5. Submit the order
-
-### Importing Orders from Text
-1. Go to the Import tab
-2. Paste order text (e.g., from a message or email)
-3. The system matches products by name or SKU
-4. Review matched items and adjust quantities
-5. Add matched items to cart
-
-### Order Status Workflow
-1. **Created**: Order is submitted
-2. **Approved**: Brand Admin or Admin approves the order (approval tracked with name and timestamp)
-3. **Invoiced**: Admin adds invoice number and date
-4. **Dispatched**: Admin adds dispatch details (Dispatch By, Cases, Est. Delivery)
-5. **Delivered**: Order is marked as delivered with actual delivery date
-6. **Cancelled**: Order is cancelled (only from Created or Approved status)
-
-### WhatsApp Sharing
-Click the message icon on any order to generate and share order details via WhatsApp. The message format changes based on order status.
+### Environment Variables
+-   `DATABASE_URL`: PostgreSQL connection string.
+-   `SESSION_SECRET`: Secret for session encryption.
+-   `REPL_ID`: Automatically provided by Replit.
+-   `ISSUER_URL`: OIDC issuer endpoint (defaults to Replit's).
+-   `CASHDESK_API_KEY`: API key for external API authentication.
 
 ## External API Endpoints
 
-External API endpoints for integration with external agents and systems. All endpoints require API key authentication via `X-API-KEY` header or `Authorization: Bearer <key>` header.
+All external API endpoints require authentication via `X-API-KEY` header using the `CASHDESK_API_KEY` secret.
 
-### GET /api/summary
-Returns all orders across all statuses within a date range, grouped by status.
-
-**Parameters:**
-- `startDate` (required): Start date in YYYY-MM-DD format
-- `endDate` (required): End date in YYYY-MM-DD format
-- `brand` (optional): Case-insensitive partial match filter for brand name
-
-**Response:** Total order count, total value, status counts, status values, and orders grouped by status with full details including items.
-
-### GET /api/created/summary
-Returns orders created within a date range with full order details including items.
+### GET /api/sales/summary
+Returns Invoiced, Dispatched, and Delivered orders grouped by brand within a date range.
 
 **Parameters:**
 - `startDate` (required): Start date in YYYY-MM-DD format
 - `endDate` (required): End date in YYYY-MM-DD format
 - `brand` (optional): Case-insensitive partial match filter for brand name
 
-**Response:** Order count, total value, status breakdown, and detailed order list with items.
+**Response:** Total orders, total value, and breakdown by brand with status-level counts and values (Invoiced/Dispatched/Delivered).
 
-### GET /api/dispatch/summary
-Returns orders dispatched within a date range.
-
-**Parameters:**
-- `startDate` (required): Start date in YYYY-MM-DD format
-- `endDate` (required): End date in YYYY-MM-DD format
-- `brand` (optional): Case-insensitive partial match filter for brand name
-
-**Response:** Order count and list of dispatched orders with invoice and dispatch details.
-
-### GET /api/delivery/summary
-Returns orders delivered within a date range with on-time delivery statistics.
+### GET /api/sales/party/:partyName
+Returns all Invoiced/Dispatched/Delivered orders for a specific party within a date range.
 
 **Parameters:**
+- `partyName` (required): URL-encoded party name
 - `startDate` (required): Start date in YYYY-MM-DD format
 - `endDate` (required): End date in YYYY-MM-DD format
-- `brand` (optional): Case-insensitive partial match filter for brand name
 
-**Response:** Order count, on-time delivery count/percentage, and list of delivered orders.
+**Response:** Party name, order count, total value, status breakdown (Invoiced/Dispatched/Delivered counts and values), and list of orders.
+
+### GET /api/sales/brand/:brandName
+Returns total order value for a specific brand within a date range.
+
+**Parameters:**
+- `brandName` (required): URL-encoded brand name
+- `startDate` (required): Start date in YYYY-MM-DD format
+- `endDate` (required): End date in YYYY-MM-DD format
+
+**Response:** Brand name, order count, total value, and breakdown by status (Invoiced/Dispatched/Delivered counts and values).

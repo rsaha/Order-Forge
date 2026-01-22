@@ -3742,5 +3742,261 @@ export async function registerRoutes(
     }
   });
 
+  // =====================================================
+  // SALES ANALYTICS API ENDPOINTS
+  // For external app consumption of sales data
+  // =====================================================
+
+  // Get Sales Summary - Returns Invoiced/Dispatched/Delivered orders grouped by brand
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  // Optional: brand filter (case-insensitive partial match)
+  app.get('/api/sales/summary', validateApiKey, async (req: any, res) => {
+    try {
+      const { startDate, endDate, brand } = req.query;
+      
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
+      
+      // Get all orders - we'll filter by status
+      const allOrders = await storage.getAllOrders({});
+      
+      // Filter to only Invoiced, Dispatched, or Delivered orders within date range
+      const validStatuses = ['Invoiced', 'Dispatched', 'Delivered'];
+      const salesOrders = allOrders.filter(order => {
+        if (!validStatuses.includes(order.status)) return false;
+        if (!order.createdAt) return false;
+        
+        const createdDate = new Date(order.createdAt);
+        const dateMatch = createdDate >= rangeStart && createdDate < rangeEnd;
+        if (!dateMatch) return false;
+        
+        // Apply brand filter if provided (case-insensitive partial match)
+        if (brand) {
+          const brandFilter = String(brand).toLowerCase();
+          return order.brand?.toLowerCase().includes(brandFilter);
+        }
+        return true;
+      });
+      
+      // Group by brand with status breakdown
+      const brandMap: Record<string, {
+        orderCount: number;
+        totalValue: number;
+        byStatus: Record<string, { count: number; value: number }>;
+      }> = {};
+      
+      for (const order of salesOrders) {
+        const brandName = order.brand || 'Unknown';
+        if (!brandMap[brandName]) {
+          brandMap[brandName] = {
+            orderCount: 0,
+            totalValue: 0,
+            byStatus: {
+              Invoiced: { count: 0, value: 0 },
+              Dispatched: { count: 0, value: 0 },
+              Delivered: { count: 0, value: 0 },
+            },
+          };
+        }
+        
+        const orderValue = Number(order.actualOrderValue || order.total || 0);
+        brandMap[brandName].orderCount++;
+        brandMap[brandName].totalValue += orderValue;
+        brandMap[brandName].byStatus[order.status].count++;
+        brandMap[brandName].byStatus[order.status].value += orderValue;
+      }
+      
+      // Convert to array and sort by total value descending
+      const byBrand = Object.entries(brandMap)
+        .map(([brand, data]) => ({ brand, ...data }))
+        .sort((a, b) => b.totalValue - a.totalValue);
+      
+      const totalOrders = salesOrders.length;
+      const totalValue = salesOrders.reduce((sum, o) => sum + Number(o.actualOrderValue || o.total || 0), 0);
+      
+      res.json({
+        dateRange: { startDate, endDate },
+        totalOrders,
+        totalValue,
+        byBrand,
+      });
+    } catch (error: any) {
+      console.error("Error getting sales summary:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get Party Sales Details - Returns all orders for a specific party
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  app.get('/api/sales/party/:partyName', validateApiKey, async (req: any, res) => {
+    try {
+      const { partyName } = req.params;
+      const { startDate, endDate } = req.query;
+      
+      if (!partyName) {
+        return res.status(400).json({ message: "Party name parameter required" });
+      }
+      
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
+      
+      const decodedPartyName = decodeURIComponent(partyName);
+      
+      // Get all orders
+      const allOrders = await storage.getAllOrders({});
+      
+      // Filter to only Invoiced, Dispatched, or Delivered orders for this party
+      const validStatuses = ['Invoiced', 'Dispatched', 'Delivered'];
+      const partyOrders = allOrders.filter(order => {
+        if (!validStatuses.includes(order.status)) return false;
+        if (!order.createdAt) return false;
+        
+        // Case-insensitive party name match
+        if (order.partyName?.toLowerCase() !== decodedPartyName.toLowerCase()) return false;
+        
+        const createdDate = new Date(order.createdAt);
+        return createdDate >= rangeStart && createdDate < rangeEnd;
+      });
+      
+      // Calculate status breakdown
+      const byStatus: Record<string, { count: number; value: number }> = {
+        Invoiced: { count: 0, value: 0 },
+        Dispatched: { count: 0, value: 0 },
+        Delivered: { count: 0, value: 0 },
+      };
+      
+      for (const order of partyOrders) {
+        const orderValue = Number(order.actualOrderValue || order.total || 0);
+        byStatus[order.status].count++;
+        byStatus[order.status].value += orderValue;
+      }
+      
+      // Build order details
+      const orders = await Promise.all(partyOrders.map(async (order) => {
+        const items = await storage.getOrderItems(order.id);
+        return {
+          orderId: order.id,
+          date: order.createdAt,
+          brand: order.brand,
+          status: order.status,
+          invoiceNumber: order.invoiceNumber,
+          invoiceDate: order.invoiceDate,
+          total: Number(order.actualOrderValue || order.total || 0),
+          itemCount: items.length,
+        };
+      }));
+      
+      const totalValue = orders.reduce((sum, o) => sum + o.total, 0);
+      
+      res.json({
+        partyName: decodedPartyName,
+        dateRange: { startDate, endDate },
+        orderCount: orders.length,
+        totalValue,
+        byStatus,
+        orders: orders.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()),
+      });
+    } catch (error: any) {
+      console.error("Error getting party sales details:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get Brand Sales Total - Returns total order value for a specific brand
+  // Required: startDate and endDate (format: YYYY-MM-DD)
+  app.get('/api/sales/brand/:brandName', validateApiKey, async (req: any, res) => {
+    try {
+      const { brandName } = req.params;
+      const { startDate, endDate } = req.query;
+      
+      if (!brandName) {
+        return res.status(400).json({ message: "Brand name parameter required" });
+      }
+      
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
+      }
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
+      }
+      
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setDate(rangeEnd.getDate() + 1); // Include the end date
+      
+      if (rangeStart > rangeEnd) {
+        return res.status(400).json({ message: "startDate must be before or equal to endDate" });
+      }
+      
+      const decodedBrandName = decodeURIComponent(brandName);
+      
+      // Get all orders
+      const allOrders = await storage.getAllOrders({});
+      
+      // Filter to only Invoiced, Dispatched, or Delivered orders for this brand
+      const validStatuses = ['Invoiced', 'Dispatched', 'Delivered'];
+      const brandOrders = allOrders.filter(order => {
+        if (!validStatuses.includes(order.status)) return false;
+        if (!order.createdAt) return false;
+        
+        // Case-insensitive brand name match
+        if (order.brand?.toLowerCase() !== decodedBrandName.toLowerCase()) return false;
+        
+        const createdDate = new Date(order.createdAt);
+        return createdDate >= rangeStart && createdDate < rangeEnd;
+      });
+      
+      // Calculate totals by status
+      const byStatus: Record<string, { count: number; value: number }> = {
+        Invoiced: { count: 0, value: 0 },
+        Dispatched: { count: 0, value: 0 },
+        Delivered: { count: 0, value: 0 },
+      };
+      
+      for (const order of brandOrders) {
+        const orderValue = Number(order.actualOrderValue || order.total || 0);
+        byStatus[order.status].count++;
+        byStatus[order.status].value += orderValue;
+      }
+      
+      const totalValue = brandOrders.reduce((sum, o) => sum + Number(o.actualOrderValue || o.total || 0), 0);
+      
+      res.json({
+        brand: decodedBrandName,
+        dateRange: { startDate, endDate },
+        orderCount: brandOrders.length,
+        totalValue,
+        byStatus,
+      });
+    } catch (error: any) {
+      console.error("Error getting brand sales total:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
