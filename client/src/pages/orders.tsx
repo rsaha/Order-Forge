@@ -673,10 +673,10 @@ export default function OrdersPage() {
     },
   });
 
-  // Verify party name mutation (admin only for Invoiced orders)
+  // Verify party name mutation (admin only)
   const verifyPartyMutation = useMutation({
-    mutationFn: async ({ orderId, partyName, updateOrder, skipStatusCheck }: { orderId: string; partyName?: string; updateOrder?: boolean; skipStatusCheck?: boolean }) => {
-      const res = await apiRequest("POST", `/api/admin/orders/${orderId}/verify-party`, { partyName, updateOrder, skipStatusCheck });
+    mutationFn: async ({ orderId, partyName, updateOrder }: { orderId: string; partyName?: string; updateOrder?: boolean }) => {
+      const res = await apiRequest("POST", `/api/admin/orders/${orderId}/verify-party`, { partyName, updateOrder });
       return res.json();
     },
     onSuccess: (data) => {
@@ -697,13 +697,10 @@ export default function OrdersPage() {
 
   const handleVerifyParty = (updateOrder: boolean = false) => {
     if (!selectedOrder) return;
-    // If order isn't saved as Invoiced yet, skip status check but don't allow update
-    const isNotSavedAsInvoiced = selectedOrder.status !== "Invoiced" && editFormData.status === "Invoiced";
     verifyPartyMutation.mutate({
       orderId: selectedOrder.id,
       partyName: verifyPartyName || undefined,
-      updateOrder: isNotSavedAsInvoiced ? false : updateOrder,
-      skipStatusCheck: isNotSavedAsInvoiced,
+      updateOrder,
     });
   };
 
@@ -1802,8 +1799,8 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Verify Party - Admin only for Invoiced orders (shows when status is changed to Invoiced) */}
-              {isAdmin && (selectedOrder.status === "Invoiced" || editFormData.status === "Invoiced") && (
+              {/* Verify Party - Admin only, available at any order status */}
+              {isAdmin && (
                 <div className="p-3 rounded-md border bg-muted/30 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -1876,35 +1873,28 @@ export default function OrdersPage() {
                               </div>
                               
                               {verifyPartyResult.verifiedName !== selectedOrder.partyName && (
-                                <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-green-200 dark:border-green-800">
-                                  {selectedOrder.status !== "Invoiced" && editFormData.status === "Invoiced" && (
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                                      Save order as Invoiced first to update party name
-                                    </p>
-                                  )}
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleVerifyParty(true)}
-                                      disabled={verifyPartyMutation.isPending || (selectedOrder.status !== "Invoiced" && editFormData.status === "Invoiced")}
-                                      data-testid="button-update-party-name"
-                                    >
-                                      {verifyPartyMutation.isPending ? (
-                                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                      ) : (
-                                        <Check className="w-3 h-3 mr-1" />
-                                      )}
-                                      Update to Verified Name
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setShowVerifyParty(false)}
-                                      data-testid="button-keep-party-name"
-                                    >
-                                      Keep Current Name
-                                    </Button>
-                                  </div>
+                                <div className="flex gap-2 mt-2 pt-2 border-t border-green-200 dark:border-green-800">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleVerifyParty(true)}
+                                    disabled={verifyPartyMutation.isPending}
+                                    data-testid="button-update-party-name"
+                                  >
+                                    {verifyPartyMutation.isPending ? (
+                                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                    ) : (
+                                      <Check className="w-3 h-3 mr-1" />
+                                    )}
+                                    Update to Verified Name
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setShowVerifyParty(false)}
+                                    data-testid="button-keep-party-name"
+                                  >
+                                    Keep Current Name
+                                  </Button>
                                 </div>
                               )}
                             </div>
