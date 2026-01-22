@@ -1807,7 +1807,11 @@ export default function OrdersPage() {
                       <Search className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Verify Party Name</span>
                     </div>
-                    {!showVerifyParty && (
+                    {selectedOrder.status !== "Invoiced" && editFormData.status === "Invoiced" ? (
+                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        Save order first
+                      </Badge>
+                    ) : !showVerifyParty && (
                       <Button
                         size="sm"
                         variant="outline"
