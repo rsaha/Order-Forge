@@ -12,7 +12,7 @@ export interface Announcement {
 export const announcements: Announcement[] = [
   // Example announcements - edit this array and redeploy to update
   {
-    id: 'saraswati-puja-jan-2026',
+    id: 'saraswati-puja-jan23-2026',
     title: 'Office Closed on January 23rd',
     message: 'To Celebrate Saraswati Puja. Order Processing and Dispatch will resume from January 24th.',
     priority: 'urgent',
