@@ -13,6 +13,7 @@ import EmptyState from "@/components/EmptyState";
 import ImportOrder from "@/components/ImportOrder";
 import ParsedOrderReview from "@/components/ParsedOrderReview";
 import OrderTab from "@/components/OrderTab";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -891,6 +892,9 @@ export default function Home() {
       )}
 
       <main className="flex-1 overflow-hidden">
+        <div className="px-4 pt-4">
+          <AnnouncementBanner userBrands={brands} />
+        </div>
         {activeTab === "products" && (
           <div className="h-full flex flex-col">
             {showUploadSection ? (

@@ -5,6 +5,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
 import Header from "@/components/Header";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -431,6 +432,24 @@ export default function OrdersPage() {
       });
     return lookup;
   }, [allOrders]);
+
+  const { data: userBrandAccess = [] } = useQuery<string[]>({
+    queryKey: ["/api/users", user?.id, "brand-access"],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const res = await fetch(`/api/users/${user.id}/brand-access`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.brands || [];
+    },
+    enabled: !!user?.id && !isAdmin,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const userBrands = useMemo(() => {
+    if (isAdmin) return ['all'] as string[];
+    return userBrandAccess;
+  }, [isAdmin, userBrandAccess]);
 
   const { data: bulkSummary = [] } = useQuery<BulkOrderSummary[]>({
     queryKey: ["/api/admin/orders/bulk-summary", bulkType, bulkDate],
@@ -1192,6 +1211,7 @@ export default function OrdersPage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
+          <AnnouncementBanner userBrands={userBrands} />
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
