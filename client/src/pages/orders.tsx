@@ -282,6 +282,21 @@ export default function OrdersPage() {
   const [exportBrand, setExportBrand] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
   const [orderForPendingCreation, setOrderForPendingCreation] = useState<Order | null>(null);
+  
+  // Party verification state (admin only for Invoiced orders)
+  const [showVerifyParty, setShowVerifyParty] = useState(false);
+  const [verifyPartyName, setVerifyPartyName] = useState("");
+  const [verifyPartyResult, setVerifyPartyResult] = useState<{
+    verified: boolean;
+    found: boolean;
+    verifiedName?: string;
+    outstandingAmount?: number;
+    creditLimit?: number;
+    availableCredit?: number;
+    creditStatus?: string;
+    location?: string;
+    message?: string;
+  } | null>(null);
 
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -657,6 +672,37 @@ export default function OrdersPage() {
       setOrderForPendingCreation(null);
     },
   });
+
+  // Verify party name mutation (admin only for Invoiced orders)
+  const verifyPartyMutation = useMutation({
+    mutationFn: async ({ orderId, partyName, updateOrder }: { orderId: string; partyName?: string; updateOrder?: boolean }) => {
+      const res = await apiRequest("POST", `/api/admin/orders/${orderId}/verify-party`, { partyName, updateOrder });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setVerifyPartyResult(data);
+      if (data.partyUpdated && selectedOrder) {
+        setSelectedOrder({ ...selectedOrder, partyName: data.verifiedName });
+        setEditFormData({ ...editFormData, partyName: data.verifiedName });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+        toast({ title: "Party name updated", description: `Updated to: ${data.verifiedName}` });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to verify party", description: error.message, variant: "destructive" });
+      setVerifyPartyResult({ verified: false, found: false, message: error.message });
+    },
+  });
+
+  const handleVerifyParty = (updateOrder: boolean = false) => {
+    if (!selectedOrder) return;
+    verifyPartyMutation.mutate({
+      orderId: selectedOrder.id,
+      partyName: verifyPartyName || undefined,
+      updateOrder,
+    });
+  };
 
   const canDeleteOrder = (order: Order): boolean => {
     if (order.status !== 'Created') return false;
@@ -1611,6 +1657,9 @@ export default function OrdersPage() {
           const orderId = selectedOrder?.id;
           setSelectedOrder(null);
           setPendingWhatsAppShare(null);
+          setShowVerifyParty(false);
+          setVerifyPartyName("");
+          setVerifyPartyResult(null);
           
           if (pendingShare && orderId) {
             try {
@@ -1745,6 +1794,141 @@ export default function OrdersPage() {
                   {selectedOrder.podTimestamp && (
                     <div className="text-xs text-muted-foreground">
                       POD received on: {new Date(selectedOrder.podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Verify Party - Admin only for Invoiced orders */}
+              {isAdmin && selectedOrder.status === "Invoiced" && (
+                <div className="p-3 rounded-md border bg-muted/30 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Search className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Verify Party Name</span>
+                    </div>
+                    {!showVerifyParty && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setShowVerifyParty(true);
+                          setVerifyPartyName(selectedOrder.partyName || "");
+                          setVerifyPartyResult(null);
+                        }}
+                        data-testid="button-verify-party"
+                      >
+                        <Search className="w-3 h-3 mr-1" />
+                        Verify
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {showVerifyParty && (
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <Input
+                          value={verifyPartyName}
+                          onChange={(e) => setVerifyPartyName(e.target.value)}
+                          placeholder="Enter party name to verify"
+                          className="flex-1"
+                          data-testid="input-verify-party-name"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleVerifyParty(false)}
+                          disabled={verifyPartyMutation.isPending}
+                          data-testid="button-search-party"
+                        >
+                          {verifyPartyMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Search className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {verifyPartyResult && (
+                        <div className={`p-3 rounded-md text-sm ${verifyPartyResult.found ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800' : 'bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800'}`}>
+                          {verifyPartyResult.found ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <span className="font-medium">Party Found</span>
+                              </div>
+                              <div className="space-y-1 text-xs">
+                                <div><span className="font-medium">Verified Name:</span> {verifyPartyResult.verifiedName}</div>
+                                {verifyPartyResult.location && (
+                                  <div><span className="font-medium">Location:</span> {verifyPartyResult.location}</div>
+                                )}
+                                <div className="flex gap-4 mt-2">
+                                  <div>
+                                    <span className="font-medium">Outstanding:</span>{" "}
+                                    <span className={verifyPartyResult.outstandingAmount && verifyPartyResult.outstandingAmount > 0 ? "text-red-600 font-semibold" : "text-green-600"}>
+                                      {formatINR(verifyPartyResult.outstandingAmount || 0)}
+                                    </span>
+                                  </div>
+                                  <div><span className="font-medium">Credit Limit:</span> {formatINR(verifyPartyResult.creditLimit || 0)}</div>
+                                </div>
+                              </div>
+                              
+                              {verifyPartyResult.verifiedName !== selectedOrder.partyName && (
+                                <div className="flex gap-2 mt-2 pt-2 border-t border-green-200 dark:border-green-800">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleVerifyParty(true)}
+                                    disabled={verifyPartyMutation.isPending}
+                                    data-testid="button-update-party-name"
+                                  >
+                                    {verifyPartyMutation.isPending ? (
+                                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                    ) : (
+                                      <Check className="w-3 h-3 mr-1" />
+                                    )}
+                                    Update to Verified Name
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setShowVerifyParty(false)}
+                                    data-testid="button-keep-party-name"
+                                  >
+                                    Keep Current Name
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-amber-600" />
+                                <span className="font-medium">Party Not Found</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {verifyPartyResult.message || "The party name could not be verified. Try a different spelling or keep the current name."}
+                              </p>
+                              <div className="flex gap-2 mt-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setVerifyPartyResult(null)}
+                                  data-testid="button-try-again"
+                                >
+                                  Try Different Name
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setShowVerifyParty(false)}
+                                  data-testid="button-close-verify"
+                                >
+                                  Close
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
