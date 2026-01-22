@@ -1132,7 +1132,7 @@ export async function registerRoutes(
       }
       
       const { orderId } = req.params;
-      const { partyName, updateOrder } = req.body;
+      const { partyName, updateOrder, skipStatusCheck } = req.body;
       
       if (!orderId) {
         return res.status(400).json({ message: "Order ID required" });
@@ -1144,8 +1144,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
       
-      // Check if order is in Invoiced state
-      if (order.status !== 'Invoiced') {
+      // Check if order is in Invoiced state (can be skipped for preview before saving)
+      if (!skipStatusCheck && order.status !== 'Invoiced') {
         return res.status(400).json({ 
           message: `Party verification only available for Invoiced orders. Current status: ${order.status}` 
         });
