@@ -2018,15 +2018,14 @@ export async function registerRoutes(
 
         if (nameField.toLowerCase().includes('all customers')) continue;
 
-        const customerMatchWithLocation = nameField.match(customerPatternWithLocation);
-        const isCustomerRow = customerMatchWithLocation || 
-          (netAmount > 0 && !entryNo && qty === 0 && rate === 0);
+        // Customer row detection: has a name, NO entry number, and either no qty/rate OR has a net amount
+        // This is flexible to handle any customer name format
+        const isCustomerRow = !entryNo && (qty === 0 || rate === 0);
         
         if (isCustomerRow) {
           currentCustomer = nameField;
-          const partyName = customerMatchWithLocation ? 
-            customerMatchWithLocation[1].trim() : 
-            nameField.replace(/\([^)]*\)$/, '').trim();
+          // Remove any trailing location in parentheses for display
+          const partyName = nameField.replace(/\([^)]*\)$/, '').trim();
           
           if (!orderGroups.has(currentCustomer)) {
             orderGroups.set(currentCustomer, {
@@ -2222,10 +2221,6 @@ export async function registerRoutes(
       }>();
 
       let currentCustomer: string | null = null;
-      // Pattern 1: NAME(LOCATION) format
-      const customerPatternWithLocation = /^([A-Z][A-Z\s&.'0-9\-]+)\(([A-Z\s]+)\)$/i;
-      // Pattern 2: Detect customer rows by: has Net Amount in column 7, but NO Entry No in column 1
-      // Customer rows typically have a summary amount but no invoice number (invoice is on product rows)
 
       for (const row of dataRows) {
         if (!row || !row[0]) continue;
@@ -2242,24 +2237,14 @@ export async function registerRoutes(
         // Skip "All Customers" summary
         if (nameField.toLowerCase().includes('all customers')) continue;
 
-        // Detect customer row using multiple strategies:
-        // 1. Traditional NAME(LOCATION) format
-        // 2. Row has Net Amount but NO Entry No AND qty is 0 (customer summary rows)
-        const customerMatchWithLocation = nameField.match(customerPatternWithLocation);
-        
-        // A row is a customer header if:
-        // - It matches NAME(LOCATION) pattern, OR
-        // - It has Net Amount > 0 but NO Entry No AND qty is 0 AND rate is 0
-        //   (product rows have qty > 0 or have Entry No)
-        const isCustomerRow = customerMatchWithLocation || 
-          (netAmount > 0 && !entryNo && qty === 0 && rate === 0);
+        // Customer row detection: has a name, NO entry number, and either no qty/rate OR has a net amount
+        // This is flexible to handle any customer name format
+        const isCustomerRow = !entryNo && (qty === 0 || rate === 0);
         
         if (isCustomerRow) {
           currentCustomer = nameField;
-          // Extract party name - either from match or use full name
-          const partyName = customerMatchWithLocation ? 
-            customerMatchWithLocation[1].trim() : 
-            nameField.replace(/\([^)]*\)$/, '').trim(); // Remove trailing parentheses if any
+          // Remove any trailing location in parentheses for display
+          const partyName = nameField.replace(/\([^)]*\)$/, '').trim();
           
           // Initialize order group for this customer with net amount from customer row
           if (!orderGroups.has(currentCustomer)) {
