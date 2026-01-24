@@ -284,6 +284,25 @@ export default function OrdersPage() {
     duplicates?: string[];
     skippedReasons?: string[];
   } | null>(null);
+  const [importPreview, setImportPreview] = useState<{
+    totalDetected: number;
+    willImport: number;
+    willSkip: number;
+    customers: Array<{
+      partyName: string;
+      invoiceNumber: string | null;
+      invoiceDate: string | null;
+      netAmount: number;
+      totalProducts: number;
+      matchedProducts: number;
+      unmatchedProducts: number;
+      unmatchedNames: string[];
+      isDuplicate: boolean;
+      willImport: boolean;
+      skipReason: string | null;
+    }>;
+  } | null>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportStatus, setExportStatus] = useState<string>("all");
   const [exportBrand, setExportBrand] = useState<string>("all");
@@ -1055,7 +1074,38 @@ export default function OrdersPage() {
     }
   };
 
-  const handleImportOrders = async () => {
+  const handlePreviewImport = async () => {
+    if (!importFile || !importBrand) return;
+    
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+      formData.append("brand", importBrand);
+      
+      const res = await fetch("/api/admin/orders/import/preview", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Preview failed");
+      }
+      
+      const result = await res.json();
+      setImportPreview(result);
+      setShowImportDialog(false);
+      setShowPreviewDialog(true);
+    } catch (error) {
+      toast({ title: "Preview failed", description: String(error), variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
     if (!importFile || !importBrand) return;
     
     setIsImporting(true);
@@ -1086,7 +1136,8 @@ export default function OrdersPage() {
         duplicates: result.duplicates,
         skippedReasons: result.skippedReasons,
       });
-      setShowImportDialog(false);
+      setShowPreviewDialog(false);
+      setImportPreview(null);
       setImportFile(null);
     } catch (error) {
       toast({ title: "Import failed", description: String(error), variant: "destructive" });
@@ -3183,20 +3234,129 @@ export default function OrdersPage() {
               Cancel
             </Button>
             <Button 
-              onClick={handleImportOrders} 
+              onClick={handlePreviewImport} 
               disabled={!importFile || !importBrand || isImporting}
-              data-testid="button-confirm-import"
+              data-testid="button-preview-import"
             >
               {isImporting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Importing...
+                  Analyzing...
                 </>
               ) : (
-                "Import"
+                "Preview Import"
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Preview Dialog */}
+      <Dialog open={showPreviewDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowPreviewDialog(false);
+          setImportPreview(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5" />
+              Import Preview
+            </DialogTitle>
+            <DialogDescription>
+              Review detected customers before importing
+            </DialogDescription>
+          </DialogHeader>
+          
+          {importPreview && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-around p-4 bg-muted rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{importPreview.totalDetected}</div>
+                  <div className="text-sm text-muted-foreground">Customers Found</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{importPreview.willImport}</div>
+                  <div className="text-sm text-muted-foreground">Will Import</div>
+                </div>
+                {importPreview.willSkip > 0 && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-destructive">{importPreview.willSkip}</div>
+                    <div className="text-sm text-muted-foreground">Will Skip</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted">
+                    <tr>
+                      <th className="text-left p-2">Customer</th>
+                      <th className="text-left p-2">Invoice</th>
+                      <th className="text-center p-2">Products</th>
+                      <th className="text-left p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.customers.map((customer, i) => (
+                      <tr key={i} className={customer.willImport ? '' : 'bg-destructive/10'}>
+                        <td className="p-2">{customer.partyName}</td>
+                        <td className="p-2">{customer.invoiceNumber || '-'}</td>
+                        <td className="text-center p-2">
+                          <span className="text-primary">{customer.matchedProducts}</span>
+                          {customer.unmatchedProducts > 0 && (
+                            <span className="text-destructive"> / {customer.unmatchedProducts} unmatched</span>
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {customer.willImport ? (
+                            <Badge variant="secondary" className="bg-primary/20">Ready</Badge>
+                          ) : (
+                            <Badge variant="destructive">{customer.skipReason}</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {importPreview.customers.some(c => c.unmatchedProducts > 0) && (
+                <div className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> Unmatched products will be listed in order notes but won't be added as line items.
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowPreviewDialog(false);
+                    setImportPreview(null);
+                    setImportFile(null);
+                  }}
+                  data-testid="button-cancel-preview"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleConfirmImport}
+                  disabled={isImporting || importPreview.willImport === 0}
+                  data-testid="button-proceed-import"
+                >
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    `Import ${importPreview.willImport} Orders`
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

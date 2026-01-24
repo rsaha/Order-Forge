@@ -1937,6 +1937,201 @@ export async function registerRoutes(
     }
   });
 
+  // Preview import from Excel file (admin only) - returns preview without creating orders
+  app.post('/api/admin/orders/import/preview', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Parse Excel file
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+      if (rawRows.length < 10) {
+        return res.status(400).json({ message: "Excel file has insufficient data" });
+      }
+
+      const requestedBrand = req.body?.brand || 'Biostige';
+      const allProducts = await storage.getAllProducts();
+      const allBrands = await storage.getAllBrands();
+      const activeBrandNames = allBrands.filter(b => b.isActive).map(b => b.name.toLowerCase());
+
+      if (!activeBrandNames.includes(requestedBrand.toLowerCase())) {
+        return res.status(400).json({ message: `Brand "${requestedBrand}" not found or inactive` });
+      }
+
+      // Find header row
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+        const row = rawRows[i];
+        if (row && row[0] && String(row[0]).toLowerCase().includes('name')) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        return res.status(400).json({ message: "Could not find header row in Excel file" });
+      }
+
+      const dataRows = rawRows.slice(headerRowIndex + 1);
+      
+      // Excel serial to date helper
+      const excelSerialToDate = (serial: number): Date => {
+        const adjustedSerial = serial > 60 ? serial - 1 : serial;
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+        const excelEpoch = new Date(Date.UTC(1899, 11, 31));
+        return new Date(excelEpoch.getTime() + adjustedSerial * millisecondsPerDay);
+      };
+
+      const orderGroups = new Map<string, {
+        partyName: string;
+        netAmount: number;
+        invoiceNumber: string | null;
+        invoiceDate: Date | null;
+        items: Array<{ productId: string | null; productName: string; quantity: number; matched: boolean }>;
+      }>();
+
+      let currentCustomer: string | null = null;
+      const customerPatternWithLocation = /^([A-Z][A-Z\s&.'0-9\-]+)\(([A-Z\s]+)\)$/i;
+
+      for (const row of dataRows) {
+        if (!row || !row[0]) continue;
+        
+        const nameField = String(row[0]).trim();
+        const entryNo = row[1] ? String(row[1]).trim() : null;
+        const entryDate = row[2] ? (typeof row[2] === 'number' ? row[2] : null) : null;
+        const qty = parseInt(row[3]) || 0;
+        const freeQty = parseInt(row[4]) || 0;
+        const rate = parseFloat(row[5]) || 0;
+        const netAmount = parseFloat(row[7]) || 0;
+
+        if (nameField.toLowerCase().includes('all customers')) continue;
+
+        const customerMatchWithLocation = nameField.match(customerPatternWithLocation);
+        const isCustomerRow = customerMatchWithLocation || 
+          (netAmount > 0 && !entryNo && qty === 0 && rate === 0);
+        
+        if (isCustomerRow) {
+          currentCustomer = nameField;
+          const partyName = customerMatchWithLocation ? 
+            customerMatchWithLocation[1].trim() : 
+            nameField.replace(/\([^)]*\)$/, '').trim();
+          
+          if (!orderGroups.has(currentCustomer)) {
+            orderGroups.set(currentCustomer, {
+              partyName,
+              netAmount,
+              invoiceNumber: null,
+              invoiceDate: null,
+              items: [],
+            });
+          }
+          continue;
+        }
+
+        if (!currentCustomer) continue;
+        if (qty <= 0 && freeQty <= 0) continue;
+
+        const group = orderGroups.get(currentCustomer)!;
+        
+        if (!group.invoiceNumber && entryNo) {
+          group.invoiceNumber = entryNo;
+        }
+        if (!group.invoiceDate && entryDate) {
+          group.invoiceDate = excelSerialToDate(entryDate);
+        }
+
+        let productName = nameField;
+        const codeMatch = nameField.match(/\((\d+)\)$/);
+        let productCode = '';
+        if (codeMatch) {
+          productCode = codeMatch[1];
+          productName = nameField.replace(/\s*\(\d+\)$/, '').trim();
+        }
+
+        let matchedProduct = allProducts.find(p => {
+          if (p.brand?.toLowerCase() !== requestedBrand.toLowerCase()) return false;
+          const pName = p.name?.toLowerCase() || '';
+          const searchName = productName.toLowerCase();
+          return pName.includes(searchName) || searchName.includes(pName) ||
+                 pName.split(' ').some(word => searchName.includes(word) && word.length > 3);
+        });
+
+        if (!matchedProduct && productCode) {
+          matchedProduct = allProducts.find(p => 
+            p.brand?.toLowerCase() === requestedBrand.toLowerCase() &&
+            p.sku?.includes(productCode)
+          );
+        }
+
+        group.items.push({
+          productId: matchedProduct?.id || null,
+          productName: matchedProduct?.name || productName,
+          quantity: qty + freeQty,
+          matched: !!matchedProduct,
+        });
+      }
+
+      // Check for existing invoice numbers
+      const invoiceNumbers = Array.from(orderGroups.values())
+        .map(g => g.invoiceNumber?.trim())
+        .filter((inv): inv is string => !!inv);
+      
+      const existingOrders = invoiceNumbers.length > 0 
+        ? await db.select({ invoiceNumber: orders.invoiceNumber })
+            .from(orders)
+            .where(inArray(orders.invoiceNumber, invoiceNumbers))
+        : [];
+      const existingInvoiceNumbers = new Set(existingOrders.map(o => o.invoiceNumber?.trim()));
+
+      // Build preview response
+      const preview = Array.from(orderGroups.entries()).map(([key, group]) => {
+        const matchedItems = group.items.filter(i => i.matched);
+        const unmatchedItems = group.items.filter(i => !i.matched);
+        const isDuplicate = group.invoiceNumber ? existingInvoiceNumbers.has(group.invoiceNumber.trim()) : false;
+        const willImport = matchedItems.length > 0 && !isDuplicate;
+        
+        return {
+          partyName: group.partyName,
+          invoiceNumber: group.invoiceNumber,
+          invoiceDate: group.invoiceDate,
+          netAmount: group.netAmount,
+          totalProducts: group.items.length,
+          matchedProducts: matchedItems.length,
+          unmatchedProducts: unmatchedItems.length,
+          unmatchedNames: unmatchedItems.map(i => i.productName).slice(0, 5),
+          isDuplicate,
+          willImport,
+          skipReason: isDuplicate ? 'Duplicate invoice' : (matchedItems.length === 0 ? 'No matching products' : null),
+        };
+      });
+
+      const willImportCount = preview.filter(p => p.willImport).length;
+      const willSkipCount = preview.filter(p => !p.willImport).length;
+
+      res.json({
+        totalDetected: preview.length,
+        willImport: willImportCount,
+        willSkip: willSkipCount,
+        customers: preview,
+      });
+    } catch (error) {
+      console.error("Error previewing import:", error);
+      res.status(500).json({ message: "Failed to preview import" });
+    }
+  });
+
   // Import orders from Excel file (admin only)
   // Supports customer-wise sales summary format with hierarchical structure
   app.post('/api/admin/orders/import', isAuthenticated, upload.single('file'), async (req: any, res) => {
@@ -2027,7 +2222,10 @@ export async function registerRoutes(
       }>();
 
       let currentCustomer: string | null = null;
-      const customerPattern = /^([A-Z][A-Z\s&.'0-9\-]+)\(([A-Z\s]+)\)$/i; // Matches "NAME(LOCATION)"
+      // Pattern 1: NAME(LOCATION) format
+      const customerPatternWithLocation = /^([A-Z][A-Z\s&.'0-9\-]+)\(([A-Z\s]+)\)$/i;
+      // Pattern 2: Detect customer rows by: has Net Amount in column 7, but NO Entry No in column 1
+      // Customer rows typically have a summary amount but no invoice number (invoice is on product rows)
 
       for (const row of dataRows) {
         if (!row || !row[0]) continue;
@@ -2044,14 +2242,29 @@ export async function registerRoutes(
         // Skip "All Customers" summary
         if (nameField.toLowerCase().includes('all customers')) continue;
 
-        // Check if this is a customer row (has location in parentheses at end)
-        const customerMatch = nameField.match(customerPattern);
-        if (customerMatch) {
+        // Detect customer row using multiple strategies:
+        // 1. Traditional NAME(LOCATION) format
+        // 2. Row has Net Amount but NO Entry No AND qty is 0 (customer summary rows)
+        const customerMatchWithLocation = nameField.match(customerPatternWithLocation);
+        
+        // A row is a customer header if:
+        // - It matches NAME(LOCATION) pattern, OR
+        // - It has Net Amount > 0 but NO Entry No AND qty is 0 AND rate is 0
+        //   (product rows have qty > 0 or have Entry No)
+        const isCustomerRow = customerMatchWithLocation || 
+          (netAmount > 0 && !entryNo && qty === 0 && rate === 0);
+        
+        if (isCustomerRow) {
           currentCustomer = nameField;
+          // Extract party name - either from match or use full name
+          const partyName = customerMatchWithLocation ? 
+            customerMatchWithLocation[1].trim() : 
+            nameField.replace(/\([^)]*\)$/, '').trim(); // Remove trailing parentheses if any
+          
           // Initialize order group for this customer with net amount from customer row
           if (!orderGroups.has(currentCustomer)) {
             orderGroups.set(currentCustomer, {
-              partyName: customerMatch[1].trim(),
+              partyName: partyName,
               brand: requestedBrand,
               netAmount: netAmount, // Customer's total net amount (actual invoice value)
               invoiceNumber: null, // Will be set from first product row
