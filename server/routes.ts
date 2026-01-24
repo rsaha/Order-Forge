@@ -2,12 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES, orders } from "@shared/schema";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import multer from "multer";
 import { getUncachableResendClient } from "./resend";
 import memoize from "memoizee";
+import { db } from "./db";
+import { sql, inArray } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -2117,12 +2119,34 @@ export async function registerRoutes(
         });
       }
 
+      // Check for duplicate invoice numbers before creating orders
+      const invoiceNumbers = Array.from(orderGroups.values())
+        .map(g => g.invoiceNumber?.trim())
+        .filter((num): num is string => num !== null && num !== undefined && num !== '');
+      
+      // Query existing orders with these invoice numbers using inArray
+      const existingOrders = invoiceNumbers.length > 0 
+        ? await db.select({ invoiceNumber: orders.invoiceNumber, partyName: orders.partyName })
+            .from(orders)
+            .where(inArray(orders.invoiceNumber, invoiceNumbers))
+        : [];
+      
+      const existingInvoiceNumbers = new Set(existingOrders.map(o => o.invoiceNumber?.trim()));
+      const duplicateWarnings: string[] = [];
+
       // Create orders
       let createdCount = 0;
       let skippedCount = 0;
       const skippedReasons: string[] = [];
       
       for (const [customerKey, group] of Array.from(orderGroups.entries())) {
+        // Check for duplicate invoice number
+        const trimmedInvoiceNumber = group.invoiceNumber?.trim();
+        if (trimmedInvoiceNumber && existingInvoiceNumbers.has(trimmedInvoiceNumber)) {
+          skippedCount++;
+          duplicateWarnings.push(`${group.partyName}: Invoice #${trimmedInvoiceNumber} already exists`);
+          continue;
+        }
         // Filter items to only those with matched products
         const validItems = group.items.filter((item: { productId: string | null }) => item.productId !== null);
         const unmatchedItems = group.items.filter((item: { productId: string | null }) => item.productId === null);
@@ -2174,13 +2198,15 @@ export async function registerRoutes(
         }
       }
 
-      const message = skippedCount > 0 || skippedReasons.length > 0
+      const allWarnings = [...duplicateWarnings, ...skippedReasons];
+      const message = skippedCount > 0 || allWarnings.length > 0
         ? `Imported ${createdCount} orders. ${skippedCount} skipped.`
         : `Imported ${createdCount} orders`;
       res.json({ 
         count: createdCount, 
         skipped: skippedCount, 
         message,
+        ...(duplicateWarnings.length > 0 && { duplicates: duplicateWarnings }),
         ...(skippedReasons.length > 0 && { skippedReasons: skippedReasons.slice(0, 5) })
       });
     } catch (error) {

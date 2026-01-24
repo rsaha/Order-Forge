@@ -1069,7 +1069,22 @@ export default function OrdersPage() {
       
       const result = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
-      toast({ title: `Imported ${result.count} orders successfully` });
+      
+      // Show warnings for duplicates and other issues
+      const allWarnings = [
+        ...(result.duplicates || []),
+        ...(result.skippedReasons || [])
+      ];
+      
+      if (allWarnings.length > 0) {
+        toast({ 
+          title: `Imported ${result.count} orders`, 
+          description: `${result.skipped} skipped: ${allWarnings.slice(0, 2).join('; ')}${allWarnings.length > 2 ? '...' : ''}`,
+          variant: result.duplicates?.length > 0 ? "destructive" : "default"
+        });
+      } else {
+        toast({ title: `Imported ${result.count} orders successfully` });
+      }
       setShowImportDialog(false);
       setImportFile(null);
     } catch (error) {
