@@ -2007,16 +2007,14 @@ export async function registerRoutes(
       
       // Helper function to convert Excel serial date to JavaScript Date
       const excelSerialToDate = (serial: number): Date => {
-        // Use XLSX's built-in date parsing for accuracy
-        const dateInfo = XLSX.SSF.parse_date_code(serial);
-        if (dateInfo) {
-          // Create local date from parsed components
-          return new Date(dateInfo.y, dateInfo.m - 1, dateInfo.d);
-        }
-        // Fallback: Excel dates start from 1900-01-01
-        const utcDays = Math.floor(serial - 25569);
-        const utcValue = utcDays * 86400 * 1000;
-        return new Date(utcValue);
+        // Excel dates: days since 1900-01-01 (with leap year bug for dates before March 1900)
+        // 25569 is the number of days from 1900-01-01 to 1970-01-01 (Unix epoch)
+        // Adjust for Excel's incorrect 1900 leap year if serial > 60
+        const adjustedSerial = serial > 60 ? serial - 1 : serial;
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+        const excelEpoch = new Date(Date.UTC(1899, 11, 31)); // Dec 31, 1899
+        const utcDate = new Date(excelEpoch.getTime() + adjustedSerial * millisecondsPerDay);
+        return utcDate;
       };
       
       const orderGroups = new Map<string, {
