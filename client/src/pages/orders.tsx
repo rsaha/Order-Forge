@@ -275,7 +275,6 @@ export default function OrdersPage() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importBrand, setImportBrand] = useState<string>("Biostige");
-  const [importInvoiceDate, setImportInvoiceDate] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportStatus, setExportStatus] = useState<string>("all");
@@ -1056,9 +1055,6 @@ export default function OrdersPage() {
       const formData = new FormData();
       formData.append("file", importFile);
       formData.append("brand", importBrand);
-      if (importInvoiceDate) {
-        formData.append("invoiceDate", importInvoiceDate);
-      }
       
       const res = await fetch("/api/admin/orders/import", {
         method: "POST",
@@ -3103,7 +3099,6 @@ export default function OrdersPage() {
         if (!open) {
           setImportFile(null);
           setImportBrand("Biostige");
-          setImportInvoiceDate("");
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -3134,16 +3129,6 @@ export default function OrdersPage() {
               </Select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Invoice Date</label>
-              <Input
-                type="date"
-                value={importInvoiceDate}
-                onChange={(e) => setImportInvoiceDate(e.target.value)}
-                data-testid="input-import-invoice-date"
-              />
-            </div>
-
             <div className="border-2 border-dashed rounded-lg p-6 text-center">
               <input
                 type="file"
@@ -3166,11 +3151,14 @@ export default function OrdersPage() {
               <p>Customer-wise sales summary with columns:</p>
               <ul className="list-disc list-inside space-y-0.5">
                 <li>Name To Display (Customer/Product)</li>
+                <li>Entry No. (Invoice Number)</li>
+                <li>Entry Date (Invoice Date)</li>
                 <li>Qty (Unit1)</li>
                 <li>Free Qty (Unit1)</li>
-                <li>Amount</li>
+                <li>Rate, Amount</li>
+                <li>Net Amount (Actual Invoice Value)</li>
               </ul>
-              <p className="mt-2 text-amber-600">Products are matched by name to your catalog.</p>
+              <p className="mt-2 text-amber-600">Invoice details are extracted automatically from the file.</p>
             </div>
           </div>
 

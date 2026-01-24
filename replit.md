@@ -27,7 +27,8 @@ Both methods share a PostgreSQL-backed session management system with a one-week
 
 ### Core Features
 -   **File Processing (Admin)**: Supports Excel (.xlsx, .xls) uploads for product inventory. Required columns: Brand, Name, Product SKU ID, Size, with an optional MRP. Products are parsed server-side and assigned to the admin's catalog.
--   **Order Import**: Users can paste free-form text, which is parsed to match products against their catalog by SKU or name, allowing review and cart addition.
+-   **Order Import (Text)**: Users can paste free-form text, which is parsed to match products against their catalog by SKU or name, allowing review and cart addition.
+-   **Order Import (Excel - Admin)**: Admins can import orders from Excel files (Customer-wise sales summary format). The system extracts Invoice Number from "Entry No." column, Invoice Date from "Entry Date" column (Excel serial format), and Actual Invoice Value from customer's "Net Amount" column. Orders are created with "Invoiced" status automatically.
 -   **Announcement System**: Admin-managed announcements stored in the database, with priority levels, brand targeting, expiration dates, and user dismissal functionality.
 -   **User Roles**: Differentiates between Regular Users (order creation, cart management), Brand Admins (order viewing for assigned brands, status changes), and Admin Users (full access including product/user management, all order statuses, and creating orders on behalf of sales users).
 -   **Admin Order Creation**: Admins can create orders for sales users, maintaining `userId` (owner) and `createdBy` (admin creator) for audit trails.

@@ -1993,35 +1993,56 @@ export async function registerRoutes(
       // Parse data rows - structure: Customer row followed by product rows
       const dataRows = rawRows.slice(headerRowIndex + 1);
       
-      // Customer-wise sales format: 
-      // - Customer rows have location in parentheses like "ANJALI MEDISALES(DHANBAD)"
-      // - Product rows have product names, some with codes like "(1000081)"
-      // - Skip "All Customers" summary row
+      // Customer-wise sales format (columns based on header row):
+      // Col 0: Name To Display (customer or product name)
+      // Col 1: Entry No. (Invoice Number - only on product rows)
+      // Col 2: Entry Date (Invoice Date as Excel serial - only on product rows)
+      // Col 3: Qty(Unit1)
+      // Col 4: Free Qty(Unit1)
+      // Col 5: Rate
+      // Col 6: Amount
+      // Col 7: Net Amount
+      
+      // Helper function to convert Excel serial date to JavaScript Date
+      const excelSerialToDate = (serial: number): Date => {
+        // Use XLSX's built-in date parsing for accuracy
+        const dateInfo = XLSX.SSF.parse_date_code(serial);
+        if (dateInfo) {
+          // Create local date from parsed components
+          return new Date(dateInfo.y, dateInfo.m - 1, dateInfo.d);
+        }
+        // Fallback: Excel dates start from 1900-01-01
+        const utcDays = Math.floor(serial - 25569);
+        const utcValue = utcDays * 86400 * 1000;
+        return new Date(utcValue);
+      };
       
       const orderGroups = new Map<string, {
         partyName: string;
         brand: string;
         netAmount: number;
+        invoiceNumber: string | null;
+        invoiceDate: Date | null;
         items: Array<{ productId: string | null; productName: string; quantity: number; freeQuantity: number; unitPrice: number }>;
       }>();
 
       let currentCustomer: string | null = null;
-      const customerPattern = /^([A-Z][A-Z\s&.']+)\(([A-Z]+)\)$/i; // Matches "NAME(LOCATION)"
+      const customerPattern = /^([A-Z][A-Z\s&.'0-9\-]+)\(([A-Z\s]+)\)$/i; // Matches "NAME(LOCATION)"
 
       for (const row of dataRows) {
         if (!row || !row[0]) continue;
         
         const nameField = String(row[0]).trim();
-        const qty = parseInt(row[1]) || 0;
-        const freeQty = parseInt(row[2]) || 0;
-        const amount = parseFloat(row[3]) || 0;
-        const netAmount = parseFloat(row[4]) || 0; // Net Amount column
+        const entryNo = row[1] ? String(row[1]).trim() : null; // Invoice Number
+        const entryDate = row[2] ? (typeof row[2] === 'number' ? row[2] : null) : null; // Invoice Date (Excel serial)
+        const qty = parseInt(row[3]) || 0;
+        const freeQty = parseInt(row[4]) || 0;
+        const rate = parseFloat(row[5]) || 0;
+        const amount = parseFloat(row[6]) || 0;
+        const netAmount = parseFloat(row[7]) || 0; // Net Amount column
 
         // Skip "All Customers" summary
         if (nameField.toLowerCase().includes('all customers')) continue;
-        
-        // Skip rows with zero or negative quantities
-        if (qty <= 0 && freeQty <= 0) continue;
 
         // Check if this is a customer row (has location in parentheses at end)
         const customerMatch = nameField.match(customerPattern);
@@ -2032,7 +2053,9 @@ export async function registerRoutes(
             orderGroups.set(currentCustomer, {
               partyName: customerMatch[1].trim(),
               brand: requestedBrand,
-              netAmount: netAmount, // Customer's total net amount
+              netAmount: netAmount, // Customer's total net amount (actual invoice value)
+              invoiceNumber: null, // Will be set from first product row
+              invoiceDate: null, // Will be set from first product row
               items: [],
             });
           }
@@ -2041,6 +2064,19 @@ export async function registerRoutes(
 
         // This is a product row
         if (!currentCustomer) continue;
+        
+        // Skip rows with zero or negative quantities
+        if (qty <= 0 && freeQty <= 0) continue;
+
+        const group = orderGroups.get(currentCustomer)!;
+        
+        // Set invoice number and date from the first product row if not already set
+        if (!group.invoiceNumber && entryNo) {
+          group.invoiceNumber = entryNo;
+        }
+        if (!group.invoiceDate && entryDate) {
+          group.invoiceDate = excelSerialToDate(entryDate);
+        }
 
         // Extract product code if present (e.g., "(1000081)")
         let productName = nameField;
@@ -2051,8 +2087,8 @@ export async function registerRoutes(
           productName = nameField.replace(/\s*\(\d+\)$/, '').trim();
         }
 
-        // Calculate unit price from amount and quantity
-        const unitPrice = qty > 0 ? amount / qty : 0;
+        // Use rate as unit price (or calculate from amount/qty if rate is 0)
+        const unitPrice = rate > 0 ? rate : (qty > 0 ? amount / qty : 0);
 
         // Try to match product - fuzzy match by name
         let matchedProduct = allProducts.find(p => {
@@ -2072,7 +2108,6 @@ export async function registerRoutes(
           );
         }
 
-        const group = orderGroups.get(currentCustomer)!;
         group.items.push({
           productId: matchedProduct?.id || null,
           productName: matchedProduct?.name || productName,
@@ -2102,8 +2137,8 @@ export async function registerRoutes(
         // Calculate total
         const total = validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
 
-        // Generate invoice number from date + customer
-        const invoiceNumber = `IMP-${Date.now().toString(36).toUpperCase()}`;
+        // Use invoice number from Excel or generate one
+        const invoiceNumber = group.invoiceNumber || `IMP-${Date.now().toString(36).toUpperCase()}`;
 
         // Create the order with Invoiced status for imported orders
         const order = await storage.createOrder({
@@ -2116,8 +2151,8 @@ export async function registerRoutes(
             ? `Unmatched products: ${unmatchedItems.map(i => i.productName).join(', ')}`
             : null,
           deliveryCompany: null,
-          invoiceNumber: null,
-          invoiceDate: invoiceDate,
+          invoiceNumber: invoiceNumber,
+          invoiceDate: group.invoiceDate || null,
           actualOrderValue: group.netAmount > 0 ? group.netAmount.toFixed(2) : null,
         });
 
