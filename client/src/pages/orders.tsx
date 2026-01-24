@@ -280,6 +280,7 @@ export default function OrdersPage() {
   const [importSummary, setImportSummary] = useState<{
     count: number;
     skipped: number;
+    totalDetected?: number;
     duplicates?: string[];
     skippedReasons?: string[];
   } | null>(null);
@@ -1081,6 +1082,7 @@ export default function OrdersPage() {
       setImportSummary({
         count: result.count,
         skipped: result.skipped,
+        totalDetected: result.totalDetected,
         duplicates: result.duplicates,
         skippedReasons: result.skippedReasons,
       });
@@ -3210,7 +3212,13 @@ export default function OrdersPage() {
           
           {importSummary && (
             <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+              <div className="flex items-center justify-around p-4 bg-muted rounded-lg">
+                {importSummary.totalDetected !== undefined && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{importSummary.totalDetected}</div>
+                    <div className="text-sm text-muted-foreground">Customers Found</div>
+                  </div>
+                )}
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{importSummary.count}</div>
                   <div className="text-sm text-muted-foreground">Orders Created</div>

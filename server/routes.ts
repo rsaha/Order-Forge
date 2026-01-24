@@ -2197,15 +2197,15 @@ export async function registerRoutes(
       }
 
       const allWarnings = [...duplicateWarnings, ...skippedReasons];
-      const message = skippedCount > 0 || allWarnings.length > 0
-        ? `Imported ${createdCount} orders. ${skippedCount} skipped.`
-        : `Imported ${createdCount} orders`;
+      const totalDetected = orderGroups.size;
+      const message = `Detected ${totalDetected} customers. Created ${createdCount} orders, ${skippedCount} skipped.`;
       res.json({ 
         count: createdCount, 
         skipped: skippedCount, 
+        totalDetected,
         message,
         ...(duplicateWarnings.length > 0 && { duplicates: duplicateWarnings }),
-        ...(skippedReasons.length > 0 && { skippedReasons: skippedReasons.slice(0, 5) })
+        ...(skippedReasons.length > 0 && { skippedReasons: skippedReasons })
       });
     } catch (error) {
       console.error("Error importing orders:", error);
