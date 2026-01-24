@@ -69,6 +69,7 @@ import {
   Upload,
   GitBranch,
   ClipboardCheck,
+  FileSpreadsheet,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -276,6 +277,12 @@ export default function OrdersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importBrand, setImportBrand] = useState<string>("Biostige");
   const [isImporting, setIsImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{
+    count: number;
+    skipped: number;
+    duplicates?: string[];
+    skippedReasons?: string[];
+  } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportStatus, setExportStatus] = useState<string>("all");
   const [exportBrand, setExportBrand] = useState<string>("all");
@@ -1070,21 +1077,13 @@ export default function OrdersPage() {
       const result = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       
-      // Show warnings for duplicates and other issues
-      const allWarnings = [
-        ...(result.duplicates || []),
-        ...(result.skippedReasons || [])
-      ];
-      
-      if (allWarnings.length > 0) {
-        toast({ 
-          title: `Imported ${result.count} orders`, 
-          description: `${result.skipped} skipped: ${allWarnings.slice(0, 2).join('; ')}${allWarnings.length > 2 ? '...' : ''}`,
-          variant: result.duplicates?.length > 0 ? "destructive" : "default"
-        });
-      } else {
-        toast({ title: `Imported ${result.count} orders successfully` });
-      }
+      // Show import summary
+      setImportSummary({
+        count: result.count,
+        skipped: result.skipped,
+        duplicates: result.duplicates,
+        skippedReasons: result.skippedReasons,
+      });
       setShowImportDialog(false);
       setImportFile(null);
     } catch (error) {
@@ -3196,6 +3195,63 @@ export default function OrdersPage() {
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Summary Dialog */}
+      <Dialog open={importSummary !== null} onOpenChange={() => setImportSummary(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5" />
+              Import Summary
+            </DialogTitle>
+          </DialogHeader>
+          
+          {importSummary && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{importSummary.count}</div>
+                  <div className="text-sm text-muted-foreground">Orders Created</div>
+                </div>
+                {importSummary.skipped > 0 && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-destructive">{importSummary.skipped}</div>
+                    <div className="text-sm text-muted-foreground">Skipped</div>
+                  </div>
+                )}
+              </div>
+
+              {importSummary.duplicates && importSummary.duplicates.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-destructive">Duplicate Invoices (Skipped):</h4>
+                  <ul className="text-sm space-y-1 max-h-32 overflow-y-auto">
+                    {importSummary.duplicates.map((msg, i) => (
+                      <li key={i} className="text-muted-foreground">{msg}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {importSummary.skippedReasons && importSummary.skippedReasons.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Unmatched Products:</h4>
+                  <ul className="text-sm space-y-1 max-h-32 overflow-y-auto">
+                    {importSummary.skippedReasons.map((msg, i) => (
+                      <li key={i} className="text-muted-foreground">{msg}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <Button onClick={() => setImportSummary(null)} data-testid="button-close-summary">
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
