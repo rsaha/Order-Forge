@@ -914,7 +914,13 @@ export default function OrdersPage() {
       };
       
       let messageType: WhatsAppMessageType = "created";
-      if (order.status === "Dispatched") {
+      if (order.status === "Pending") {
+        messageType = "pending";
+      } else if (order.status === "Approved") {
+        messageType = "approved";
+      } else if (order.status === "Invoiced") {
+        messageType = "invoiced";
+      } else if (order.status === "Dispatched") {
         messageType = "dispatched";
       } else if (order.status === "Delivered") {
         messageType = "delivered";

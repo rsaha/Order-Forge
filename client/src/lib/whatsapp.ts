@@ -28,12 +28,22 @@ function formatDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export function generateOrderCreatedMessage(order: OrderWithItems): string {
+export function generateOrderCreatedMessage(order: OrderWithItems, status?: string): string {
   const creatorName = order.user
     ? [order.user.firstName, order.user.lastName].filter(Boolean).join(" ") || order.createdByName || "Unknown"
     : order.createdByName || "Unknown";
 
-  let message = `*New Order Created*\n`;
+  // Determine the header based on status
+  let header = "*New Order Created*";
+  if (status === "Pending") {
+    header = "*Order Pending*";
+  } else if (status === "Approved") {
+    header = "*Order Approved*";
+  } else if (status === "Invoiced") {
+    header = "*Order Invoiced*";
+  }
+
+  let message = `${header}\n`;
   message += `━━━━━━━━━━━━━━━━━━\n`;
   
   if (order.partyName) {
@@ -158,18 +168,24 @@ export function generateDeliveredMessage(order: OrderWithItems, deliveryDate?: s
   return message;
 }
 
-export type WhatsAppMessageType = "created" | "dispatched" | "delivered";
+export type WhatsAppMessageType = "created" | "pending" | "approved" | "invoiced" | "dispatched" | "delivered";
 
 export function generateWhatsAppMessage(order: OrderWithItems, type: WhatsAppMessageType, customDate?: string): string {
   switch (type) {
     case "created":
-      return generateOrderCreatedMessage(order);
+      return generateOrderCreatedMessage(order, "Created");
+    case "pending":
+      return generateOrderCreatedMessage(order, "Pending");
+    case "approved":
+      return generateOrderCreatedMessage(order, "Approved");
+    case "invoiced":
+      return generateOrderCreatedMessage(order, "Invoiced");
     case "dispatched":
       return generateDispatchedMessage(order, customDate);
     case "delivered":
       return generateDeliveredMessage(order, customDate);
     default:
-      return generateOrderCreatedMessage(order);
+      return generateOrderCreatedMessage(order, "Created");
   }
 }
 
