@@ -212,7 +212,6 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [statusViewMode, setStatusViewMode] = useState<"chart" | "table">("chart");
-  const [selectedDeliveryCostDate, setSelectedDeliveryCostDate] = useState<string | null>(null);
   const [expandedBlocker, setExpandedBlocker] = useState<string | null>(null);
 
   const isAdmin = user?.isAdmin || false;
@@ -474,62 +473,44 @@ export default function AnalyticsPage() {
     return dispatcher;
   }, []);
 
-  // Delivery Cost by Dispatch By - filter and aggregate
-  const deliveryCostByDispatcher = useMemo(() => {
+  // Delivery Cost by Dispatch By - filter and aggregate (summary totals by dispatcher)
+  const deliveryCostSummary = useMemo(() => {
     const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
-    const filtered = ordersData.filter(order => 
-      validStatuses.includes(order.status) && 
-      order.deliveryCost && 
-      order.dispatchBy &&
-      order.dispatchDate
-    );
+    const excludedDispatchers = ["hand delivery", "by hand"];
+    
+    const filtered = ordersData.filter(order => {
+      if (!validStatuses.includes(order.status)) return false;
+      if (!order.deliveryCost || parseFloat(order.deliveryCost) === 0) return false;
+      if (!order.dispatchBy) return false;
+      const dispatcherLower = order.dispatchBy.toLowerCase().trim();
+      if (excludedDispatchers.some(ex => dispatcherLower.includes(ex))) return false;
+      return true;
+    });
 
-    // Group by date and dispatchBy (normalized)
-    const grouped: Record<string, Record<string, { cost: number; count: number }>> = {};
-    const dispatchers = new Set<string>();
+    // Aggregate totals by dispatcher
+    const totals: Record<string, { cost: number; count: number }> = {};
 
     filtered.forEach(order => {
-      const dateStr = order.dispatchDate ? format(new Date(order.dispatchDate), 'yyyy-MM-dd') : '';
-      if (!dateStr) return;
-      
       const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
-      dispatchers.add(dispatcher);
-
-      if (!grouped[dateStr]) grouped[dateStr] = {};
-      if (!grouped[dateStr][dispatcher]) grouped[dateStr][dispatcher] = { cost: 0, count: 0 };
-      
-      grouped[dateStr][dispatcher].cost += parseFloat(order.deliveryCost || '0');
-      grouped[dateStr][dispatcher].count += 1;
+      if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0 };
+      totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
+      totals[dispatcher].count += 1;
     });
 
-    // Convert to chart format
-    const dates = Object.keys(grouped).sort();
-    const dispatcherNames = Array.from(dispatchers).sort();
-    
-    const chartData = dates.map(date => {
-      const row: Record<string, string | number> = { date: formatChartDate(date), rawDate: date };
-      dispatcherNames.forEach(name => {
-        row[name] = grouped[date]?.[name]?.cost || 0;
-      });
-      return row;
-    });
+    // Convert to sorted array (by cost descending)
+    const summaryData = Object.entries(totals)
+      .map(([dispatcher, data]) => ({
+        dispatchBy: dispatcher,
+        totalCost: data.cost,
+        orderCount: data.count,
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost);
 
-    // Convert to table format
-    const tableData: { date: string; rawDate: string; dispatchBy: string; deliveryCost: number; orderCount: number }[] = [];
-    dates.forEach(date => {
-      Object.entries(grouped[date]).forEach(([dispatcher, data]) => {
-        tableData.push({
-          date: formatChartDate(date),
-          rawDate: date,
-          dispatchBy: dispatcher,
-          deliveryCost: data.cost,
-          orderCount: data.count,
-        });
-      });
-    });
+    const grandTotal = summaryData.reduce((sum, row) => sum + row.totalCost, 0);
+    const totalOrders = summaryData.reduce((sum, row) => sum + row.orderCount, 0);
 
-    return { chartData, tableData, dispatcherNames };
-  }, [ordersData, formatChartDate, normalizeDispatcher]);
+    return { summaryData, grandTotal, totalOrders };
+  }, [ordersData, normalizeDispatcher]);
 
   // Order Status Over Time - aggregate by createdAt date
   const orderStatusByDay = useMemo(() => {
@@ -701,6 +682,160 @@ export default function AnalyticsPage() {
               </Card>
             </div>
 
+            {/* Order Flow Funnel - moved to top */}
+            <section className="pt-2">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Order Flow Funnel
+              </h2>
+              <Card className="p-4">
+                {funnelData.length > 0 ? (
+                  <>
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                      {funnelData.map((stage, index) => (
+                        <div key={stage.stage} className="flex items-center gap-2 flex-1">
+                          <div
+                            className="flex flex-col items-center justify-center p-4 rounded-lg flex-1"
+                            style={{ backgroundColor: `${stage.color}20` }}
+                          >
+                            <span className="text-2xl font-bold" style={{ color: stage.color }}>
+                              {stage.count}
+                            </span>
+                            <span className="text-sm font-medium">{stage.stage}</span>
+                            <span className="text-xs text-muted-foreground">{stage.percentage}%</span>
+                          </div>
+                          {index < funnelData.length - 1 && (
+                            <ArrowRight className="w-5 h-5 text-muted-foreground hidden md:block" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 text-center text-sm text-muted-foreground">
+                      <span className="text-amber-600 font-medium">{flowMetrics.cancelled} cancelled</span>
+                      {flowMetrics.pending > 0 && (
+                        <span className="ml-4 text-purple-600 font-medium">{flowMetrics.pending} pending</span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-center text-muted-foreground py-4">No order data available</p>
+                )}
+              </Card>
+            </section>
+
+            {/* Blockers - moved to top */}
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Blockers
+                {totalBlockers > 0 && (
+                  <span className="text-sm font-normal text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
+                    {totalBlockers} orders stuck
+                  </span>
+                )}
+              </h2>
+
+              {totalBlockers === 0 ? (
+                <Card className="p-8 text-center">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                  <h3 className="font-medium text-lg mb-2">No Blockers Detected</h3>
+                  <p className="text-muted-foreground">All orders are moving through the pipeline smoothly.</p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {blockerMetrics.stuckAtCreated.length > 0 && (
+                    <Card className="p-4 bg-blue-50/50 dark:bg-blue-950/20">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setExpandedBlocker(expandedBlocker === "created" ? null : "created")}
+                        data-testid="button-toggle-created-blockers"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500" />
+                          <FileText className="w-5 h-5 text-blue-500" />
+                          <span className="font-medium">Stuck at Created</span>
+                        </div>
+                        <span className="text-lg font-bold text-blue-600" data-testid="text-created-blockers-count">{blockerMetrics.stuckAtCreated.length}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Waiting for approval &gt; 48 hours</p>
+                      {expandedBlocker === "created" && (
+                        <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
+                          {blockerMetrics.stuckAtCreated.slice(0, 10).map((order) => (
+                            <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-created-${order.id}`}>
+                              <span>{order.partyName || "Unknown"}</span>
+                              <span className="text-muted-foreground">
+                                {order.createdAt ? differenceInDays(new Date(), new Date(order.createdAt)) : 0}d ago
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
+                  {blockerMetrics.stuckAtInvoiced.length > 0 && (
+                    <Card className="p-4 bg-purple-50/50 dark:bg-purple-950/20">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setExpandedBlocker(expandedBlocker === "invoiced" ? null : "invoiced")}
+                        data-testid="button-toggle-invoiced-blockers"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          <FileText className="w-5 h-5 text-purple-500" />
+                          <span className="font-medium">Stuck at Invoiced</span>
+                        </div>
+                        <span className="text-lg font-bold text-purple-600" data-testid="text-invoiced-blockers-count">{blockerMetrics.stuckAtInvoiced.length}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Waiting for dispatch &gt; 48 hours</p>
+                      {expandedBlocker === "invoiced" && (
+                        <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
+                          {blockerMetrics.stuckAtInvoiced.slice(0, 10).map((order) => (
+                            <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-invoiced-${order.id}`}>
+                              <span>{order.partyName || "Unknown"}</span>
+                              <span className="text-muted-foreground">
+                                {order.invoiceDate ? differenceInDays(new Date(), new Date(order.invoiceDate)) : 0}d ago
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
+                  {blockerMetrics.stuckAtDispatched.length > 0 && (
+                    <Card className="p-4 bg-orange-50/50 dark:bg-orange-950/20">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setExpandedBlocker(expandedBlocker === "dispatched" ? null : "dispatched")}
+                        data-testid="button-toggle-dispatched-blockers"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-orange-500" />
+                          <Truck className="w-5 h-5 text-orange-500" />
+                          <span className="font-medium">Overdue Delivery</span>
+                        </div>
+                        <span className="text-lg font-bold text-orange-600" data-testid="text-dispatched-blockers-count">{blockerMetrics.stuckAtDispatched.length}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Past estimated delivery date</p>
+                      {expandedBlocker === "dispatched" && (
+                        <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
+                          {blockerMetrics.stuckAtDispatched.slice(0, 10).map((order) => (
+                            <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-dispatched-${order.id}`}>
+                              <span>{order.partyName || "Unknown"}</span>
+                              <span className="text-muted-foreground">
+                                Est: {order.estimatedDeliveryDate ? format(new Date(order.estimatedDeliveryDate), "MMM d") : "N/A"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  )}
+                </div>
+              )}
+            </section>
+
             {chartData.length > 0 && (
               <>
                 <Card className="p-4">
@@ -845,136 +980,39 @@ export default function AnalyticsPage() {
                   </Card>
                 )}
 
-                {deliveryCostByDispatcher.chartData.length > 0 && (
+                {deliveryCostSummary.summaryData.length > 0 && (
                   <Card className="p-4">
-                    <h2 className="text-lg font-semibold mb-4">Delivery Cost by Dispatch By</h2>
-                    <p className="text-xs text-muted-foreground mb-2">Click on a bar to see details for that day</p>
-                    <div className="h-72">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart 
-                          data={deliveryCostByDispatcher.chartData}
-                          onClick={(data) => {
-                            if (data && data.activePayload && data.activePayload.length > 0 && data.activePayload[0]?.payload?.rawDate) {
-                              const clickedDate = data.activePayload[0].payload.rawDate;
-                              setSelectedDeliveryCostDate(prev => prev === clickedDate ? null : clickedDate);
-                            }
-                          }}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 12 }}
-                            tickMargin={8}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 12 }} 
-                            tickFormatter={(v) => formatINR(v)}
-                          />
-                          <Tooltip 
-                            formatter={(value: number) => formatINRFull(value)}
-                            contentStyle={{ 
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                            }}
-                          />
-                          <Legend />
-                          {deliveryCostByDispatcher.dispatcherNames.map((name, index) => {
-                            const colors = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#ef4444'];
-                            return (
-                              <Bar 
-                                key={name}
-                                dataKey={name}
-                                name={name}
-                                stackId="dispatchers"
-                                fill={colors[index % colors.length]}
-                              />
-                            );
-                          })}
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    {selectedDeliveryCostDate && (
-                      <div className="mt-4 overflow-x-auto">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-medium">
-                            Details for {formatChartDate(selectedDeliveryCostDate)}
-                          </h3>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => setSelectedDeliveryCostDate(null)}
-                            data-testid="button-clear-delivery-date"
-                          >
-                            Clear
-                          </Button>
-                        </div>
-                        <table className="w-full text-sm" data-testid="table-delivery-cost">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left py-2 px-3 font-medium">Dispatch By</th>
-                              <th className="text-right py-2 px-3 font-medium">Delivery Cost</th>
-                              <th className="text-right py-2 px-3 font-medium">Order Count</th>
+                    <h2 className="text-lg font-semibold mb-4">Delivery Cost Summary</h2>
+                    <p className="text-xs text-muted-foreground mb-4">Total spend by transport company (excludes Hand Delivery and zero cost)</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm" data-testid="table-delivery-cost-summary">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium">Transport Company</th>
+                            <th className="text-right py-2 px-3 font-medium">Total Cost</th>
+                            <th className="text-right py-2 px-3 font-medium">Orders</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deliveryCostSummary.summaryData.map((row, idx) => (
+                            <tr key={idx} className="border-b last:border-0">
+                              <td className="py-2 px-3 font-medium">{row.dispatchBy}</td>
+                              <td className="py-2 px-3 text-right">{formatINRFull(row.totalCost)}</td>
+                              <td className="py-2 px-3 text-right">{row.orderCount}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {deliveryCostByDispatcher.tableData
-                              .filter(row => row.rawDate === selectedDeliveryCostDate)
-                              .map((row, idx) => (
-                                <tr key={idx} className="border-b last:border-0">
-                                  <td className="py-2 px-3">{row.dispatchBy}</td>
-                                  <td className="py-2 px-3 text-right">{formatINRFull(row.deliveryCost)}</td>
-                                  <td className="py-2 px-3 text-right">{row.orderCount}</td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 font-bold">
+                            <td className="py-2 px-3">Total</td>
+                            <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.grandTotal)}</td>
+                            <td className="py-2 px-3 text-right">{deliveryCostSummary.totalOrders}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </Card>
                 )}
-
-                {/* Order Insights Section */}
-                <section className="pt-4">
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Package className="w-5 h-5" />
-                    Order Flow Funnel
-                  </h2>
-                  <Card className="p-4">
-                    {funnelData.length > 0 ? (
-                      <>
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                          {funnelData.map((stage, index) => (
-                            <div key={stage.stage} className="flex items-center gap-2 flex-1">
-                              <div
-                                className="flex flex-col items-center justify-center p-4 rounded-lg flex-1"
-                                style={{ backgroundColor: `${stage.color}20` }}
-                              >
-                                <span className="text-2xl font-bold" style={{ color: stage.color }}>
-                                  {stage.count}
-                                </span>
-                                <span className="text-sm font-medium">{stage.stage}</span>
-                                <span className="text-xs text-muted-foreground">{stage.percentage}%</span>
-                              </div>
-                              {index < funnelData.length - 1 && (
-                                <ArrowRight className="w-5 h-5 text-muted-foreground hidden md:block" />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-4 text-center text-sm text-muted-foreground">
-                          <span className="text-amber-600 font-medium">{flowMetrics.cancelled} cancelled</span>
-                          {flowMetrics.pending > 0 && (
-                            <span className="ml-4 text-purple-600 font-medium">{flowMetrics.pending} pending</span>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-center text-muted-foreground py-4">No order data available</p>
-                    )}
-                  </Card>
-                </section>
 
                 <section>
                   <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -1067,118 +1105,6 @@ export default function AnalyticsPage() {
                       </div>
                     </Card>
                   </div>
-                </section>
-
-                <section>
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-500" />
-                    Blockers
-                    {totalBlockers > 0 && (
-                      <span className="text-sm font-normal text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
-                        {totalBlockers} orders stuck
-                      </span>
-                    )}
-                  </h2>
-
-                  {totalBlockers === 0 ? (
-                    <Card className="p-8 text-center">
-                      <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                      <h3 className="font-medium text-lg mb-2">No Blockers Detected</h3>
-                      <p className="text-muted-foreground">All orders are moving through the pipeline smoothly.</p>
-                    </Card>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {blockerMetrics.stuckAtCreated.length > 0 && (
-                        <Card className="p-4 bg-blue-50/50 dark:bg-blue-950/20">
-                          <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => setExpandedBlocker(expandedBlocker === "created" ? null : "created")}
-                            data-testid="button-toggle-created-blockers"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-blue-500" />
-                              <FileText className="w-5 h-5 text-blue-500" />
-                              <span className="font-medium">Stuck at Created</span>
-                            </div>
-                            <span className="text-lg font-bold text-blue-600" data-testid="text-created-blockers-count">{blockerMetrics.stuckAtCreated.length}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">Waiting for approval &gt; 48 hours</p>
-                          {expandedBlocker === "created" && (
-                            <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
-                              {blockerMetrics.stuckAtCreated.slice(0, 10).map((order) => (
-                                <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-created-${order.id}`}>
-                                  <span>{order.partyName || "Unknown"}</span>
-                                  <span className="text-muted-foreground">
-                                    {order.createdAt ? differenceInDays(new Date(), new Date(order.createdAt)) : 0}d ago
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </Card>
-                      )}
-
-                      {blockerMetrics.stuckAtInvoiced.length > 0 && (
-                        <Card className="p-4 bg-purple-50/50 dark:bg-purple-950/20">
-                          <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => setExpandedBlocker(expandedBlocker === "invoiced" ? null : "invoiced")}
-                            data-testid="button-toggle-invoiced-blockers"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-purple-500" />
-                              <FileText className="w-5 h-5 text-purple-500" />
-                              <span className="font-medium">Stuck at Invoiced</span>
-                            </div>
-                            <span className="text-lg font-bold text-purple-600" data-testid="text-invoiced-blockers-count">{blockerMetrics.stuckAtInvoiced.length}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">Waiting for dispatch &gt; 48 hours</p>
-                          {expandedBlocker === "invoiced" && (
-                            <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
-                              {blockerMetrics.stuckAtInvoiced.slice(0, 10).map((order) => (
-                                <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-invoiced-${order.id}`}>
-                                  <span>{order.partyName || "Unknown"}</span>
-                                  <span className="text-muted-foreground">
-                                    {order.invoiceDate ? differenceInDays(new Date(), new Date(order.invoiceDate)) : 0}d ago
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </Card>
-                      )}
-
-                      {blockerMetrics.stuckAtDispatched.length > 0 && (
-                        <Card className="p-4 bg-orange-50/50 dark:bg-orange-950/20">
-                          <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => setExpandedBlocker(expandedBlocker === "dispatched" ? null : "dispatched")}
-                            data-testid="button-toggle-dispatched-blockers"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-orange-500" />
-                              <Truck className="w-5 h-5 text-orange-500" />
-                              <span className="font-medium">Overdue Delivery</span>
-                            </div>
-                            <span className="text-lg font-bold text-orange-600" data-testid="text-dispatched-blockers-count">{blockerMetrics.stuckAtDispatched.length}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">Past estimated delivery date</p>
-                          {expandedBlocker === "dispatched" && (
-                            <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
-                              {blockerMetrics.stuckAtDispatched.slice(0, 10).map((order) => (
-                                <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-dispatched-${order.id}`}>
-                                  <span>{order.partyName || "Unknown"}</span>
-                                  <span className="text-muted-foreground">
-                                    Est: {order.estimatedDeliveryDate ? format(new Date(order.estimatedDeliveryDate), "MMM d") : "N/A"}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </Card>
-                      )}
-                    </div>
-                  )}
                 </section>
               </>
             )}
