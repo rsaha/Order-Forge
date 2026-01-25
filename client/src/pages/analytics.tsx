@@ -512,6 +512,35 @@ export default function AnalyticsPage() {
     return { summaryData, grandTotal, totalOrders };
   }, [ordersData, normalizeDispatcher]);
 
+  // Daily transport cost - sum of all transport costs per day
+  const dailyTransportCost = useMemo(() => {
+    const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
+    const excludedDispatchers = ["hand delivery", "by hand"];
+    
+    const dailyTotals: Record<string, number> = {};
+    
+    ordersData.forEach(order => {
+      if (!validStatuses.includes(order.status)) return;
+      if (!order.deliveryCost || parseFloat(order.deliveryCost) === 0) return;
+      if (!order.dispatchBy) return;
+      const dispatcherLower = order.dispatchBy.toLowerCase().trim();
+      if (excludedDispatchers.some(ex => dispatcherLower.includes(ex))) return;
+      
+      // Use dispatch date if available, otherwise invoice date
+      const dateField = order.dispatchDate || order.invoiceDate || order.createdAt;
+      if (!dateField) return;
+      
+      const dateStr = format(new Date(dateField), 'yyyy-MM-dd');
+      if (!dailyTotals[dateStr]) dailyTotals[dateStr] = 0;
+      dailyTotals[dateStr] += parseFloat(order.deliveryCost || '0');
+    });
+    
+    // Convert to sorted array
+    return Object.entries(dailyTotals)
+      .map(([date, cost]) => ({ date, cost }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [ordersData]);
+
   // Order Status Over Time - aggregate by createdAt date
   const orderStatusByDay = useMemo(() => {
     const statusesToShow = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered"] as const;
@@ -975,6 +1004,47 @@ export default function AnalyticsPage() {
                             );
                           })}
                         </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                )}
+
+                {dailyTransportCost.length > 0 && (
+                  <Card className="p-4">
+                    <h2 className="text-lg font-semibold mb-4">Daily Transport Cost</h2>
+                    <p className="text-xs text-muted-foreground mb-2">Sum of all transport costs per day (excludes Hand Delivery and zero cost)</p>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={dailyTransportCost}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickMargin={8}
+                            tickFormatter={(v) => format(parseISO(v), 'MMM d')}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }} 
+                            tickFormatter={(v) => formatINR(v)}
+                          />
+                          <Tooltip 
+                            formatter={(value: number) => [formatINRFull(value), "Transport Cost"]}
+                            labelFormatter={(label) => format(parseISO(label), 'MMM d, yyyy')}
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))', 
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px'
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="cost" 
+                            stroke="#f97316" 
+                            fill="#f97316" 
+                            fillOpacity={0.3}
+                            strokeWidth={2}
+                          />
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   </Card>
