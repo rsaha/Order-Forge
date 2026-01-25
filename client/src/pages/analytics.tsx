@@ -670,7 +670,7 @@ export default function AnalyticsPage() {
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
@@ -694,6 +694,23 @@ export default function AnalyticsPage() {
                   {formatINR(analytics?.delivered.value || 0)}
                 </p>
                 <p className="text-sm text-muted-foreground">{analytics?.delivered.count || 0} delivered orders</p>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950/30">
+                    <Truck className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">Transport Cost</span>
+                </div>
+                <p className="text-3xl font-bold mb-1" data-testid="text-transport-cost">
+                  {formatINR(deliveryCostSummary.grandTotal)}
+                </p>
+                <p className="text-sm text-muted-foreground" data-testid="text-transport-percentage">
+                  {((analytics?.delivered.value || 0) > 0 
+                    ? ((deliveryCostSummary.grandTotal / (analytics?.delivered.value || 1)) * 100).toFixed(1)
+                    : 0
+                  )}% of delivered value
+                </p>
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
