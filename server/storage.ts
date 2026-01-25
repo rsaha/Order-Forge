@@ -1402,15 +1402,17 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getTopOrderCreator(filters: { fromDate?: Date; toDate?: Date; brand?: string }): Promise<{ userId: string; userName: string; orderCount: number; totalValue: number } | null> {
+    // Count all non-cancelled orders, exclude admin users
     const conditions: any[] = [
-      eq(orders.status, 'Invoiced'),
+      sql`${orders.status} != 'Cancelled'`,
+      eq(users.isAdmin, false),
     ];
     
     if (filters.fromDate) {
-      conditions.push(sql`${orders.invoiceDate} >= ${filters.fromDate}`);
+      conditions.push(sql`${orders.createdAt} >= ${filters.fromDate}`);
     }
     if (filters.toDate) {
-      conditions.push(sql`${orders.invoiceDate} <= ${filters.toDate}`);
+      conditions.push(sql`${orders.createdAt} <= ${filters.toDate}`);
     }
     if (filters.brand) {
       conditions.push(eq(orders.brand, filters.brand));
@@ -1425,7 +1427,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(orders)
       .innerJoin(users, eq(orders.userId, users.id))
-      .where(and(...conditions, eq(users.isAdmin, false)))
+      .where(and(...conditions))
       .groupBy(orders.userId, users.firstName)
       .orderBy(sql`count(*) desc`)
       .limit(1);
