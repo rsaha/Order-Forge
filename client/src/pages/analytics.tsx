@@ -488,13 +488,14 @@ export default function AnalyticsPage() {
     });
 
     // Aggregate totals by dispatcher
-    const totals: Record<string, { cost: number; count: number }> = {};
+    const totals: Record<string, { cost: number; count: number; orderValue: number }> = {};
 
     filtered.forEach(order => {
       const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
-      if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0 };
+      if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
       totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
       totals[dispatcher].count += 1;
+      totals[dispatcher].orderValue += parseFloat(order.total || '0');
     });
 
     // Convert to sorted array (by cost descending)
@@ -503,13 +504,17 @@ export default function AnalyticsPage() {
         dispatchBy: dispatcher,
         totalCost: data.cost,
         orderCount: data.count,
+        orderValue: data.orderValue,
+        costPercentage: data.orderValue > 0 ? (data.cost / data.orderValue) * 100 : 0,
       }))
       .sort((a, b) => b.totalCost - a.totalCost);
 
     const grandTotal = summaryData.reduce((sum, row) => sum + row.totalCost, 0);
     const totalOrders = summaryData.reduce((sum, row) => sum + row.orderCount, 0);
+    const grandOrderValue = summaryData.reduce((sum, row) => sum + row.orderValue, 0);
+    const grandCostPercentage = grandOrderValue > 0 ? (grandTotal / grandOrderValue) * 100 : 0;
 
-    return { summaryData, grandTotal, totalOrders };
+    return { summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage };
   }, [ordersData, normalizeDispatcher]);
 
   // Daily transport cost - sum of all transport costs per day
@@ -1076,7 +1081,9 @@ export default function AnalyticsPage() {
                         <thead>
                           <tr className="border-b">
                             <th className="text-left py-2 px-3 font-medium">Transport Company</th>
-                            <th className="text-right py-2 px-3 font-medium">Total Cost</th>
+                            <th className="text-right py-2 px-3 font-medium">Transport Cost</th>
+                            <th className="text-right py-2 px-3 font-medium">Order Value</th>
+                            <th className="text-right py-2 px-3 font-medium">% of Value</th>
                             <th className="text-right py-2 px-3 font-medium">Orders</th>
                           </tr>
                         </thead>
@@ -1085,6 +1092,8 @@ export default function AnalyticsPage() {
                             <tr key={idx} className="border-b last:border-0">
                               <td className="py-2 px-3 font-medium">{row.dispatchBy}</td>
                               <td className="py-2 px-3 text-right">{formatINRFull(row.totalCost)}</td>
+                              <td className="py-2 px-3 text-right">{formatINRFull(row.orderValue)}</td>
+                              <td className="py-2 px-3 text-right">{row.costPercentage.toFixed(1)}%</td>
                               <td className="py-2 px-3 text-right">{row.orderCount}</td>
                             </tr>
                           ))}
@@ -1093,6 +1102,8 @@ export default function AnalyticsPage() {
                           <tr className="border-t-2 font-bold">
                             <td className="py-2 px-3">Total</td>
                             <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.grandTotal)}</td>
+                            <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.grandOrderValue)}</td>
+                            <td className="py-2 px-3 text-right">{deliveryCostSummary.grandCostPercentage.toFixed(1)}%</td>
                             <td className="py-2 px-3 text-right">{deliveryCostSummary.totalOrders}</td>
                           </tr>
                         </tfoot>
