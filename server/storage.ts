@@ -3,6 +3,7 @@ import {
   products,
   userBrandAccess,
   userDeliveryCompanyAccess,
+  userPartyAccess,
   orders,
   orderItems,
   brands,
@@ -15,6 +16,8 @@ import {
   type InsertUserBrandAccess,
   type UserDeliveryCompanyAccess,
   type InsertUserDeliveryCompanyAccess,
+  type UserPartyAccess,
+  type InsertUserPartyAccess,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -60,6 +63,12 @@ export interface IStorage {
   getUserDeliveryCompanyAccess(userId: string): Promise<string[]>;
   setUserDeliveryCompanyAccess(userId: string, deliveryCompanies: string[]): Promise<void>;
   updateUserPartyName(userId: string, partyName: string | null): Promise<User | undefined>;
+  
+  // User-Party access operations (linking salespeople to customer parties)
+  getUserPartyAccess(userId: string): Promise<string[]>;
+  setUserPartyAccess(userId: string, partyNames: string[]): Promise<void>;
+  getAllUserPartyAccess(): Promise<{ userId: string; partyNames: string[] }[]>;
+  getOrdersForLinkedParties(userId: string): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   
   // Order operations
   createOrder(order: InsertOrder): Promise<Order>;
@@ -450,6 +459,93 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updated;
+  }
+
+  // User-Party access operations (linking salespeople to customer parties)
+  async getUserPartyAccess(userId: string): Promise<string[]> {
+    const access = await db
+      .select({ partyName: userPartyAccess.partyName })
+      .from(userPartyAccess)
+      .where(eq(userPartyAccess.userId, userId));
+    return access.map(a => a.partyName);
+  }
+
+  async setUserPartyAccess(userId: string, partyNames: string[]): Promise<void> {
+    await db.delete(userPartyAccess).where(eq(userPartyAccess.userId, userId));
+    if (partyNames.length === 0) return;
+    
+    const entries = partyNames.map(partyName => ({
+      userId,
+      partyName,
+    }));
+    await db.insert(userPartyAccess).values(entries);
+  }
+
+  async getAllUserPartyAccess(): Promise<{ userId: string; partyNames: string[] }[]> {
+    const access = await db
+      .select({ userId: userPartyAccess.userId, partyName: userPartyAccess.partyName })
+      .from(userPartyAccess);
+    
+    // Group by userId
+    const grouped: Record<string, string[]> = {};
+    for (const row of access) {
+      if (!grouped[row.userId]) grouped[row.userId] = [];
+      grouped[row.userId].push(row.partyName);
+    }
+    
+    return Object.entries(grouped).map(([userId, partyNames]) => ({ userId, partyNames }));
+  }
+
+  async getOrdersForLinkedParties(userId: string): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
+    // Get parties linked to this user
+    const linkedParties = await this.getUserPartyAccess(userId);
+    if (linkedParties.length === 0) return [];
+    
+    // Create alias for the creator
+    const creatorUser = alias(users, 'creatorUser');
+    
+    const result = await db.select({
+      id: orders.id,
+      userId: orders.userId,
+      brand: orders.brand,
+      status: orders.status,
+      total: orders.total,
+      discountPercent: orders.discountPercent,
+      whatsappPhone: orders.whatsappPhone,
+      email: orders.email,
+      partyName: orders.partyName,
+      deliveryAddress: orders.deliveryAddress,
+      invoiceNumber: orders.invoiceNumber,
+      invoiceDate: orders.invoiceDate,
+      dispatchDate: orders.dispatchDate,
+      dispatchBy: orders.dispatchBy,
+      cases: orders.cases,
+      specialNotes: orders.specialNotes,
+      estimatedDeliveryDate: orders.estimatedDeliveryDate,
+      actualDeliveryDate: orders.actualDeliveryDate,
+      deliveryCost: orders.deliveryCost,
+      deliveryNote: orders.deliveryNote,
+      deliveryCompany: orders.deliveryCompany,
+      actualOrderValue: orders.actualOrderValue,
+      deliveredOnTime: orders.deliveredOnTime,
+      approvedBy: orders.approvedBy,
+      approvedAt: orders.approvedAt,
+      importText: orders.importText,
+      podStatus: orders.podStatus,
+      podTimestamp: orders.podTimestamp,
+      parentOrderId: orders.parentOrderId,
+      createdBy: orders.createdBy,
+      createdAt: orders.createdAt,
+      createdByName: sql<string | null>`concat_ws(' ', ${creatorUser.firstName}, ${creatorUser.lastName})`.as('createdByName'),
+      createdByEmail: creatorUser.email,
+      actualCreatorName: sql<string | null>`concat_ws(' ', ${creatorUser.firstName}, ${creatorUser.lastName})`.as('actualCreatorName'),
+    })
+    .from(orders)
+    .leftJoin(creatorUser, eq(orders.createdBy, creatorUser.id))
+    .where(inArray(orders.partyName, linkedParties))
+    .orderBy(desc(orders.createdAt));
+    
+    return result;
   }
 
   // Order operations

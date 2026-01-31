@@ -125,6 +125,17 @@ export const userDeliveryCompanyAccess = pgTable("user_delivery_company_access",
   index("idx_user_delivery_company_access_user").on(table.userId),
 ]);
 
+// User-Party access - which customer parties each salesperson can see/manage orders for
+export const userPartyAccess = pgTable("user_party_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  partyName: varchar("party_name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_user_party_access_user").on(table.userId),
+  index("idx_user_party_access_party").on(table.partyName),
+]);
+
 // Orders table
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -190,6 +201,13 @@ export const userDeliveryCompanyAccessRelations = relations(userDeliveryCompanyA
   }),
 }));
 
+export const userPartyAccessRelations = relations(userPartyAccess, ({ one }) => ({
+  user: one(users, {
+    fields: [userPartyAccess.userId],
+    references: [users.id],
+  }),
+}));
+
 export const productsRelations = relations(products, ({ many }) => ({
   orderItems: many(orderItems),
 }));
@@ -217,6 +235,7 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
 export const insertUserDeliveryCompanyAccessSchema = createInsertSchema(userDeliveryCompanyAccess).omit({ id: true, createdAt: true });
+export const insertUserPartyAccessSchema = createInsertSchema(userPartyAccess).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
@@ -281,6 +300,8 @@ export type UserBrandAccess = typeof userBrandAccess.$inferSelect;
 export type InsertUserBrandAccess = z.infer<typeof insertUserBrandAccessSchema>;
 export type UserDeliveryCompanyAccess = typeof userDeliveryCompanyAccess.$inferSelect;
 export type InsertUserDeliveryCompanyAccess = z.infer<typeof insertUserDeliveryCompanyAccessSchema>;
+export type UserPartyAccess = typeof userPartyAccess.$inferSelect;
+export type InsertUserPartyAccess = z.infer<typeof insertUserPartyAccessSchema>;
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
