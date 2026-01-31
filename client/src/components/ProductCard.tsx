@@ -60,7 +60,7 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
         <p className="font-mono text-sm text-muted-foreground truncate" data-testid={`text-sku-${product.id}`}>
           {product.sku}
         </p>
-        <h3 className="font-medium text-base truncate" data-testid={`text-name-${product.id}`}>
+        <h3 className="font-medium text-base break-words whitespace-normal leading-tight" data-testid={`text-name-${product.id}`}>
           {product.name}
         </h3>
         <p className="text-sm text-muted-foreground" data-testid={`text-brand-${product.id}`}>

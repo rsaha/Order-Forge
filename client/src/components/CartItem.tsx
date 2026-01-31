@@ -32,7 +32,7 @@ export default function CartItem({ item, onQuantityChange, onFreeQuantityChange,
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-b-0">
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate" data-testid={`cart-name-${item.product.id}`}>
+        <p className="font-medium break-words whitespace-normal leading-tight" data-testid={`cart-name-${item.product.id}`}>
           {item.product.name}
         </p>
         <p className="text-sm text-muted-foreground font-mono" data-testid={`cart-sku-${item.product.id}`}>

@@ -1007,7 +1007,7 @@ export default function Home() {
                                 <td className="p-3 font-mono text-muted-foreground" data-testid={`text-sku-${product.id}`}>
                                   {product.sku}
                                 </td>
-                                <td className="p-3 font-medium" data-testid={`text-name-${product.id}`}>
+                                <td className="p-3 font-medium max-w-[200px] break-words whitespace-normal" data-testid={`text-name-${product.id}`}>
                                   {product.name}
                                 </td>
                                 <td className="p-3" data-testid={`text-brand-${product.id}`}>
