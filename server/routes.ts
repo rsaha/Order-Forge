@@ -1053,12 +1053,28 @@ export async function registerRoutes(
     }
   });
 
-  // Get orders for linked parties (for salespeople)
+  // Get orders for linked customers/parties (for salespeople)
   app.get('/api/linked-orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const orders = await storage.getOrdersForLinkedParties(userId);
-      res.json(orders);
+      
+      // Get orders from linked customers (new user-to-user linking)
+      const linkedCustomerOrders = await storage.getOrdersForLinkedCustomers(userId);
+      
+      // Also get legacy linked party orders
+      const linkedPartyOrders = await storage.getOrdersForLinkedParties(userId);
+      
+      // Merge and deduplicate
+      const orderIds = new Set(linkedCustomerOrders.map(o => o.id));
+      const allOrders = [...linkedCustomerOrders];
+      
+      for (const order of linkedPartyOrders) {
+        if (!orderIds.has(order.id)) {
+          allOrders.push(order);
+        }
+      }
+      
+      res.json(allOrders);
     } catch (error) {
       console.error("Error fetching linked orders:", error);
       res.status(500).json({ message: "Failed to fetch linked orders" });
@@ -1514,13 +1530,25 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       const userOrders = await storage.getUserOrders(userId);
       
-      // Only include linked party orders for User role (salespeople)
+      // Only include linked orders for User role (salespeople)
       let allOrders = [...userOrders];
       if (user?.role === 'User') {
+        // Get orders from linked customers (new user-to-user linking)
+        const linkedCustomerOrders = await storage.getOrdersForLinkedCustomers(userId);
+        
+        // Also get legacy linked party orders
         const linkedPartyOrders = await storage.getOrdersForLinkedParties(userId);
         
-        // Merge and deduplicate (user's own orders might overlap with linked party orders)
+        // Merge and deduplicate (user's own orders might overlap with linked orders)
         const orderIds = new Set(userOrders.map(o => o.id));
+        
+        for (const order of linkedCustomerOrders) {
+          if (!orderIds.has(order.id)) {
+            allOrders.push(order);
+            orderIds.add(order.id);
+          }
+        }
+        
         for (const order of linkedPartyOrders) {
           if (!orderIds.has(order.id)) {
             allOrders.push(order);
@@ -1546,13 +1574,19 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
       
-      // Check if user owns this order or has party access (salespeople only)
+      // Check if user owns this order or has access (salespeople via linked customers or party access)
       let hasAccess = order.userId === userId;
       
-      // Party access only applies to User role (salespeople)
-      if (!hasAccess && order.partyName && user?.role === 'User') {
-        const partyAccess = await storage.getUserPartyAccess(userId);
-        hasAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      // Sales user access: check linked customer relationship (new system) or party access (legacy)
+      if (!hasAccess && user?.role === 'User') {
+        // Check new user-to-user linking: sales user has access if order owner is linked to them
+        hasAccess = await storage.salesUserHasAccessToOrderOwner(userId, order.userId);
+        
+        // Also check legacy party access
+        if (!hasAccess && order.partyName) {
+          const partyAccess = await storage.getUserPartyAccess(userId);
+          hasAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+        }
       }
       
       if (!hasAccess) {
@@ -1863,10 +1897,16 @@ export async function registerRoutes(
         isBrandAdmin = brandAccess.includes(order.brand);
       }
       
-      // Check party access for salespeople only (User role)
-      if (!isOwner && !isAdmin && !isBrandAdmin && order.partyName && user?.role === 'User') {
-        const partyAccess = await storage.getUserPartyAccess(userId);
-        hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      // Check access for salespeople (User role) via linked customers or party access
+      if (!isOwner && !isAdmin && !isBrandAdmin && user?.role === 'User') {
+        // Check new user-to-user linking: sales user has access if order owner is linked to them
+        hasPartyAccess = await storage.salesUserHasAccessToOrderOwner(userId, order.userId);
+        
+        // Also check legacy party access
+        if (!hasPartyAccess && order.partyName) {
+          const partyAccess = await storage.getUserPartyAccess(userId);
+          hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+        }
       }
 
       if (!isOwner && !isAdmin && !isBrandAdmin && !hasPartyAccess) {
@@ -1952,10 +1992,16 @@ export async function registerRoutes(
         isBrandAdmin = brandAccess.some(b => b.toLowerCase() === order.brand!.toLowerCase());
       }
       
-      // Check party access for salespeople only (User role)
-      if (!isOwner && !isAdmin && !isBrandAdmin && order.partyName && user?.role === 'User') {
-        const partyAccess = await storage.getUserPartyAccess(userId);
-        hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      // Check access for salespeople (User role) via linked customers or party access
+      if (!isOwner && !isAdmin && !isBrandAdmin && user?.role === 'User') {
+        // Check new user-to-user linking: sales user has access if order owner is linked to them
+        hasPartyAccess = await storage.salesUserHasAccessToOrderOwner(userId, order.userId);
+        
+        // Also check legacy party access
+        if (!hasPartyAccess && order.partyName) {
+          const partyAccess = await storage.getUserPartyAccess(userId);
+          hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+        }
       }
 
       if (!isOwner && !isAdmin && !isBrandAdmin && !hasPartyAccess) {
@@ -2018,10 +2064,16 @@ export async function registerRoutes(
         isBrandAdmin = brandAccess.some(b => b.toLowerCase() === order.brand!.toLowerCase());
       }
       
-      // Check party access for salespeople only (User role)
-      if (!isOwner && !isAdmin && !isBrandAdmin && order.partyName && user?.role === 'User') {
-        const partyAccess = await storage.getUserPartyAccess(userId);
-        hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      // Check access for salespeople (User role) via linked customers or party access
+      if (!isOwner && !isAdmin && !isBrandAdmin && user?.role === 'User') {
+        // Check new user-to-user linking: sales user has access if order owner is linked to them
+        hasPartyAccess = await storage.salesUserHasAccessToOrderOwner(userId, order.userId);
+        
+        // Also check legacy party access
+        if (!hasPartyAccess && order.partyName) {
+          const partyAccess = await storage.getUserPartyAccess(userId);
+          hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+        }
       }
 
       if (!isOwner && !isAdmin && !isBrandAdmin && !hasPartyAccess) {

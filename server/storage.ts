@@ -67,6 +67,8 @@ export interface IStorage {
   // Linked sales user operations (linking customer users to sales users)
   updateUserLinkedSalesUser(userId: string, linkedSalesUserId: string | null): Promise<User | undefined>;
   getLinkedCustomers(salesUserId: string): Promise<User[]>;
+  salesUserHasAccessToOrderOwner(salesUserId: string, orderOwnerId: string): Promise<boolean>;
+  getOrdersForLinkedCustomers(salesUserId: string): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   
   // User-Party access operations (linking salespeople to customer parties)
   getUserPartyAccess(userId: string): Promise<string[]>;
@@ -484,6 +486,67 @@ export class DatabaseStorage implements IStorage {
         eq(users.linkedSalesUserId, salesUserId)
       ));
     return customers;
+  }
+
+  async salesUserHasAccessToOrderOwner(salesUserId: string, orderOwnerId: string): Promise<boolean> {
+    const orderOwner = await this.getUser(orderOwnerId);
+    if (!orderOwner) return false;
+    // Only grant access if owner is a Customer linked to this sales user
+    return orderOwner.role === "Customer" && orderOwner.linkedSalesUserId === salesUserId;
+  }
+
+  async getOrdersForLinkedCustomers(salesUserId: string): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
+    // Get customers linked to this sales user
+    const linkedCustomers = await this.getLinkedCustomers(salesUserId);
+    if (linkedCustomers.length === 0) return [];
+    
+    const customerIds = linkedCustomers.map(c => c.id);
+    
+    // Create alias for the creator
+    const creatorUser = alias(users, 'creatorUser');
+    
+    const result = await db.select({
+      id: orders.id,
+      userId: orders.userId,
+      brand: orders.brand,
+      status: orders.status,
+      total: orders.total,
+      discountPercent: orders.discountPercent,
+      whatsappPhone: orders.whatsappPhone,
+      email: orders.email,
+      partyName: orders.partyName,
+      deliveryAddress: orders.deliveryAddress,
+      invoiceNumber: orders.invoiceNumber,
+      invoiceDate: orders.invoiceDate,
+      dispatchDate: orders.dispatchDate,
+      dispatchBy: orders.dispatchBy,
+      cases: orders.cases,
+      specialNotes: orders.specialNotes,
+      estimatedDeliveryDate: orders.estimatedDeliveryDate,
+      actualDeliveryDate: orders.actualDeliveryDate,
+      deliveryCost: orders.deliveryCost,
+      deliveryNote: orders.deliveryNote,
+      deliveryCompany: orders.deliveryCompany,
+      actualOrderValue: orders.actualOrderValue,
+      deliveredOnTime: orders.deliveredOnTime,
+      approvedBy: orders.approvedBy,
+      approvedAt: orders.approvedAt,
+      importText: orders.importText,
+      podStatus: orders.podStatus,
+      podTimestamp: orders.podTimestamp,
+      parentOrderId: orders.parentOrderId,
+      createdBy: orders.createdBy,
+      createdAt: orders.createdAt,
+      createdByName: sql<string | null>`concat_ws(' ', ${creatorUser.firstName}, ${creatorUser.lastName})`.as('createdByName'),
+      createdByEmail: creatorUser.email,
+      actualCreatorName: sql<string | null>`concat_ws(' ', ${creatorUser.firstName}, ${creatorUser.lastName})`.as('actualCreatorName'),
+    })
+    .from(orders)
+    .leftJoin(creatorUser, eq(orders.createdBy, creatorUser.id))
+    .where(inArray(orders.userId, customerIds))
+    .orderBy(desc(orders.createdAt));
+    
+    return result;
   }
 
   // User-Party access operations (linking salespeople to customer parties)
