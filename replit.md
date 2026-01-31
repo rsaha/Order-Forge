@@ -38,6 +38,7 @@ Both methods share a PostgreSQL-backed session management system with a one-week
 -   **Pending Orders**: Out-of-stock items from "Created" or "Approved" orders can be moved to a "Pending" order, linked to the original order via `parentOrderId`, and can be edited.
 -   **WhatsApp Sharing**: Generates and shares order details via WhatsApp with status-dependent messaging.
 -   **Party-Salesperson Linking**: Admins can link salespeople (User role) to customer parties via the `userPartyAccess` table. Linked salespeople can view and modify (add/edit/delete items) orders for their assigned parties when orders are in Created, Approved, or Pending status. The Users page provides a UI for managing these linkages with autocomplete suggestions from existing party names.
+-   **Customer-Sales User Linking**: Customer users can be linked to sales users via the `linkedSalesUserId` field. When admins create customer users, they can select a sales user to manage that customer. Sales users can view all their linked customer users, and customer users can see their assigned sales user. This enables proper customer-salesperson relationship management.
 
 ## External Dependencies
 

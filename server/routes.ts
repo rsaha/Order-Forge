@@ -3439,6 +3439,124 @@ export async function registerRoutes(
     res.json({ roles: USER_ROLES });
   });
 
+  // Get all sales users (User role) for selection when creating customer users
+  app.get('/api/admin/sales-users', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const admin = await storage.getUser(adminId);
+      if (!admin?.isAdmin && admin?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const allUsers = await storage.getAllUsers();
+      const salesUsers = allUsers.filter(u => u.role === "User");
+      
+      res.json(salesUsers.map(u => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        phone: u.phone,
+        email: u.email
+      })));
+    } catch (error) {
+      console.error("Error fetching sales users:", error);
+      res.status(500).json({ message: "Failed to fetch sales users" });
+    }
+  });
+
+  // Update linked sales user for a customer (Admin only)
+  app.patch('/api/admin/customers/:userId/linked-sales-user', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const admin = await storage.getUser(adminId);
+      if (!admin?.isAdmin && admin?.role !== "Admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const targetUserId = req.params.userId;
+      const { linkedSalesUserId } = req.body;
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (targetUser.role !== "Customer") {
+        return res.status(400).json({ message: "Only Customer users can have linked sales users" });
+      }
+
+      const updatedUser = await storage.updateUserLinkedSalesUser(targetUserId, linkedSalesUserId || null);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating linked sales user:", error);
+      res.status(500).json({ message: "Failed to update linked sales user" });
+    }
+  });
+
+  // Get linked customers for a sales user
+  app.get('/api/users/:userId/linked-customers', isAuthenticated, async (req: any, res) => {
+    try {
+      const requesterId = req.user.claims.sub;
+      const requester = await storage.getUser(requesterId);
+      const targetUserId = req.params.userId;
+
+      // Allow if admin or if requesting own linked customers
+      if (!requester?.isAdmin && requester?.role !== "Admin" && requesterId !== targetUserId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser || targetUser.role !== "User") {
+        return res.status(400).json({ message: "User is not a sales user" });
+      }
+
+      const linkedCustomers = await storage.getLinkedCustomers(targetUserId);
+      res.json(linkedCustomers);
+    } catch (error) {
+      console.error("Error fetching linked customers:", error);
+      res.status(500).json({ message: "Failed to fetch linked customers" });
+    }
+  });
+
+  // Get linked sales user for a customer
+  app.get('/api/users/:userId/linked-sales-user', isAuthenticated, async (req: any, res) => {
+    try {
+      const requesterId = req.user.claims.sub;
+      const requester = await storage.getUser(requesterId);
+      const targetUserId = req.params.userId;
+
+      // Allow if admin or if requesting own linked sales user
+      if (!requester?.isAdmin && requester?.role !== "Admin" && requesterId !== targetUserId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser || targetUser.role !== "Customer") {
+        return res.status(400).json({ message: "User is not a customer" });
+      }
+
+      if (!targetUser.linkedSalesUserId) {
+        return res.json(null);
+      }
+
+      const linkedSalesUser = await storage.getUser(targetUser.linkedSalesUserId);
+      if (!linkedSalesUser) {
+        return res.json(null);
+      }
+
+      res.json({
+        id: linkedSalesUser.id,
+        firstName: linkedSalesUser.firstName,
+        lastName: linkedSalesUser.lastName,
+        phone: linkedSalesUser.phone,
+        email: linkedSalesUser.email
+      });
+    } catch (error) {
+      console.error("Error fetching linked sales user:", error);
+      res.status(500).json({ message: "Failed to fetch linked sales user" });
+    }
+  });
+
   // Send order via email with CSV attachment
   app.post('/api/orders/send-email', isAuthenticated, async (req: any, res) => {
     try {
@@ -3794,7 +3912,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const { email, phone, initialPassword, firstName, lastName, partyName, brands, deliveryCompanies, role } = req.body;
+      const { email, phone, initialPassword, firstName, lastName, partyName, brands, deliveryCompanies, role, linkedSalesUserId } = req.body;
       const userRole = role || "Customer";
       const validRoles = ["Admin", "BrandAdmin", "User", "Customer"];
       
@@ -3860,6 +3978,7 @@ export async function registerRoutes(
         isAdmin: userRole === "Admin",
         role: userRole as "Admin" | "BrandAdmin" | "User" | "Customer",
         partyName: partyName?.trim() || null,
+        linkedSalesUserId: userRole === "Customer" && linkedSalesUserId ? linkedSalesUserId : null,
       };
 
       const newUser = await storage.upsertUser(userData);

@@ -64,6 +64,10 @@ export interface IStorage {
   setUserDeliveryCompanyAccess(userId: string, deliveryCompanies: string[]): Promise<void>;
   updateUserPartyName(userId: string, partyName: string | null): Promise<User | undefined>;
   
+  // Linked sales user operations (linking customer users to sales users)
+  updateUserLinkedSalesUser(userId: string, linkedSalesUserId: string | null): Promise<User | undefined>;
+  getLinkedCustomers(salesUserId: string): Promise<User[]>;
+  
   // User-Party access operations (linking salespeople to customer parties)
   getUserPartyAccess(userId: string): Promise<string[]>;
   setUserPartyAccess(userId: string, partyNames: string[]): Promise<void>;
@@ -459,6 +463,27 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updated;
+  }
+
+  // Linked sales user operations (linking customer users to sales users)
+  async updateUserLinkedSalesUser(userId: string, linkedSalesUserId: string | null): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ linkedSalesUserId, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async getLinkedCustomers(salesUserId: string): Promise<User[]> {
+    const customers = await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.role, "Customer"),
+        eq(users.linkedSalesUserId, salesUserId)
+      ));
+    return customers;
   }
 
   // User-Party access operations (linking salespeople to customer parties)

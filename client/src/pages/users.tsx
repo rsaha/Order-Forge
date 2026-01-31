@@ -81,7 +81,10 @@ export default function UsersPage() {
     role: "User" as "Admin" | "BrandAdmin" | "User" | "Customer",
     brands: [] as string[],
     deliveryCompanies: [] as string[],
+    linkedSalesUserId: "",
   });
+  const [editingLinkedSalesUserId, setEditingLinkedSalesUserId] = useState<string | null>(null);
+  const [editingLinkedSalesUser, setEditingLinkedSalesUser] = useState<string>("");
 
   const isAdmin = user?.isAdmin === true;
 
@@ -96,6 +99,12 @@ export default function UsersPage() {
 
   const { data: partyNames = [] } = useQuery<string[]>({
     queryKey: ["/api/admin/party-names"],
+    enabled: isAdmin,
+  });
+
+  // Fetch sales users for linking to customer users
+  const { data: salesUsers = [] } = useQuery<{ id: string; firstName: string | null; lastName: string | null; phone: string | null; email: string | null }[]>({
+    queryKey: ["/api/admin/sales-users"],
     enabled: isAdmin,
   });
 
@@ -210,6 +219,21 @@ export default function UsersPage() {
     },
   });
 
+  const updateLinkedSalesUserMutation = useMutation({
+    mutationFn: async ({ userId, linkedSalesUserId }: { userId: string; linkedSalesUserId: string | null }) => {
+      return apiRequest("PATCH", `/api/admin/customers/${userId}/linked-sales-user`, { linkedSalesUserId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingLinkedSalesUserId(null);
+      setEditingLinkedSalesUser("");
+      toast({ title: "Linked sales user updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update linked sales user", description: error.message, variant: "destructive" });
+    },
+  });
+
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
       return apiRequest("DELETE", `/api/admin/users/${userId}`);
@@ -241,6 +265,7 @@ export default function UsersPage() {
         role: "User",
         brands: [],
         deliveryCompanies: [],
+        linkedSalesUserId: "",
       });
       toast({ title: "User created successfully" });
     },
@@ -611,6 +636,7 @@ export default function UsersPage() {
         </div>
 
         {u.role === "User" && (
+          <>
           <div className="flex items-start gap-2 ml-9">
             <span className="text-xs text-muted-foreground pt-1">Linked Parties:</span>
             {editingPartyAccessUserId === u.id ? (
@@ -698,6 +724,29 @@ export default function UsersPage() {
               </div>
             )}
           </div>
+          
+          {/* Show linked customer users for this sales user */}
+          <div className="flex items-start gap-2 ml-9">
+            <span className="text-xs text-muted-foreground pt-1">Linked Customers:</span>
+            <div className="flex flex-wrap items-center gap-1">
+              {(() => {
+                const linkedCustomers = users.filter(
+                  cu => cu.role === "Customer" && cu.linkedSalesUserId === u.id
+                );
+                if (linkedCustomers.length === 0) {
+                  return <span className="text-xs text-muted-foreground">None</span>;
+                }
+                return linkedCustomers.map((cu) => (
+                  <Badge key={cu.id} variant="secondary" className="text-xs" data-testid={`badge-linked-customer-${u.id}-${cu.id}`}>
+                    {cu.firstName || cu.lastName 
+                      ? `${cu.firstName || ''} ${cu.lastName || ''}`.trim()
+                      : cu.partyName || cu.phone || cu.email || cu.id}
+                  </Badge>
+                ));
+              })()}
+            </div>
+          </div>
+          </>
         )}
 
         {u.role === "Customer" && (
@@ -737,6 +786,83 @@ export default function UsersPage() {
                     onClick={() => handleEditPartyName(u)}
                     className="opacity-60"
                     data-testid={`button-edit-party-name-${u.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 ml-9">
+              <span className="text-xs text-muted-foreground">Sales User:</span>
+              {editingLinkedSalesUserId === u.id ? (
+                <div className="flex items-center gap-1">
+                  <Select
+                    value={editingLinkedSalesUser || "none"}
+                    onValueChange={(value) => setEditingLinkedSalesUser(value === "none" ? "" : value)}
+                  >
+                    <SelectTrigger className="w-40 text-xs" data-testid={`select-linked-sales-user-${u.id}`}>
+                      <SelectValue placeholder="Select sales user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No linked sales user</SelectItem>
+                      {salesUsers.map((su) => (
+                        <SelectItem key={su.id} value={su.id}>
+                          {su.firstName || su.lastName 
+                            ? `${su.firstName || ''} ${su.lastName || ''}`.trim()
+                            : su.phone || su.email || su.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => {
+                      updateLinkedSalesUserMutation.mutate({
+                        userId: u.id,
+                        linkedSalesUserId: editingLinkedSalesUser || null
+                      });
+                    }}
+                    disabled={updateLinkedSalesUserMutation.isPending}
+                    data-testid={`button-save-linked-sales-user-${u.id}`}
+                  >
+                    {updateLinkedSalesUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => {
+                      setEditingLinkedSalesUserId(null);
+                      setEditingLinkedSalesUser("");
+                    }}
+                    data-testid={`button-cancel-linked-sales-user-${u.id}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm" data-testid={`text-linked-sales-user-${u.id}`}>
+                    {(() => {
+                      const linkedUser = salesUsers.find(su => su.id === u.linkedSalesUserId);
+                      if (linkedUser) {
+                        return linkedUser.firstName || linkedUser.lastName 
+                          ? `${linkedUser.firstName || ''} ${linkedUser.lastName || ''}`.trim()
+                          : linkedUser.phone || linkedUser.email || linkedUser.id;
+                      }
+                      return <span className="text-muted-foreground">Not linked</span>;
+                    })()}
+                  </span>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => {
+                      setEditingLinkedSalesUserId(u.id);
+                      setEditingLinkedSalesUser(u.linkedSalesUserId || "");
+                    }}
+                    className="opacity-60"
+                    data-testid={`button-edit-linked-sales-user-${u.id}`}
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -994,17 +1120,41 @@ export default function UsersPage() {
               </div>
             </div>
             {newUser.role === "Customer" && (
-              <div className="space-y-2">
-                <Label htmlFor="new-user-party-name">Party Name *</Label>
-                <Input
-                  id="new-user-party-name"
-                  placeholder="Business or party name"
-                  value={newUser.partyName}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, partyName: e.target.value }))}
-                  data-testid="input-new-user-party-name"
-                />
-                <p className="text-xs text-muted-foreground">This will be auto-filled when the customer creates orders</p>
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="new-user-party-name">Party Name *</Label>
+                  <Input
+                    id="new-user-party-name"
+                    placeholder="Business or party name"
+                    value={newUser.partyName}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, partyName: e.target.value }))}
+                    data-testid="input-new-user-party-name"
+                  />
+                  <p className="text-xs text-muted-foreground">This will be auto-filled when the customer creates orders</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-user-linked-sales-user">Linked Sales User</Label>
+                  <Select
+                    value={newUser.linkedSalesUserId || "none"}
+                    onValueChange={(value) => setNewUser(prev => ({ ...prev, linkedSalesUserId: value === "none" ? "" : value }))}
+                  >
+                    <SelectTrigger id="new-user-linked-sales-user" data-testid="select-new-user-linked-sales-user">
+                      <SelectValue placeholder="Select sales user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No linked sales user</SelectItem>
+                      {salesUsers.map((su) => (
+                        <SelectItem key={su.id} value={su.id}>
+                          {su.firstName || su.lastName 
+                            ? `${su.firstName || ''} ${su.lastName || ''}`.trim()
+                            : su.phone || su.email || su.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">The sales user who manages this customer</p>
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label>Allowed Brands</Label>

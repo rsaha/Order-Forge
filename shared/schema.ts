@@ -41,6 +41,7 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").default(false),
   role: varchar("role").default("User"),
   partyName: varchar("party_name"), // For Customer role - auto-populated party name
+  linkedSalesUserId: varchar("linked_sales_user_id"), // For Customer role - linked sales user
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
