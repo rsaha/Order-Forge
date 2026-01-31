@@ -37,6 +37,7 @@ Both methods share a PostgreSQL-backed session management system with a one-week
 -   **POD (Proof of Delivery) Tracking**: Orders include a `podStatus`. Admins can mark POD as "Received," triggering a status change to "POD Received" and recording a timestamp.
 -   **Pending Orders**: Out-of-stock items from "Created" or "Approved" orders can be moved to a "Pending" order, linked to the original order via `parentOrderId`, and can be edited.
 -   **WhatsApp Sharing**: Generates and shares order details via WhatsApp with status-dependent messaging.
+-   **Party-Salesperson Linking**: Admins can link salespeople (User role) to customer parties via the `userPartyAccess` table. Linked salespeople can view and modify (add/edit/delete items) orders for their assigned parties when orders are in Created, Approved, or Pending status. The Users page provides a UI for managing these linkages with autocomplete suggestions from existing party names.
 
 ## External Dependencies
 

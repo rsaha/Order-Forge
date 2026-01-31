@@ -40,6 +40,7 @@ import { USER_ROLES } from "@shared/schema";
 interface UserWithBrands extends User {
   brandAccess: string[];
   deliveryCompanyAccess?: string[];
+  partyAccess?: string[];
 }
 
 const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
@@ -58,6 +59,9 @@ export default function UsersPage() {
   const [editingDeliveryCompanies, setEditingDeliveryCompanies] = useState<string[]>([]);
   const [editingPartyNameUserId, setEditingPartyNameUserId] = useState<string | null>(null);
   const [editingPartyName, setEditingPartyName] = useState("");
+  const [editingPartyAccessUserId, setEditingPartyAccessUserId] = useState<string | null>(null);
+  const [editingPartyAccess, setEditingPartyAccess] = useState<string[]>([]);
+  const [partyAccessInput, setPartyAccessInput] = useState("");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     Admin: true,
     BrandAdmin: true,
@@ -88,6 +92,11 @@ export default function UsersPage() {
 
   const { data: brandRecords = [] } = useQuery<BrandRecord[]>({
     queryKey: ["/api/brands"],
+  });
+
+  const { data: partyNames = [] } = useQuery<string[]>({
+    queryKey: ["/api/admin/party-names"],
+    enabled: isAdmin,
   });
 
   const usersByRole = useMemo(() => {
@@ -180,6 +189,24 @@ export default function UsersPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to update party name", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updatePartyAccessMutation = useMutation({
+    mutationFn: async ({ userId, partyNames }: { userId: string; partyNames: string[] }) => {
+      return apiRequest("PUT", `/api/users/${userId}/party-access`, { partyNames });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingPartyAccessUserId(null);
+      setPartyAccessInput("");
+      toast({ title: "Party access updated" });
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingPartyAccessUserId(null);
+      setPartyAccessInput("");
+      toast({ title: "Failed to update party access", description: error.message, variant: "destructive" });
     },
   });
 
@@ -326,6 +353,39 @@ export default function UsersPage() {
   const handleCancelPartyNameEdit = () => {
     setEditingPartyNameUserId(null);
     setEditingPartyName("");
+  };
+
+  const handleEditPartyAccess = (userId: string, currentPartyAccess: string[]) => {
+    setEditingPartyAccessUserId(userId);
+    setEditingPartyAccess([...currentPartyAccess]);
+    setPartyAccessInput("");
+  };
+
+  const handleAddPartyAccess = () => {
+    const trimmed = partyAccessInput.trim();
+    if (trimmed && !editingPartyAccess.includes(trimmed)) {
+      setEditingPartyAccess(prev => [...prev, trimmed]);
+    }
+    setPartyAccessInput("");
+  };
+
+  const handleRemovePartyAccess = (party: string) => {
+    setEditingPartyAccess(prev => prev.filter(p => p !== party));
+  };
+
+  const handleSavePartyAccess = () => {
+    if (editingPartyAccessUserId) {
+      updatePartyAccessMutation.mutate({ 
+        userId: editingPartyAccessUserId, 
+        partyNames: editingPartyAccess 
+      });
+    }
+  };
+
+  const handleCancelPartyAccessEdit = () => {
+    setEditingPartyAccessUserId(null);
+    setEditingPartyAccess([]);
+    setPartyAccessInput("");
   };
 
   const toggleSection = (role: string) => {
@@ -549,6 +609,96 @@ export default function UsersPage() {
             </div>
           )}
         </div>
+
+        {u.role === "User" && (
+          <div className="flex items-start gap-2 ml-9">
+            <span className="text-xs text-muted-foreground pt-1">Linked Parties:</span>
+            {editingPartyAccessUserId === u.id ? (
+              <div className="flex flex-col gap-2 flex-1">
+                <div className="flex flex-wrap items-center gap-1">
+                  {editingPartyAccess.map((party) => (
+                    <Badge
+                      key={party}
+                      variant="default"
+                      className="text-xs cursor-pointer"
+                      onClick={() => handleRemovePartyAccess(party)}
+                      data-testid={`badge-party-access-${u.id}-${party.replace(/\s+/g, '-')}`}
+                    >
+                      {party}
+                      <X className="w-3 h-3 ml-1" />
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={partyAccessInput}
+                    onChange={(e) => setPartyAccessInput(e.target.value)}
+                    placeholder="Add party name..."
+                    className="text-sm w-48"
+                    list={`party-suggestions-${u.id}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddPartyAccess();
+                      }
+                    }}
+                    data-testid={`input-party-access-${u.id}`}
+                  />
+                  <datalist id={`party-suggestions-${u.id}`}>
+                    {partyNames
+                      .filter(p => !editingPartyAccess.includes(p))
+                      .map(p => (
+                        <option key={p} value={p} />
+                      ))
+                    }
+                  </datalist>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={handleAddPartyAccess}
+                    disabled={!partyAccessInput.trim()}
+                    data-testid={`button-add-party-${u.id}`}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={handleSavePartyAccess}
+                    disabled={updatePartyAccessMutation.isPending}
+                    data-testid={`button-save-party-access-${u.id}`}
+                  >
+                    {updatePartyAccessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancelPartyAccessEdit} data-testid={`button-cancel-party-access-${u.id}`}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1">
+                {(u.partyAccess && u.partyAccess.length > 0) ? (
+                  u.partyAccess.map((party) => (
+                    <Badge key={party} variant="secondary" className="text-xs">
+                      {party}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground">None</span>
+                )}
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={() => handleEditPartyAccess(u.id, u.partyAccess || [])}
+                  className="opacity-60"
+                  data-testid={`button-edit-party-access-${u.id}`}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {u.role === "Customer" && (
           <>

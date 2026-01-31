@@ -1511,26 +1511,51 @@ export async function registerRoutes(
   app.get('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const orders = await storage.getUserOrders(userId);
-      res.json(orders);
+      const user = await storage.getUser(userId);
+      const userOrders = await storage.getUserOrders(userId);
+      
+      // Only include linked party orders for User role (salespeople)
+      let allOrders = [...userOrders];
+      if (user?.role === 'User') {
+        const linkedPartyOrders = await storage.getOrdersForLinkedParties(userId);
+        
+        // Merge and deduplicate (user's own orders might overlap with linked party orders)
+        const orderIds = new Set(userOrders.map(o => o.id));
+        for (const order of linkedPartyOrders) {
+          if (!orderIds.has(order.id)) {
+            allOrders.push(order);
+          }
+        }
+      }
+      
+      res.json(allOrders);
     } catch (error) {
       console.error("Error fetching orders:", error);
       res.status(500).json({ message: "Failed to fetch orders" });
     }
   });
 
-  // Get single order with items for the user who owns it
+  // Get single order with items for the user who owns it or has party access (salespeople)
   app.get('/api/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
       const order = await storage.getOrderById(req.params.id);
       
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
       
-      // Check if user owns this order
-      if (order.userId !== userId) {
+      // Check if user owns this order or has party access (salespeople only)
+      let hasAccess = order.userId === userId;
+      
+      // Party access only applies to User role (salespeople)
+      if (!hasAccess && order.partyName && user?.role === 'User') {
+        const partyAccess = await storage.getUserPartyAccess(userId);
+        hasAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      }
+      
+      if (!hasAccess) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
       
@@ -1827,17 +1852,24 @@ export async function registerRoutes(
         });
       }
 
-      // Check permissions: user owns the order, or is admin, or is brand admin for the brand
+      // Check permissions: user owns the order, or is admin, or is brand admin for the brand, or has party access
       const isOwner = order.userId === userId;
       const isAdmin = user?.isAdmin === true;
       let isBrandAdmin = false;
+      let hasPartyAccess = false;
       
       if (user?.role === 'BrandAdmin' && order.brand) {
         const brandAccess = await storage.getUserBrandAccess(userId);
         isBrandAdmin = brandAccess.includes(order.brand);
       }
+      
+      // Check party access for salespeople only (User role)
+      if (!isOwner && !isAdmin && !isBrandAdmin && order.partyName && user?.role === 'User') {
+        const partyAccess = await storage.getUserPartyAccess(userId);
+        hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      }
 
-      if (!isOwner && !isAdmin && !isBrandAdmin) {
+      if (!isOwner && !isAdmin && !isBrandAdmin && !hasPartyAccess) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
 
@@ -1908,18 +1940,25 @@ export async function registerRoutes(
         });
       }
 
-      // Check permissions: user owns the order, or is admin, or is brand admin for the brand
+      // Check permissions: user owns the order, or is admin, or is brand admin for the brand, or has party access
       const isOwner = order.userId === userId;
       const isAdmin = user?.isAdmin === true;
       let isBrandAdmin = false;
+      let hasPartyAccess = false;
       
       if (user?.role === 'BrandAdmin' && order.brand) {
         const brandAccess = await storage.getUserBrandAccess(userId);
         // Case-insensitive brand comparison
         isBrandAdmin = brandAccess.some(b => b.toLowerCase() === order.brand!.toLowerCase());
       }
+      
+      // Check party access for salespeople only (User role)
+      if (!isOwner && !isAdmin && !isBrandAdmin && order.partyName && user?.role === 'User') {
+        const partyAccess = await storage.getUserPartyAccess(userId);
+        hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      }
 
-      if (!isOwner && !isAdmin && !isBrandAdmin) {
+      if (!isOwner && !isAdmin && !isBrandAdmin && !hasPartyAccess) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
 
@@ -1967,18 +2006,25 @@ export async function registerRoutes(
         });
       }
 
-      // Check permissions: user owns the order, or is admin, or is brand admin for the brand
+      // Check permissions: user owns the order, or is admin, or is brand admin for the brand, or has party access
       const isOwner = order.userId === userId;
       const isAdmin = user?.isAdmin === true;
       let isBrandAdmin = false;
+      let hasPartyAccess = false;
       
       if (user?.role === 'BrandAdmin' && order.brand) {
         const brandAccess = await storage.getUserBrandAccess(userId);
         // Case-insensitive brand comparison
         isBrandAdmin = brandAccess.some(b => b.toLowerCase() === order.brand!.toLowerCase());
       }
+      
+      // Check party access for salespeople only (User role)
+      if (!isOwner && !isAdmin && !isBrandAdmin && order.partyName && user?.role === 'User') {
+        const partyAccess = await storage.getUserPartyAccess(userId);
+        hasPartyAccess = partyAccess.some(p => p.toLowerCase() === order.partyName!.toLowerCase());
+      }
 
-      if (!isOwner && !isAdmin && !isBrandAdmin) {
+      if (!isOwner && !isAdmin && !isBrandAdmin && !hasPartyAccess) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
 
