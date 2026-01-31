@@ -966,6 +966,105 @@ export async function registerRoutes(
     }
   });
 
+  // Get user's party access (linked customer parties)
+  app.get('/api/users/:userId/party-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const requestingUserId = req.user.claims.sub;
+      const requestingUser = await storage.getUser(requestingUserId);
+      const targetUserId = req.params.userId;
+      
+      if (!requestingUser?.isAdmin && requestingUserId !== targetUserId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const partyNames = await storage.getUserPartyAccess(targetUserId);
+      res.json({ partyNames });
+    } catch (error) {
+      console.error("Error fetching party access:", error);
+      res.status(500).json({ message: "Failed to fetch party access" });
+    }
+  });
+
+  // Set user's party access (Admin only)
+  app.put('/api/users/:userId/party-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can manage party access" });
+      }
+
+      const targetUserId = req.params.userId;
+      const { partyNames } = req.body;
+      
+      // Check if target user exists
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found. Please refresh the page to see the latest user list." });
+      }
+      
+      if (!Array.isArray(partyNames)) {
+        return res.status(400).json({ message: "Party names must be an array" });
+      }
+      
+      // Trim and filter empty strings
+      const validPartyNames = partyNames.map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+      await storage.setUserPartyAccess(targetUserId, validPartyNames);
+      
+      res.json({ message: "Party access updated", partyNames: validPartyNames });
+    } catch (error) {
+      console.error("Error setting party access:", error);
+      res.status(500).json({ message: "Failed to set party access" });
+    }
+  });
+
+  // Get all party access (Admin only - for management UI)
+  app.get('/api/admin/party-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can view all party access" });
+      }
+      
+      const allAccess = await storage.getAllUserPartyAccess();
+      res.json(allAccess);
+    } catch (error) {
+      console.error("Error fetching all party access:", error);
+      res.status(500).json({ message: "Failed to fetch all party access" });
+    }
+  });
+
+  // Get distinct party names from orders (for autocomplete)
+  app.get('/api/admin/party-names', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can view party names" });
+      }
+      
+      const allOrders = await storage.getAllOrders();
+      const partyNames = [...new Set(allOrders.map(o => o.partyName).filter((p): p is string => !!p))].sort();
+      res.json(partyNames);
+    } catch (error) {
+      console.error("Error fetching party names:", error);
+      res.status(500).json({ message: "Failed to fetch party names" });
+    }
+  });
+
+  // Get orders for linked parties (for salespeople)
+  app.get('/api/linked-orders', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const orders = await storage.getOrdersForLinkedParties(userId);
+      res.json(orders);
+    } catch (error) {
+      console.error("Error fetching linked orders:", error);
+      res.status(500).json({ message: "Failed to fetch linked orders" });
+    }
+  });
+
   // Update user's party name (Admin only - for Customer role)
   app.patch('/api/admin/users/:id/party-name', isAuthenticated, async (req: any, res) => {
     try {
@@ -3152,12 +3251,13 @@ export async function registerRoutes(
 
       const allUsers = await storage.getAllUsers();
       
-      // Get brand access and delivery company access for each user
+      // Get brand access, delivery company access, and party access for each user
       const usersWithAccess = await Promise.all(
         allUsers.map(async (u) => {
           const brands = await storage.getUserBrandAccess(u.id);
           const deliveryCompanies = await storage.getUserDeliveryCompanyAccess(u.id);
-          return { ...u, brandAccess: brands, deliveryCompanyAccess: deliveryCompanies };
+          const partyNames = await storage.getUserPartyAccess(u.id);
+          return { ...u, brandAccess: brands, deliveryCompanyAccess: deliveryCompanies, partyAccess: partyNames };
         })
       );
       
