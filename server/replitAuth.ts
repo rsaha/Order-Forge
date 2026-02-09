@@ -114,16 +114,16 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   const getDomain = (req: any): string => {
-    // Use X-Forwarded-Host header first (set by Replit's proxy), then req.hostname
+    // Use X-Forwarded-Host header first (set by Replit's proxy)
     const forwardedHost = req.get("x-forwarded-host");
     if (forwardedHost) return forwardedHost;
-    // Fall back to REPLIT_DEV_DOMAIN env var
-    if (process.env.REPLIT_DEV_DOMAIN) return process.env.REPLIT_DEV_DOMAIN;
+    // Use the hostname from the request (Express respects trust proxy)
     return req.hostname;
   };
 
   app.get("/api/login", (req, res, next) => {
     const domain = getDomain(req);
+    console.log(`[auth] /api/login - hostname: ${req.hostname}, x-forwarded-host: ${req.get("x-forwarded-host")}, REPLIT_DEV_DOMAIN: ${process.env.REPLIT_DEV_DOMAIN}, resolved domain: ${domain}`);
     ensureStrategy(domain);
     passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
