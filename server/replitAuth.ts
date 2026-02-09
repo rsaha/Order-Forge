@@ -95,7 +95,6 @@ export async function setupAuth(app: Express) {
     const strategyName = `replitauth:${domain}`;
     if (!registeredStrategies.has(strategyName)) {
       const callbackURL = `https://${domain}/api/callback`;
-      console.log(`[auth] Registering strategy for domain: ${domain}, callback: ${callbackURL}`);
       const strategy = new Strategy(
         {
           name: strategyName,
@@ -129,7 +128,6 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/login", (req, res, next) => {
     const domain = getDomain(req);
-    console.log(`[auth] /api/login - hostname: ${req.hostname}, x-forwarded-host: ${req.get("x-forwarded-host")}, REPLIT_DEV_DOMAIN: ${process.env.REPLIT_DEV_DOMAIN}, resolved domain: ${domain}`);
     ensureStrategy(domain);
     passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
