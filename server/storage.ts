@@ -1417,6 +1417,7 @@ export class DatabaseStorage implements IStorage {
       discountPercent: originalOrder.discountPercent,
       partyName: originalOrder.partyName,
       deliveryAddress: originalOrder.deliveryAddress,
+      deliveryCompany: originalOrder.deliveryCompany,
       parentOrderId: orderId,
       podStatus: "Pending",
     }).returning();
