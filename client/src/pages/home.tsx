@@ -311,7 +311,12 @@ export default function Home() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          const isInIframe = window.self !== window.top;
+          if (isInIframe) {
+            window.open("/api/login", "_blank");
+          } else {
+            window.location.href = "/api/login";
+          }
         }, 500);
         return;
       }

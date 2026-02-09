@@ -114,11 +114,17 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   const getDomain = (req: any): string => {
-    // Use X-Forwarded-Host header first (set by Replit's proxy)
+    // Use X-Forwarded-Host header if set by Replit's proxy
     const forwardedHost = req.get("x-forwarded-host");
     if (forwardedHost) return forwardedHost;
-    // Use the hostname from the request (Express respects trust proxy)
-    return req.hostname;
+    const hostname = req.hostname;
+    // In dev, the preview iframe uses .repl.co domain but OIDC requires .replit.dev
+    // Convert .repl.co to .replit.dev for OIDC compatibility
+    if (hostname.endsWith(".repl.co")) {
+      const devDomain = process.env.REPLIT_DEV_DOMAIN;
+      if (devDomain) return devDomain;
+    }
+    return hostname;
   };
 
   app.get("/api/login", (req, res, next) => {

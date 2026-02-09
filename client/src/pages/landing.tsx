@@ -3,6 +3,14 @@ import { Card } from "@/components/ui/card";
 import { Package, FileText, MessageCircle, ShoppingCart, ArrowRight, Phone } from "lucide-react";
 import { Link } from "wouter";
 
+function handleLogin(e: React.MouseEvent) {
+  const isInIframe = window.self !== window.top;
+  if (isInIframe) {
+    e.preventDefault();
+    window.open("/api/login", "_blank");
+  }
+}
+
 export default function Landing() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -13,7 +21,7 @@ export default function Landing() {
             <h1 className="font-semibold text-lg">Order Entry</h1>
           </div>
           <Button asChild data-testid="button-login">
-            <a href="/api/login">Log In</a>
+            <a href="/api/login" onClick={handleLogin}>Log In</a>
           </Button>
         </div>
       </header>
@@ -32,7 +40,7 @@ export default function Landing() {
             </p>
             <div className="flex flex-col gap-3">
               <Button size="lg" asChild data-testid="button-get-started">
-                <a href="/api/login">
+                <a href="/api/login" onClick={handleLogin}>
                   Log In with Google
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </a>
