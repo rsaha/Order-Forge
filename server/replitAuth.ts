@@ -94,12 +94,14 @@ export async function setupAuth(app: Express) {
   const ensureStrategy = (domain: string) => {
     const strategyName = `replitauth:${domain}`;
     if (!registeredStrategies.has(strategyName)) {
+      const callbackURL = `https://${domain}/api/callback`;
+      console.log(`[auth] Registering strategy for domain: ${domain}, callback: ${callbackURL}`);
       const strategy = new Strategy(
         {
           name: strategyName,
           config,
           scope: "openid email profile offline_access",
-          callbackURL: `https://${domain}/api/callback`,
+          callbackURL,
         },
         verify,
       );
@@ -111,17 +113,28 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
+  const getDomain = (req: any): string => {
+    // Use X-Forwarded-Host header first (set by Replit's proxy), then req.hostname
+    const forwardedHost = req.get("x-forwarded-host");
+    if (forwardedHost) return forwardedHost;
+    // Fall back to REPLIT_DEV_DOMAIN env var
+    if (process.env.REPLIT_DEV_DOMAIN) return process.env.REPLIT_DEV_DOMAIN;
+    return req.hostname;
+  };
+
   app.get("/api/login", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const domain = getDomain(req);
+    ensureStrategy(domain);
+    passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const domain = getDomain(req);
+    ensureStrategy(domain);
+    passport.authenticate(`replitauth:${domain}`, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
     })(req, res, next);
