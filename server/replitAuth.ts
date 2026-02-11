@@ -8,6 +8,9 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
+const isDev = process.env.NODE_ENV !== "production";
+const DEV_ADMIN_USER_ID = "51498722";
+
 const getOidcConfig = memoize(
   async () => {
     return await client.discovery(
@@ -72,6 +75,14 @@ async function upsertUser(claims: any) {
 }
 
 export async function setupAuth(app: Express) {
+  if (isDev) {
+    console.log("[DEV MODE] Auth bypass enabled - auto-login as admin user", DEV_ADMIN_USER_ID);
+    app.get("/api/login", (_req, res) => res.redirect("/"));
+    app.get("/api/callback", (_req, res) => res.redirect("/"));
+    app.get("/api/logout", (_req, res) => res.redirect("/"));
+    return;
+  }
+
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -154,12 +165,20 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  if (isDev) {
+    req.user = {
+      claims: {
+        sub: DEV_ADMIN_USER_ID,
+      },
+    } as any;
+    return next();
+  }
+
   const user = req.user as any;
   const session = req.session as any;
 
   // Check for phone-based authentication (session.userId set during phone login)
   if (session?.userId && session?.phoneAuth) {
-    // Set req.user to match the format expected by routes
     req.user = {
       claims: {
         sub: session.userId,
