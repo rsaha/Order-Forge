@@ -9,7 +9,27 @@ import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
 const isDev = process.env.NODE_ENV !== "production";
-const DEV_ADMIN_USER_ID = "51498722";
+let devAdminUserId: string | null = null;
+
+async function getDevAdminUserId(): Promise<string> {
+  if (devAdminUserId) return devAdminUserId;
+  const allUsers = await storage.getAllUsers();
+  const admin = allUsers.find(u => u.isAdmin && u.role === "Admin");
+  if (admin) {
+    devAdminUserId = admin.id;
+    return admin.id;
+  }
+  const newUser = await storage.upsertUser({
+    id: "dev-admin",
+    email: "dev@admin.local",
+    firstName: "Dev",
+    lastName: "Admin",
+    profileImageUrl: null,
+    isAdmin: true,
+  });
+  devAdminUserId = "dev-admin";
+  return "dev-admin";
+}
 
 const getOidcConfig = memoize(
   async () => {
@@ -76,7 +96,7 @@ async function upsertUser(claims: any) {
 
 export async function setupAuth(app: Express) {
   if (isDev) {
-    console.log("[DEV MODE] Auth bypass enabled - auto-login as admin user", DEV_ADMIN_USER_ID);
+    console.log("[DEV MODE] Auth bypass enabled - auto-login as admin user");
     app.get("/api/login", (_req, res) => res.redirect("/"));
     app.get("/api/callback", (_req, res) => res.redirect("/"));
     app.get("/api/logout", (_req, res) => res.redirect("/"));
@@ -166,9 +186,10 @@ export async function setupAuth(app: Express) {
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   if (isDev) {
+    const adminId = await getDevAdminUserId();
     req.user = {
       claims: {
-        sub: DEV_ADMIN_USER_ID,
+        sub: adminId,
       },
     } as any;
     return next();
