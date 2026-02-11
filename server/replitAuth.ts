@@ -94,13 +94,12 @@ export async function setupAuth(app: Express) {
   const ensureStrategy = (domain: string) => {
     const strategyName = `replitauth:${domain}`;
     if (!registeredStrategies.has(strategyName)) {
-      const callbackURL = `https://${domain}/api/callback`;
       const strategy = new Strategy(
         {
           name: strategyName,
           config,
           scope: "openid email profile offline_access",
-          callbackURL,
+          callbackURL: `https://${domain}/api/callback`,
         },
         verify,
       );
@@ -112,33 +111,17 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  const getDomain = (req: any): string => {
-    // Use X-Forwarded-Host header if set by Replit's proxy
-    const forwardedHost = req.get("x-forwarded-host");
-    if (forwardedHost) return forwardedHost;
-    const hostname = req.hostname;
-    // In dev, the preview iframe uses .repl.co domain but OIDC requires .replit.dev
-    // Convert .repl.co to .replit.dev for OIDC compatibility
-    if (hostname.endsWith(".repl.co")) {
-      const devDomain = process.env.REPLIT_DEV_DOMAIN;
-      if (devDomain) return devDomain;
-    }
-    return hostname;
-  };
-
   app.get("/api/login", (req, res, next) => {
-    const domain = getDomain(req);
-    ensureStrategy(domain);
-    passport.authenticate(`replitauth:${domain}`, {
+    ensureStrategy(req.hostname);
+    passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    const domain = getDomain(req);
-    ensureStrategy(domain);
-    passport.authenticate(`replitauth:${domain}`, {
+    ensureStrategy(req.hostname);
+    passport.authenticate(`replitauth:${req.hostname}`, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
     })(req, res, next);
