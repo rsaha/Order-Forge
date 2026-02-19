@@ -1012,7 +1012,7 @@ export default function OrdersPage() {
 
       // Create worksheet data
       const wsData: any[][] = [
-        ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Notes", "Delivery Company", "Invoice #", "Invoice Date"]
+        ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
       ];
 
       ordersWithItems.forEach(({ order, items }) => {
@@ -1034,7 +1034,11 @@ export default function OrdersPage() {
             idx === 0 ? order.specialNotes || "" : "",
             idx === 0 ? order.deliveryCompany || "" : "",
             idx === 0 ? order.invoiceNumber || "" : "",
-            idx === 0 ? order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "" : ""
+            idx === 0 ? order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "" : "",
+            idx === 0 ? order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString() : "" : "",
+            idx === 0 ? order.dispatchBy || "" : "",
+            idx === 0 ? order.deliveryCost ? Number(order.deliveryCost) : "" : "",
+            idx === 0 ? order.podStatus === "Received" ? "Yes" : "No" : ""
           ]);
         });
         // If no items, still add order row
@@ -1056,7 +1060,11 @@ export default function OrdersPage() {
             order.specialNotes || "",
             order.deliveryCompany || "",
             order.invoiceNumber || "",
-            order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : ""
+            order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "",
+            order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString() : "",
+            order.dispatchBy || "",
+            order.deliveryCost ? Number(order.deliveryCost) : "",
+            order.podStatus === "Received" ? "Yes" : "No"
           ]);
         }
       });
