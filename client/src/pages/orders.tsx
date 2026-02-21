@@ -1012,7 +1012,7 @@ export default function OrdersPage() {
 
       // Create worksheet data
       const wsData: any[][] = [
-        ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
+        ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
       ];
 
       ordersWithItems.forEach(({ order, items }) => {
@@ -1031,6 +1031,7 @@ export default function OrdersPage() {
             Number(item.unitPrice) || 0,
             (item.quantity * Number(item.unitPrice)) || 0,
             idx === 0 ? Number(order.total) || 0 : "",
+            idx === 0 ? order.actualOrderValue ? Number(order.actualOrderValue) : "" : "",
             idx === 0 ? order.cases || "" : "",
             idx === 0 ? order.specialNotes || "" : "",
             idx === 0 ? order.deliveryCompany || "" : "",
@@ -1058,6 +1059,7 @@ export default function OrdersPage() {
             0,
             0,
             Number(order.total) || 0,
+            order.actualOrderValue ? Number(order.actualOrderValue) : "",
             order.cases || "",
             order.specialNotes || "",
             order.deliveryCompany || "",
