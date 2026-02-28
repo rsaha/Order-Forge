@@ -71,6 +71,7 @@ interface CreatorTimeBucket {
 interface OrderAnalytics {
   created: StatusMetric;
   approved: StatusMetric;
+  invoiced: StatusMetric;
   dispatched: StatusMetric;
   delivered: StatusMetric;
   cancelled: StatusMetric;
@@ -684,7 +685,7 @@ export default function AnalyticsPage() {
                   <span className="text-sm font-medium text-muted-foreground">Total Orders</span>
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-total-orders">
-                  {(analytics?.created.count || 0) + (analytics?.approved?.count || 0) + (analytics?.dispatched.count || 0) + (analytics?.delivered.count || 0) + (analytics?.cancelled.count || 0)}
+                  {(analytics?.created.count || 0) + (analytics?.approved?.count || 0) + (analytics?.invoiced?.count || 0) + (analytics?.dispatched.count || 0) + (analytics?.delivered.count || 0) + (analytics?.cancelled.count || 0)}
                 </p>
                 <p className="text-sm text-muted-foreground">orders in selected period</p>
               </Card>
@@ -693,12 +694,12 @@ export default function AnalyticsPage() {
                   <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/30">
                     <CheckCircle className="w-5 h-5 text-teal-600" />
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground">Value Delivered</span>
+                  <span className="text-sm font-medium text-muted-foreground">Value Invoiced</span>
                 </div>
-                <p className="text-3xl font-bold mb-1" data-testid="text-value-delivered">
-                  {formatINR(analytics?.delivered.value || 0)}
+                <p className="text-3xl font-bold mb-1" data-testid="text-value-invoiced">
+                  {formatINR((analytics?.invoiced?.value || 0) + (analytics?.dispatched?.value || 0) + (analytics?.delivered?.value || 0))}
                 </p>
-                <p className="text-sm text-muted-foreground">{analytics?.delivered.count || 0} delivered orders</p>
+                <p className="text-sm text-muted-foreground">{(analytics?.invoiced?.count || 0) + (analytics?.dispatched?.count || 0) + (analytics?.delivered?.count || 0)} invoiced orders</p>
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -711,10 +712,10 @@ export default function AnalyticsPage() {
                   {formatINR(deliveryCostSummary.grandTotal)}
                 </p>
                 <p className="text-sm text-muted-foreground" data-testid="text-transport-percentage">
-                  {((analytics?.delivered.value || 0) > 0 
-                    ? ((deliveryCostSummary.grandTotal / (analytics?.delivered.value || 1)) * 100).toFixed(1)
+                  {(((analytics?.invoiced?.value || 0) + (analytics?.dispatched?.value || 0) + (analytics?.delivered?.value || 0)) > 0 
+                    ? ((deliveryCostSummary.grandTotal / ((analytics?.invoiced?.value || 0) + (analytics?.dispatched?.value || 0) + (analytics?.delivered?.value || 0))) * 100).toFixed(1)
                     : 0
-                  )}% of delivered value
+                  )}% of invoiced value
                 </p>
               </Card>
               <Card className="p-4">

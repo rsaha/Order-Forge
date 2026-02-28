@@ -147,6 +147,7 @@ export interface OrderAnalytics {
   // Overall KPIs
   created: StatusMetric;
   approved: StatusMetric;
+  invoiced: StatusMetric;
   dispatched: StatusMetric;
   delivered: StatusMetric;
   cancelled: StatusMetric;
@@ -1140,6 +1141,7 @@ export class DatabaseStorage implements IStorage {
     // Initialize status metrics
     const created: StatusMetric = { count: 0, value: 0 };
     const approved: StatusMetric = { count: 0, value: 0 };
+    const invoiced: StatusMetric = { count: 0, value: 0 };
     const dispatched: StatusMetric = { count: 0, value: 0 };
     const delivered: StatusMetric = { count: 0, value: 0 };
     const cancelled: StatusMetric = { count: 0, value: 0 };
@@ -1218,6 +1220,8 @@ export class DatabaseStorage implements IStorage {
           approved.value += value;
           break;
         case 'Invoiced':
+          invoiced.count++;
+          invoiced.value += value;
           bucket.invoiced.count++;
           bucket.invoiced.value += value;
           break;
@@ -1228,6 +1232,7 @@ export class DatabaseStorage implements IStorage {
           bucket.dispatched.value += value;
           break;
         case 'Delivered':
+        case 'PODReceived':
           delivered.count++;
           delivered.value += value;
           deliveredCount++;
@@ -1238,6 +1243,12 @@ export class DatabaseStorage implements IStorage {
             onTimeCount++;
             bucket.onTimeCount++;
           }
+          break;
+        case 'Pending':
+          created.count++;
+          created.value += value;
+          bucket.created.count++;
+          bucket.created.value += value;
           break;
         case 'Cancelled':
           cancelled.count++;
@@ -1293,6 +1304,7 @@ export class DatabaseStorage implements IStorage {
     return {
       created,
       approved,
+      invoiced,
       dispatched,
       delivered,
       cancelled,
