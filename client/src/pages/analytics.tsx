@@ -753,10 +753,10 @@ export default function AnalyticsPage() {
                   {formatINR(deliveryCostSummary.grandTotal)}
                 </p>
                 <p className="text-sm text-muted-foreground" data-testid="text-transport-percentage">
-                  {(((analytics?.dispatched?.value || 0) + (analytics?.delivered?.value || 0)) > 0 
-                    ? ((deliveryCostSummary.grandTotal / ((analytics?.dispatched?.value || 0) + (analytics?.delivered?.value || 0))) * 100).toFixed(1)
+                  {((analytics?.delivered?.value || 0) > 0 
+                    ? ((deliveryCostSummary.grandTotal / (analytics?.delivered?.value || 1)) * 100).toFixed(1)
                     : 0
-                  )}% of dispatched/delivered value
+                  )}% of delivered value
                 </p>
               </Card>
               <Card className="p-4">
