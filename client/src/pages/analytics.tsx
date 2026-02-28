@@ -483,40 +483,43 @@ export default function AnalyticsPage() {
 
   // Delivery Cost by Dispatch By - filter and aggregate (summary totals by dispatcher)
   const deliveryCostSummary = useMemo(() => {
-    const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
+    const deliveredStatuses = ["Delivered", "PODReceived"];
     const excludedDispatchers = ["hand delivery", "by hand"];
 
     const isHandDelivery = (dispatchBy: string) => {
       const lower = dispatchBy.toLowerCase().trim();
       return excludedDispatchers.some(ex => lower.includes(ex));
     };
-
-    const statusFiltered = ordersData.filter(order => validStatuses.includes(order.status));
-
-    const totals: Record<string, { cost: number; count: number; orderValue: number }> = {};
-    let noCostCount = 0;
-    let noCostValue = 0;
-    const missingCostOrders: { id: string; partyName: string; dispatchBy: string; total: string }[] = [];
-
-    const deliveredStatuses = ["Delivered", "PODReceived"];
     const isSelfDelivery = (dispatchBy: string) => {
       const lower = dispatchBy.toLowerCase().trim();
       return lower === 'self';
     };
 
-    statusFiltered.forEach(order => {
+    const deliveredOrders = ordersData.filter(order => deliveredStatuses.includes(order.status));
+
+    const totals: Record<string, { cost: number; count: number; orderValue: number }> = {};
+    let noCostCount = 0;
+    let noCostValue = 0;
+    let selfHandCount = 0;
+    let selfHandValue = 0;
+    const missingCostOrders: { id: string; partyName: string; dispatchBy: string; total: string }[] = [];
+
+    deliveredOrders.forEach(order => {
       const hasCost = order.deliveryCost && parseFloat(order.deliveryCost) > 0;
       const hasDispatcher = !!order.dispatchBy && order.dispatchBy.trim() !== '';
       const handDelivery = hasDispatcher && isHandDelivery(order.dispatchBy!);
       const selfDelivery = hasDispatcher && isSelfDelivery(order.dispatchBy!);
 
-      if (hasCost && hasDispatcher && !handDelivery) {
+      if (handDelivery || selfDelivery) {
+        selfHandCount++;
+        selfHandValue += parseFloat(order.total || '0');
+      } else if (hasCost && hasDispatcher) {
         const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
         if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
         totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
         totals[dispatcher].count += 1;
         totals[dispatcher].orderValue += parseFloat(order.total || '0');
-      } else if (!hasCost && deliveredStatuses.includes(order.status) && !handDelivery && !selfDelivery) {
+      } else {
         noCostCount++;
         noCostValue += parseFloat(order.total || '0');
         if (hasDispatcher) {
@@ -548,8 +551,9 @@ export default function AnalyticsPage() {
     return {
       summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage,
       noCostCount, noCostValue,
+      selfHandCount, selfHandValue,
       missingCostOrders,
-      totalStatusOrders: statusFiltered.length,
+      totalDeliveredOrders: deliveredOrders.length,
     };
   }, [ordersData, normalizeDispatcher]);
 
@@ -1123,11 +1127,11 @@ export default function AnalyticsPage() {
                   </Card>
                 )}
 
-                {deliveryCostSummary.totalStatusOrders > 0 && (
+                {deliveryCostSummary.totalDeliveredOrders > 0 && (
                   <Card className="p-4">
                     <h2 className="text-lg font-semibold mb-4">Delivery Cost Summary</h2>
                     <p className="text-xs text-muted-foreground mb-4">
-                      {deliveryCostSummary.totalStatusOrders} dispatched/delivered orders total — {deliveryCostSummary.totalOrders} with transport cost, {deliveryCostSummary.noCostCount} without
+                      {deliveryCostSummary.totalDeliveredOrders} delivered orders — {deliveryCostSummary.totalOrders} with transport cost, {deliveryCostSummary.selfHandCount} self/hand delivered, {deliveryCostSummary.noCostCount} without cost
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm" data-testid="table-delivery-cost-summary">
@@ -1150,6 +1154,15 @@ export default function AnalyticsPage() {
                               <td className="py-2 px-3 text-right">{row.orderCount}</td>
                             </tr>
                           ))}
+                          {deliveryCostSummary.selfHandCount > 0 && (
+                            <tr className="border-b last:border-0 text-muted-foreground">
+                              <td className="py-2 px-3 font-medium italic">Self / Hand Delivered</td>
+                              <td className="py-2 px-3 text-right">-</td>
+                              <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.selfHandValue)}</td>
+                              <td className="py-2 px-3 text-right">-</td>
+                              <td className="py-2 px-3 text-right">{deliveryCostSummary.selfHandCount}</td>
+                            </tr>
+                          )}
                           {deliveryCostSummary.noCostCount > 0 && (
                             <tr className="border-b last:border-0 text-muted-foreground">
                               <td className="py-2 px-3 font-medium italic">No Delivery Cost</td>
