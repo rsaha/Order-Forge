@@ -509,25 +509,26 @@ export default function AnalyticsPage() {
       const hasDispatcher = !!order.dispatchBy && order.dispatchBy.trim() !== '';
       const handDelivery = hasDispatcher && isHandDelivery(order.dispatchBy!);
       const selfDelivery = hasDispatcher && isSelfDelivery(order.dispatchBy!);
+      const orderValue = parseFloat(order.actualOrderValue || order.total || '0');
 
       if (handDelivery || selfDelivery) {
         selfHandCount++;
-        selfHandValue += parseFloat(order.total || '0');
+        selfHandValue += orderValue;
       } else if (hasCost && hasDispatcher) {
         const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
         if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
         totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
         totals[dispatcher].count += 1;
-        totals[dispatcher].orderValue += parseFloat(order.total || '0');
+        totals[dispatcher].orderValue += orderValue;
       } else {
         noCostCount++;
-        noCostValue += parseFloat(order.total || '0');
+        noCostValue += orderValue;
         if (hasDispatcher) {
           missingCostOrders.push({
             id: order.id,
             partyName: order.partyName || '',
             dispatchBy: order.dispatchBy || '',
-            total: order.total || '0',
+            total: order.actualOrderValue || order.total || '0',
           });
         }
       }
