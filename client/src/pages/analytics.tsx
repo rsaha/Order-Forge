@@ -471,12 +471,14 @@ export default function AnalyticsPage() {
   // Normalize dispatcher names - combine variations
   const normalizeDispatcher = useCallback((dispatcher: string): string => {
     if (!dispatcher) return 'Unknown';
-    const lower = dispatcher.toLowerCase().trim();
-    // Combine all DTDC variations into "DTDC"
+    const stripped = dispatcher.replace(/\s*\(.*?\)\s*/g, '').trim();
+    const normalized = stripped || dispatcher.trim();
+    const lower = normalized.toLowerCase();
     if (lower.includes('dtdc')) return 'DTDC';
-    // Combine all Universal variations into "Universal"
     if (lower.includes('universal')) return 'Universal';
-    return dispatcher;
+    if (lower.includes('new ambika')) return 'NEW AMBIKA';
+    if (lower.includes('ntc')) return 'NTC';
+    return normalized.toUpperCase();
   }, []);
 
   // Delivery Cost by Dispatch By - filter and aggregate (summary totals by dispatcher)
