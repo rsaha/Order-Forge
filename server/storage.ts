@@ -1119,6 +1119,8 @@ export class DatabaseStorage implements IStorage {
       deliveredOnTime: orders.deliveredOnTime,
       estimatedDeliveryDate: orders.estimatedDeliveryDate,
       actualDeliveryDate: orders.actualDeliveryDate,
+      invoiceDate: orders.invoiceDate,
+      dispatchDate: orders.dispatchDate,
       createdAt: orders.createdAt,
       userId: orders.userId,
       creatorFirstName: users.firstName,
@@ -1195,25 +1197,24 @@ export class DatabaseStorage implements IStorage {
       return buckets.get(dateKey)!;
     };
     
+    const invoicedStatuses = ['Invoiced', 'Dispatched', 'Delivered', 'PODReceived'];
+    const dispatchedStatuses = ['Dispatched', 'Delivered', 'PODReceived'];
+    const deliveredStatuses = ['Delivered', 'PODReceived'];
+
     for (const order of allOrders) {
       const status = order.status || "Created";
       const value = Number(order.actualOrderValue || order.total || 0);
-      const orderDate = order.createdAt ? new Date(order.createdAt) : new Date();
-      const bucketKey = getBucketKey(orderDate);
-      const bucket = getOrCreateBucket(bucketKey);
       
       // Calculate on-time based on estimated vs actual delivery dates
       const isOnTime = order.actualDeliveryDate && order.estimatedDeliveryDate
         ? new Date(order.actualDeliveryDate) <= new Date(order.estimatedDeliveryDate)
         : order.deliveredOnTime;
       
-      // Update overall metrics
+      // Update overall metrics (by current status)
       switch (status) {
         case 'Created':
           created.count++;
           created.value += value;
-          bucket.created.count++;
-          bucket.created.value += value;
           break;
         case 'Approved':
           approved.count++;
@@ -1222,38 +1223,63 @@ export class DatabaseStorage implements IStorage {
         case 'Invoiced':
           invoiced.count++;
           invoiced.value += value;
-          bucket.invoiced.count++;
-          bucket.invoiced.value += value;
           break;
         case 'Dispatched':
           dispatched.count++;
           dispatched.value += value;
-          bucket.dispatched.count++;
-          bucket.dispatched.value += value;
           break;
         case 'Delivered':
         case 'PODReceived':
           delivered.count++;
           delivered.value += value;
           deliveredCount++;
-          bucket.delivered.count++;
-          bucket.delivered.value += value;
-          bucket.deliveredCount++;
           if (isOnTime) {
             onTimeCount++;
-            bucket.onTimeCount++;
           }
           break;
         case 'Pending':
           created.count++;
           created.value += value;
-          bucket.created.count++;
-          bucket.created.value += value;
           break;
         case 'Cancelled':
           cancelled.count++;
           cancelled.value += value;
           break;
+      }
+
+      // Time-series: bucket by actual event dates, not current status
+      // Created bucket: use createdAt date
+      const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+      const createdBucket = getOrCreateBucket(getBucketKey(createdDate));
+      createdBucket.created.count++;
+      createdBucket.created.value += value;
+
+      // Invoiced bucket: use invoiceDate if the order has been invoiced (or beyond)
+      if (invoicedStatuses.includes(status) && order.invoiceDate) {
+        const invDate = new Date(order.invoiceDate);
+        const invBucket = getOrCreateBucket(getBucketKey(invDate));
+        invBucket.invoiced.count++;
+        invBucket.invoiced.value += value;
+      }
+
+      // Dispatched bucket: use dispatchDate if the order has been dispatched (or beyond)
+      if (dispatchedStatuses.includes(status) && order.dispatchDate) {
+        const dispDate = new Date(order.dispatchDate);
+        const dispBucket = getOrCreateBucket(getBucketKey(dispDate));
+        dispBucket.dispatched.count++;
+        dispBucket.dispatched.value += value;
+      }
+
+      // Delivered bucket: use actualDeliveryDate if the order has been delivered
+      if (deliveredStatuses.includes(status)) {
+        const delDate = order.actualDeliveryDate ? new Date(order.actualDeliveryDate) : (order.dispatchDate ? new Date(order.dispatchDate) : createdDate);
+        const delBucket = getOrCreateBucket(getBucketKey(delDate));
+        delBucket.delivered.count++;
+        delBucket.delivered.value += value;
+        delBucket.deliveredCount++;
+        if (isOnTime) {
+          delBucket.onTimeCount++;
+        }
       }
     }
     
