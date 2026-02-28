@@ -28,6 +28,7 @@ async function getCachedAnalytics(filters: any): Promise<any> {
     fromDate: filters.fromDate?.toISOString(),
     toDate: filters.toDate?.toISOString(),
     brand: filters.brand,
+    deliveryCompany: filters.deliveryCompany,
   });
   
   const cached = analyticsCache.get(cacheKey);
@@ -1483,7 +1484,7 @@ export async function registerRoutes(
       }
       
       // Parse filters from query params
-      const { fromDate, toDate, brand } = req.query;
+      const { fromDate, toDate, brand, deliveryCompany } = req.query;
       
       const filters: any = {};
       
@@ -1495,6 +1496,9 @@ export async function registerRoutes(
       }
       if (brand && brand !== 'all') {
         filters.brand = brand as string;
+      }
+      if (deliveryCompany && deliveryCompany !== 'all') {
+        filters.deliveryCompany = deliveryCompany as string;
       }
       
       

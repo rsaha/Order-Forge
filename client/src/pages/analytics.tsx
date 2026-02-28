@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { BrandRecord, Order } from "@shared/schema";
+import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import {
   LineChart,
   Line,
@@ -212,6 +213,7 @@ export default function AnalyticsPage() {
   const [, navigate] = useLocation();
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("Guided");
   const [statusViewMode, setStatusViewMode] = useState<"chart" | "table">("chart");
   const [expandedBlocker, setExpandedBlocker] = useState<string | null>(null);
 
@@ -224,6 +226,9 @@ export default function AnalyticsPage() {
     
     if (brandFilter !== "all") {
       params.append("brand", brandFilter);
+    }
+    if (deliveryCompanyFilter !== "all") {
+      params.append("deliveryCompany", deliveryCompanyFilter);
     }
     
     if (dateRange === "7days") {
@@ -255,7 +260,7 @@ export default function AnalyticsPage() {
   const queryUrl = `/api/analytics/orders${queryParams ? `?${queryParams}` : ""}`;
 
   const { data: analytics, isLoading, isError } = useQuery<OrderAnalytics>({
-    queryKey: ["/api/analytics/orders", dateRange, brandFilter],
+    queryKey: ["/api/analytics/orders", dateRange, brandFilter, deliveryCompanyFilter],
     queryFn: async () => {
       const res = await fetch(queryUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch analytics");
@@ -275,7 +280,7 @@ export default function AnalyticsPage() {
   // Fetch orders for delivery cost analysis and status breakdown
   const ordersQueryUrl = `/api/admin/orders${queryParams ? `?${queryParams}` : ""}`;
   const { data: ordersData = [] } = useQuery<Order[]>({
-    queryKey: ["/api/admin/orders", dateRange, brandFilter],
+    queryKey: ["/api/admin/orders", dateRange, brandFilter, deliveryCompanyFilter],
     queryFn: async () => {
       const res = await fetch(ordersQueryUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch orders");
@@ -654,6 +659,21 @@ export default function AnalyticsPage() {
                   <SelectItem value="all">All Brands</SelectItem>
                   {brands.map((brand) => (
                     <SelectItem key={brand.id} value={brand.name}>{brand.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex-1 min-w-[120px]">
+              <Label className="text-sm text-muted-foreground">Delivery Company</Label>
+              <Select value={deliveryCompanyFilter} onValueChange={setDeliveryCompanyFilter}>
+                <SelectTrigger data-testid="select-delivery-company">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {DELIVERY_COMPANY_OPTIONS.map((company) => (
+                    <SelectItem key={company} value={company}>{company}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
