@@ -498,10 +498,17 @@ export default function AnalyticsPage() {
     let noCostValue = 0;
     const missingCostOrders: { id: string; partyName: string; dispatchBy: string; total: string }[] = [];
 
+    const deliveredStatuses = ["Delivered", "PODReceived"];
+    const isSelfDelivery = (dispatchBy: string) => {
+      const lower = dispatchBy.toLowerCase().trim();
+      return lower === 'self';
+    };
+
     statusFiltered.forEach(order => {
       const hasCost = order.deliveryCost && parseFloat(order.deliveryCost) > 0;
       const hasDispatcher = !!order.dispatchBy && order.dispatchBy.trim() !== '';
       const handDelivery = hasDispatcher && isHandDelivery(order.dispatchBy!);
+      const selfDelivery = hasDispatcher && isSelfDelivery(order.dispatchBy!);
 
       if (hasCost && hasDispatcher && !handDelivery) {
         const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
@@ -509,10 +516,10 @@ export default function AnalyticsPage() {
         totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
         totals[dispatcher].count += 1;
         totals[dispatcher].orderValue += parseFloat(order.total || '0');
-      } else if (!hasCost) {
+      } else if (!hasCost && deliveredStatuses.includes(order.status) && !handDelivery && !selfDelivery) {
         noCostCount++;
         noCostValue += parseFloat(order.total || '0');
-        if (hasDispatcher && !handDelivery) {
+        if (hasDispatcher) {
           missingCostOrders.push({
             id: order.id,
             partyName: order.partyName || '',
