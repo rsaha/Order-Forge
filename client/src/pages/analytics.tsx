@@ -483,28 +483,44 @@ export default function AnalyticsPage() {
   const deliveryCostSummary = useMemo(() => {
     const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
     const excludedDispatchers = ["hand delivery", "by hand"];
-    
-    const filtered = ordersData.filter(order => {
-      if (!validStatuses.includes(order.status)) return false;
-      if (!order.deliveryCost || parseFloat(order.deliveryCost) === 0) return false;
-      if (!order.dispatchBy) return false;
-      const dispatcherLower = order.dispatchBy.toLowerCase().trim();
-      if (excludedDispatchers.some(ex => dispatcherLower.includes(ex))) return false;
-      return true;
-    });
 
-    // Aggregate totals by dispatcher
+    const isHandDelivery = (dispatchBy: string) => {
+      const lower = dispatchBy.toLowerCase().trim();
+      return excludedDispatchers.some(ex => lower.includes(ex));
+    };
+
+    const statusFiltered = ordersData.filter(order => validStatuses.includes(order.status));
+
     const totals: Record<string, { cost: number; count: number; orderValue: number }> = {};
+    let noCostCount = 0;
+    let noCostValue = 0;
+    const missingCostOrders: { id: number; partyName: string; dispatchBy: string; total: string }[] = [];
 
-    filtered.forEach(order => {
-      const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
-      if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
-      totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
-      totals[dispatcher].count += 1;
-      totals[dispatcher].orderValue += parseFloat(order.total || '0');
+    statusFiltered.forEach(order => {
+      const hasCost = order.deliveryCost && parseFloat(order.deliveryCost) > 0;
+      const hasDispatcher = !!order.dispatchBy && order.dispatchBy.trim() !== '';
+      const handDelivery = hasDispatcher && isHandDelivery(order.dispatchBy!);
+
+      if (hasCost && hasDispatcher && !handDelivery) {
+        const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
+        if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
+        totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
+        totals[dispatcher].count += 1;
+        totals[dispatcher].orderValue += parseFloat(order.total || '0');
+      } else if (!hasCost) {
+        noCostCount++;
+        noCostValue += parseFloat(order.total || '0');
+        if (hasDispatcher && !handDelivery) {
+          missingCostOrders.push({
+            id: order.id,
+            partyName: order.partyName || '',
+            dispatchBy: order.dispatchBy || '',
+            total: order.total || '0',
+          });
+        }
+      }
     });
 
-    // Convert to sorted array (by cost descending)
     const summaryData = Object.entries(totals)
       .map(([dispatcher, data]) => ({
         dispatchBy: dispatcher,
@@ -520,7 +536,12 @@ export default function AnalyticsPage() {
     const grandOrderValue = summaryData.reduce((sum, row) => sum + row.orderValue, 0);
     const grandCostPercentage = grandOrderValue > 0 ? (grandTotal / grandOrderValue) * 100 : 0;
 
-    return { summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage };
+    return {
+      summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage,
+      noCostCount, noCostValue,
+      missingCostOrders,
+      totalStatusOrders: statusFiltered.length,
+    };
   }, [ordersData, normalizeDispatcher]);
 
   // Daily transport cost - sum of all transport costs per day
@@ -1093,10 +1114,12 @@ export default function AnalyticsPage() {
                   </Card>
                 )}
 
-                {deliveryCostSummary.summaryData.length > 0 && (
+                {deliveryCostSummary.totalStatusOrders > 0 && (
                   <Card className="p-4">
                     <h2 className="text-lg font-semibold mb-4">Delivery Cost Summary</h2>
-                    <p className="text-xs text-muted-foreground mb-4">Total spend by transport company (excludes Hand Delivery and zero cost)</p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      {deliveryCostSummary.totalStatusOrders} dispatched/delivered orders total — {deliveryCostSummary.totalOrders} with transport cost, {deliveryCostSummary.noCostCount} without
+                    </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm" data-testid="table-delivery-cost-summary">
                         <thead>
@@ -1118,10 +1141,19 @@ export default function AnalyticsPage() {
                               <td className="py-2 px-3 text-right">{row.orderCount}</td>
                             </tr>
                           ))}
+                          {deliveryCostSummary.noCostCount > 0 && (
+                            <tr className="border-b last:border-0 text-muted-foreground">
+                              <td className="py-2 px-3 font-medium italic">No Delivery Cost</td>
+                              <td className="py-2 px-3 text-right">-</td>
+                              <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.noCostValue)}</td>
+                              <td className="py-2 px-3 text-right">-</td>
+                              <td className="py-2 px-3 text-right">{deliveryCostSummary.noCostCount}</td>
+                            </tr>
+                          )}
                         </tbody>
                         <tfoot>
                           <tr className="border-t-2 font-bold">
-                            <td className="py-2 px-3">Total</td>
+                            <td className="py-2 px-3">Total (with cost)</td>
                             <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.grandTotal)}</td>
                             <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.grandOrderValue)}</td>
                             <td className="py-2 px-3 text-right">{deliveryCostSummary.grandCostPercentage.toFixed(1)}%</td>
@@ -1130,6 +1162,36 @@ export default function AnalyticsPage() {
                         </tfoot>
                       </table>
                     </div>
+
+                    {deliveryCostSummary.missingCostOrders.length > 0 && (
+                      <div className="mt-4 pt-4 border-t">
+                        <h3 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">
+                          Orders with Transport Company but No Cost ({deliveryCostSummary.missingCostOrders.length})
+                        </h3>
+                        <div className="overflow-x-auto max-h-[200px] overflow-y-auto">
+                          <table className="w-full text-sm" data-testid="table-missing-cost-orders">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left py-1 px-3 font-medium">Order ID</th>
+                                <th className="text-left py-1 px-3 font-medium">Party</th>
+                                <th className="text-left py-1 px-3 font-medium">Transport Company</th>
+                                <th className="text-right py-1 px-3 font-medium">Order Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {deliveryCostSummary.missingCostOrders.map((order) => (
+                                <tr key={order.id} className="border-b last:border-0">
+                                  <td className="py-1 px-3">{order.id}</td>
+                                  <td className="py-1 px-3">{order.partyName}</td>
+                                  <td className="py-1 px-3">{order.dispatchBy}</td>
+                                  <td className="py-1 px-3 text-right">{formatINRFull(parseFloat(order.total))}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 )}
 
