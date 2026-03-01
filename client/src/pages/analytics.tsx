@@ -949,7 +949,7 @@ export default function AnalyticsPage() {
                   <h2 className="text-lg font-semibold mb-4">Order Value Over Time</h2>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
+                      <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                         <XAxis 
                           dataKey="date" 
@@ -969,34 +969,42 @@ export default function AnalyticsPage() {
                           }}
                         />
                         <Legend />
-                        <Area 
-                          type="monotone" 
-                          dataKey="InvoicedValue" 
-                          name="Invoiced"
-                          stackId="1"
-                          stroke="#8b5cf6" 
-                          fill="#8b5cf6"
-                          fillOpacity={0.6}
+                        <Bar dataKey="InvoicedValue" name="Invoiced" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="DispatchedValue" name="Dispatched" fill="#f97316" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="DeliveredValue" name="Delivered" fill="#14b8a6" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h2 className="text-lg font-semibold mb-4">Order Count Over Time</h2>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          tickMargin={8}
                         />
-                        <Area 
-                          type="monotone" 
-                          dataKey="DispatchedValue" 
-                          name="Dispatched"
-                          stackId="1"
-                          stroke="#f97316" 
-                          fill="#f97316"
-                          fillOpacity={0.6}
+                        <YAxis 
+                          tick={{ fontSize: 12 }}
+                          allowDecimals={false}
                         />
-                        <Area 
-                          type="monotone" 
-                          dataKey="DeliveredValue" 
-                          name="Delivered"
-                          stackId="1"
-                          stroke="#14b8a6" 
-                          fill="#14b8a6"
-                          fillOpacity={0.6}
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
                         />
-                      </AreaChart>
+                        <Legend />
+                        <Line type="monotone" dataKey="Created" name="Created" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="Invoiced" name="Invoiced" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="Dispatched" name="Dispatched" stroke="#f97316" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="Delivered" name="Delivered" stroke="#14b8a6" strokeWidth={2} dot={false} />
+                      </LineChart>
                     </ResponsiveContainer>
                   </div>
                 </Card>
