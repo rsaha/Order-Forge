@@ -4808,7 +4808,7 @@ export async function registerRoutes(
   // Body: {
   //   brand: string (required),
   //   partyName: string (required),
-  //   status: string (optional, default "Invoiced"),
+  //   status: string (optional, default "Created"),
   //   invoiceNumber: string (optional),
   //   invoiceDate: string (optional, YYYY-MM-DD),
   //   dispatchDate: string (optional, YYYY-MM-DD),
@@ -4817,7 +4817,7 @@ export async function registerRoutes(
   //   specialNotes: string (optional),
   //   deliveryCompany: string (optional, default "Guided"),
   //   actualOrderValue: number (optional),
-  //   items: [{ sku: string, quantity: number, unitPrice: number, freeQuantity?: number }] (required)
+  //   items: [{ name: string, quantity: number, unitPrice?: number, freeQuantity?: number }] (required)
   // }
   app.post('/api/orders/external', validateApiKey, async (req: any, res) => {
     try {
@@ -4852,7 +4852,7 @@ export async function registerRoutes(
       }
 
       const validStatuses = ['Created', 'Approved', 'Invoiced', 'Dispatched', 'Delivered'];
-      const orderStatus = status || 'Invoiced';
+      const orderStatus = status || 'Created';
       if (!validStatuses.includes(orderStatus)) {
         return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
       }
@@ -4871,31 +4871,52 @@ export async function registerRoutes(
       }
 
       const brandProducts = await storage.getProductsByBrand(brand.trim());
-      const skuMap = new Map(brandProducts.map(p => [p.sku?.toLowerCase(), p]));
+      const nameMap = new Map<string, typeof brandProducts>();
+      for (const p of brandProducts) {
+        const key = p.name?.toLowerCase().trim() || '';
+        if (!nameMap.has(key)) nameMap.set(key, []);
+        nameMap.get(key)!.push(p);
+      }
 
       const resolvedItems: { productId: string; quantity: number; unitPrice: string; freeQuantity: number }[] = [];
       const notFound: string[] = [];
+      const ambiguous: { name: string; sizes: string[] }[] = [];
 
       for (const item of items) {
-        if (!item.sku) {
-          return res.status(400).json({ message: "Each item must have a 'sku'" });
+        if (!item.name || typeof item.name !== 'string' || item.name.trim() === '') {
+          return res.status(400).json({ message: "Each item must have a 'name'" });
         }
         const qty = Number(item.quantity);
         if (!Number.isInteger(qty) || qty <= 0) {
-          return res.status(400).json({ message: `Invalid quantity for SKU '${item.sku}'. Must be a positive integer` });
+          return res.status(400).json({ message: `Invalid quantity for '${item.name}'. Must be a positive integer` });
         }
         const freeQty = Number(item.freeQuantity ?? 0);
         if (!Number.isInteger(freeQty) || freeQty < 0) {
-          return res.status(400).json({ message: `Invalid freeQuantity for SKU '${item.sku}'. Must be a non-negative integer` });
+          return res.status(400).json({ message: `Invalid freeQuantity for '${item.name}'. Must be a non-negative integer` });
         }
         if (item.unitPrice !== undefined && item.unitPrice !== null && (isNaN(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) {
-          return res.status(400).json({ message: `Invalid unitPrice for SKU '${item.sku}'. Must be a non-negative number` });
+          return res.status(400).json({ message: `Invalid unitPrice for '${item.name}'. Must be a non-negative number` });
         }
 
-        const product = skuMap.get(String(item.sku).toLowerCase());
-        if (!product) {
-          notFound.push(String(item.sku));
+        const matches = nameMap.get(String(item.name).toLowerCase().trim());
+        if (!matches || matches.length === 0) {
+          notFound.push(String(item.name));
           continue;
+        }
+
+        let product = matches[0];
+        if (matches.length > 1) {
+          if (item.size) {
+            const sizeMatch = matches.find(p => p.size?.toLowerCase().trim() === String(item.size).toLowerCase().trim());
+            if (!sizeMatch) {
+              ambiguous.push({ name: item.name, sizes: matches.map(p => p.size || 'N/A') });
+              continue;
+            }
+            product = sizeMatch;
+          } else {
+            ambiguous.push({ name: item.name, sizes: matches.map(p => p.size || 'N/A') });
+            continue;
+          }
         }
 
         resolvedItems.push({
@@ -4906,10 +4927,17 @@ export async function registerRoutes(
         });
       }
 
+      if (ambiguous.length > 0) {
+        return res.status(400).json({
+          message: `Multiple products found with the same name. Please provide a 'size' field to disambiguate: ${ambiguous.map(a => `"${a.name}" (sizes: ${a.sizes.join(', ')})`).join('; ')}`,
+          ambiguousItems: ambiguous,
+        });
+      }
+
       if (notFound.length > 0) {
         return res.status(400).json({
-          message: `Products not found for SKUs: ${notFound.join(', ')}`,
-          notFoundSkus: notFound,
+          message: `Products not found by name: ${notFound.join(', ')}`,
+          notFoundNames: notFound,
         });
       }
 

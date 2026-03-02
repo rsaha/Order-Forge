@@ -101,8 +101,8 @@ Creates an order from an external system. Items are matched by SKU within the sp
 **Body (JSON):**
 - `brand` (required): Brand name (must exist and be active)
 - `partyName` (required): Customer/party name
-- `items` (required): Array of `{ sku: string, quantity: number, unitPrice?: number, freeQuantity?: number }`
-- `status` (optional): Order status, default "Invoiced". One of: Created, Approved, Invoiced, Dispatched, Delivered
+- `items` (required): Array of `{ name: string, quantity: number, unitPrice?: number, freeQuantity?: number, size?: string }`
+- `status` (optional): Order status, default "Created". One of: Created, Approved, Invoiced, Dispatched, Delivered
 - `invoiceNumber` (optional): Invoice reference number
 - `invoiceDate` (optional): Invoice date in YYYY-MM-DD format
 - `dispatchDate` (optional): Dispatch date in YYYY-MM-DD format
