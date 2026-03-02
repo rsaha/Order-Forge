@@ -96,7 +96,7 @@ Returns total order value for a specific brand within a date range.
 **Response:** Brand name, order count, total value, and breakdown by status (Invoiced/Dispatched/Delivered counts and values).
 
 ### POST /api/orders/external
-Creates an order from an external system. Items are matched by SKU within the specified brand.
+Creates an order from an external system. Items are matched by product `name` (case-insensitive) within the specified brand.
 
 **Body (JSON):**
 - `brand` (required): Brand name (must exist and be active)
