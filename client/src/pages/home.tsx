@@ -14,7 +14,6 @@ import ImportOrder from "@/components/ImportOrder";
 import ParsedOrderReview from "@/components/ParsedOrderReview";
 import OrderTab from "@/components/OrderTab";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -978,7 +977,7 @@ export default function Home() {
                   />
                 </div>
 
-                <ScrollArea className="flex-1">
+                <div className="flex-1 overflow-auto">
                   <div className="p-4">
                     {filteredProducts.length === 0 ? (
                       <EmptyState type="no-results" />
@@ -1049,7 +1048,7 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </>
             )}
           </div>
