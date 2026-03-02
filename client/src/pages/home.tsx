@@ -818,8 +818,8 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 bg-background border-b">
+    <div className="flex flex-col h-screen min-h-0 bg-background">
+      <header className="flex-shrink-0 sticky top-0 z-50 bg-background border-b">
         <div className="flex items-center justify-between gap-4 px-4 h-16">
           <Header
             cartItemCount={cartItemCount}
@@ -857,7 +857,7 @@ export default function Home() {
       </header>
 
       {cart.length > 0 && (
-        <div className="sticky top-16 z-40 bg-primary text-primary-foreground border-b shadow-md">
+        <div className="flex-shrink-0 z-40 bg-primary text-primary-foreground border-b shadow-md">
           <div className="flex items-center justify-between gap-4 px-4 py-2">
             <div className="flex items-center gap-2 text-sm">
               <ShoppingCart className="w-4 h-4" />
@@ -890,14 +890,14 @@ export default function Home() {
         </div>
       )}
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="px-4 pt-4">
           <AnnouncementBanner userBrands={brands} />
         </div>
         {activeTab === "products" && (
-          <div className="h-full flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col">
             {showUploadSection ? (
-              <div className="p-4 max-w-2xl mx-auto">
+              <div className="flex-1 overflow-auto p-4 max-w-2xl mx-auto">
                 <div className="flex items-center gap-3 mb-6">
                   <Button
                     variant="ghost"
@@ -929,7 +929,7 @@ export default function Home() {
               <EmptyState type="no-products" onUploadClick={() => isAdmin ? setShowUploadSection(true) : setActiveTab("import")} />
             ) : (
               <>
-                <div className="p-4 space-y-4 border-b bg-background sticky top-16 z-40">
+                <div className="flex-shrink-0 flex flex-col gap-3 p-4 border-b bg-background">
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex-1 min-w-[200px]">
                       <SearchBar value={searchQuery} onChange={setSearchQuery} />
@@ -977,76 +977,78 @@ export default function Home() {
                   />
                 </div>
 
-                {filteredProducts.length === 0 ? (
-                  <div className="p-4">
+                <div className="flex-1 min-h-0 overflow-auto p-4">
+                  {filteredProducts.length === 0 ? (
                     <EmptyState type="no-results" />
-                  </div>
-                ) : (
-                  <div className="p-4">
-                    <table className="w-full text-sm" data-testid="product-table">
-                      <thead>
-                        <tr className="border-b bg-muted">
-                          <th className="p-3 text-left font-medium text-muted-foreground">SKU</th>
-                          <th className="p-3 text-left font-medium text-muted-foreground">Name</th>
-                          <th className="p-3 text-left font-medium text-muted-foreground">Brand</th>
-                          <th className="p-3 text-left font-medium text-muted-foreground">Size</th>
-                          <th className="p-3 text-right font-medium text-muted-foreground">PTS</th>
-                          <th className="p-3 text-right font-medium text-muted-foreground">MRP</th>
-                          <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredProducts.map(product => (
-                          <tr
-                            key={product.id}
-                            className="border-b hover-elevate cursor-pointer"
-                            onClick={() => handleProductClick(product)}
-                            data-testid={`row-product-${product.id}`}
-                          >
-                            <td className="p-3 font-mono text-muted-foreground" data-testid={`text-sku-${product.id}`}>
-                              {product.sku}
-                            </td>
-                            <td className="p-3 font-medium max-w-[200px] break-words whitespace-normal" data-testid={`text-name-${product.id}`}>
-                              {product.name}
-                            </td>
-                            <td className="p-3" data-testid={`text-brand-${product.id}`}>
-                              {product.brand}
-                            </td>
-                            <td className="p-3" data-testid={`text-size-${product.id}`}>
-                              {product.size || "-"}
-                            </td>
-                            <td className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
-                              {product.distributorPrice ? formatINR(Number(product.distributorPrice)) : "-"}
-                            </td>
-                            <td className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
-                              {formatINR(Number(product.price))}
-                            </td>
-                            <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-center gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleProductClick(product)}
-                                  data-testid={`button-edit-${product.id}`}
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setProductToDelete(product)}
-                                  data-testid={`button-delete-${product.id}`}
-                                >
-                                  <Trash2 className="w-4 h-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                  ) : (
+                    <div className="border rounded-md overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm" data-testid="product-table">
+                          <thead>
+                            <tr className="border-b bg-muted">
+                              <th className="p-3 text-left font-medium text-muted-foreground">SKU</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">Name</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">Brand</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">Size</th>
+                              <th className="p-3 text-right font-medium text-muted-foreground">PTS</th>
+                              <th className="p-3 text-right font-medium text-muted-foreground">MRP</th>
+                              <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredProducts.map(product => (
+                              <tr
+                                key={product.id}
+                                className="border-b hover-elevate cursor-pointer"
+                                onClick={() => handleProductClick(product)}
+                                data-testid={`row-product-${product.id}`}
+                              >
+                                <td className="p-3 font-mono text-muted-foreground" data-testid={`text-sku-${product.id}`}>
+                                  {product.sku}
+                                </td>
+                                <td className="p-3 font-medium max-w-[200px] break-words whitespace-normal" data-testid={`text-name-${product.id}`}>
+                                  {product.name}
+                                </td>
+                                <td className="p-3" data-testid={`text-brand-${product.id}`}>
+                                  {product.brand}
+                                </td>
+                                <td className="p-3" data-testid={`text-size-${product.id}`}>
+                                  {product.size || "-"}
+                                </td>
+                                <td className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
+                                  {product.distributorPrice ? formatINR(Number(product.distributorPrice)) : "-"}
+                                </td>
+                                <td className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
+                                  {formatINR(Number(product.price))}
+                                </td>
+                                <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => handleProductClick(product)}
+                                      data-testid={`button-edit-${product.id}`}
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => setProductToDelete(product)}
+                                      data-testid={`button-delete-${product.id}`}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
