@@ -985,15 +985,15 @@ export default function Home() {
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                          <thead className="bg-muted/50 sticky top-0">
+                          <thead className="bg-muted sticky top-0 z-10">
                             <tr className="border-b">
-                              <th className="p-3 text-left font-medium">SKU</th>
-                              <th className="p-3 text-left font-medium">Name</th>
-                              <th className="p-3 text-left font-medium">Brand</th>
-                              <th className="p-3 text-left font-medium">Size</th>
-                              <th className="p-3 text-right font-medium">PTS</th>
-                              <th className="p-3 text-right font-medium">MRP</th>
-                              <th className="p-3 text-center font-medium">Actions</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">SKU</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">Name</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">Brand</th>
+                              <th className="p-3 text-left font-medium text-muted-foreground">Size</th>
+                              <th className="p-3 text-right font-medium text-muted-foreground">PTS</th>
+                              <th className="p-3 text-right font-medium text-muted-foreground">MRP</th>
+                              <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
