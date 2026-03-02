@@ -890,7 +890,7 @@ export default function Home() {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-auto">
         <div className="px-4 pt-4">
           <AnnouncementBanner userBrands={brands} />
         </div>
@@ -982,67 +982,69 @@ export default function Home() {
                     <EmptyState type="no-results" />
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <div className="bg-muted border-b px-4" data-testid="product-table-header">
-                      <div className="grid grid-cols-[100px_1fr_100px_80px_80px_80px_80px] gap-2 text-sm">
-                        <div className="p-3 text-left font-medium text-muted-foreground">SKU</div>
-                        <div className="p-3 text-left font-medium text-muted-foreground">Name</div>
-                        <div className="p-3 text-left font-medium text-muted-foreground">Brand</div>
-                        <div className="p-3 text-left font-medium text-muted-foreground">Size</div>
-                        <div className="p-3 text-right font-medium text-muted-foreground">PTS</div>
-                        <div className="p-3 text-right font-medium text-muted-foreground">MRP</div>
-                        <div className="p-3 text-center font-medium text-muted-foreground">Actions</div>
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-auto px-4">
-                      {filteredProducts.map(product => (
-                        <div
-                          key={product.id}
-                          className="grid grid-cols-[100px_1fr_100px_80px_80px_80px_80px] gap-2 text-sm border-b hover-elevate cursor-pointer"
-                          onClick={() => handleProductClick(product)}
-                          data-testid={`row-product-${product.id}`}
-                        >
-                          <div className="p-3 font-mono text-muted-foreground truncate" data-testid={`text-sku-${product.id}`}>
-                            {product.sku}
-                          </div>
-                          <div className="p-3 font-medium break-words" data-testid={`text-name-${product.id}`}>
-                            {product.name}
-                          </div>
-                          <div className="p-3 truncate" data-testid={`text-brand-${product.id}`}>
-                            {product.brand}
-                          </div>
-                          <div className="p-3" data-testid={`text-size-${product.id}`}>
-                            {product.size || "-"}
-                          </div>
-                          <div className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
-                            {product.distributorPrice ? formatINR(Number(product.distributorPrice)) : "-"}
-                          </div>
-                          <div className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
-                            {formatINR(Number(product.price))}
-                          </div>
-                          <div className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleProductClick(product)}
-                                data-testid={`button-edit-${product.id}`}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => setProductToDelete(product)}
-                                data-testid={`button-delete-${product.id}`}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="p-4">
+                    <table className="w-full text-sm" data-testid="product-table">
+                      <thead>
+                        <tr className="border-b bg-muted">
+                          <th className="p-3 text-left font-medium text-muted-foreground">SKU</th>
+                          <th className="p-3 text-left font-medium text-muted-foreground">Name</th>
+                          <th className="p-3 text-left font-medium text-muted-foreground">Brand</th>
+                          <th className="p-3 text-left font-medium text-muted-foreground">Size</th>
+                          <th className="p-3 text-right font-medium text-muted-foreground">PTS</th>
+                          <th className="p-3 text-right font-medium text-muted-foreground">MRP</th>
+                          <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredProducts.map(product => (
+                          <tr
+                            key={product.id}
+                            className="border-b hover-elevate cursor-pointer"
+                            onClick={() => handleProductClick(product)}
+                            data-testid={`row-product-${product.id}`}
+                          >
+                            <td className="p-3 font-mono text-muted-foreground" data-testid={`text-sku-${product.id}`}>
+                              {product.sku}
+                            </td>
+                            <td className="p-3 font-medium max-w-[200px] break-words whitespace-normal" data-testid={`text-name-${product.id}`}>
+                              {product.name}
+                            </td>
+                            <td className="p-3" data-testid={`text-brand-${product.id}`}>
+                              {product.brand}
+                            </td>
+                            <td className="p-3" data-testid={`text-size-${product.id}`}>
+                              {product.size || "-"}
+                            </td>
+                            <td className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
+                              {product.distributorPrice ? formatINR(Number(product.distributorPrice)) : "-"}
+                            </td>
+                            <td className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
+                              {formatINR(Number(product.price))}
+                            </td>
+                            <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleProductClick(product)}
+                                  data-testid={`button-edit-${product.id}`}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setProductToDelete(product)}
+                                  data-testid={`button-delete-${product.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </>
