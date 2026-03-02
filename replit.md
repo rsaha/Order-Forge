@@ -94,3 +94,22 @@ Returns total order value for a specific brand within a date range.
 - `endDate` (required): End date in YYYY-MM-DD format
 
 **Response:** Brand name, order count, total value, and breakdown by status (Invoiced/Dispatched/Delivered counts and values).
+
+### POST /api/orders/external
+Creates an order from an external system. Items are matched by SKU within the specified brand.
+
+**Body (JSON):**
+- `brand` (required): Brand name (must exist and be active)
+- `partyName` (required): Customer/party name
+- `items` (required): Array of `{ sku: string, quantity: number, unitPrice?: number, freeQuantity?: number }`
+- `status` (optional): Order status, default "Invoiced". One of: Created, Approved, Invoiced, Dispatched, Delivered
+- `invoiceNumber` (optional): Invoice reference number
+- `invoiceDate` (optional): Invoice date in YYYY-MM-DD format
+- `dispatchDate` (optional): Dispatch date in YYYY-MM-DD format
+- `dispatchBy` (optional): Dispatch carrier/method
+- `cases` (optional): Number of cases
+- `specialNotes` (optional): Notes for the order
+- `deliveryCompany` (optional): Delivery company, default "Guided"
+- `actualOrderValue` (optional): Actual invoice value
+
+**Response:** Created order details with resolved items, item count.

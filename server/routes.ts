@@ -4803,5 +4803,180 @@ export async function registerRoutes(
     }
   });
 
+  // POST /api/orders/external - Create order from external system
+  // Requires X-API-KEY header with CASHDESK_API_KEY
+  // Body: {
+  //   brand: string (required),
+  //   partyName: string (required),
+  //   status: string (optional, default "Invoiced"),
+  //   invoiceNumber: string (optional),
+  //   invoiceDate: string (optional, YYYY-MM-DD),
+  //   dispatchDate: string (optional, YYYY-MM-DD),
+  //   dispatchBy: string (optional),
+  //   cases: number (optional),
+  //   specialNotes: string (optional),
+  //   deliveryCompany: string (optional, default "Guided"),
+  //   actualOrderValue: number (optional),
+  //   items: [{ sku: string, quantity: number, unitPrice: number, freeQuantity?: number }] (required)
+  // }
+  app.post('/api/orders/external', validateApiKey, async (req: any, res) => {
+    try {
+      const {
+        brand,
+        partyName,
+        status,
+        invoiceNumber,
+        invoiceDate,
+        dispatchDate,
+        dispatchBy,
+        cases,
+        specialNotes,
+        deliveryCompany,
+        actualOrderValue,
+        items,
+      } = req.body;
+
+      if (!brand || typeof brand !== 'string' || brand.trim() === '') {
+        return res.status(400).json({ message: "brand is required" });
+      }
+      if (!partyName || typeof partyName !== 'string' || partyName.trim() === '') {
+        return res.status(400).json({ message: "partyName is required" });
+      }
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "items array is required and must not be empty" });
+      }
+
+      const brandRecord = await storage.getBrandByName(brand.trim());
+      if (!brandRecord || !brandRecord.isActive) {
+        return res.status(400).json({ message: `Brand "${brand}" is not valid or has been deactivated` });
+      }
+
+      const validStatuses = ['Created', 'Approved', 'Invoiced', 'Dispatched', 'Delivered'];
+      const orderStatus = status || 'Invoiced';
+      if (!validStatuses.includes(orderStatus)) {
+        return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      }
+
+      if (invoiceDate && isNaN(new Date(invoiceDate).getTime())) {
+        return res.status(400).json({ message: "Invalid invoiceDate format. Use YYYY-MM-DD" });
+      }
+      if (dispatchDate && isNaN(new Date(dispatchDate).getTime())) {
+        return res.status(400).json({ message: "Invalid dispatchDate format. Use YYYY-MM-DD" });
+      }
+      if (cases !== undefined && cases !== null && (!Number.isInteger(Number(cases)) || Number(cases) < 0)) {
+        return res.status(400).json({ message: "cases must be a non-negative integer" });
+      }
+      if (actualOrderValue !== undefined && actualOrderValue !== null && (isNaN(Number(actualOrderValue)) || Number(actualOrderValue) < 0)) {
+        return res.status(400).json({ message: "actualOrderValue must be a non-negative number" });
+      }
+
+      const brandProducts = await storage.getProductsByBrand(brand.trim());
+      const skuMap = new Map(brandProducts.map(p => [p.sku?.toLowerCase(), p]));
+
+      const resolvedItems: { productId: string; quantity: number; unitPrice: string; freeQuantity: number }[] = [];
+      const notFound: string[] = [];
+
+      for (const item of items) {
+        if (!item.sku) {
+          return res.status(400).json({ message: "Each item must have a 'sku'" });
+        }
+        const qty = Number(item.quantity);
+        if (!Number.isInteger(qty) || qty <= 0) {
+          return res.status(400).json({ message: `Invalid quantity for SKU '${item.sku}'. Must be a positive integer` });
+        }
+        const freeQty = Number(item.freeQuantity ?? 0);
+        if (!Number.isInteger(freeQty) || freeQty < 0) {
+          return res.status(400).json({ message: `Invalid freeQuantity for SKU '${item.sku}'. Must be a non-negative integer` });
+        }
+        if (item.unitPrice !== undefined && item.unitPrice !== null && (isNaN(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) {
+          return res.status(400).json({ message: `Invalid unitPrice for SKU '${item.sku}'. Must be a non-negative number` });
+        }
+
+        const product = skuMap.get(String(item.sku).toLowerCase());
+        if (!product) {
+          notFound.push(String(item.sku));
+          continue;
+        }
+
+        resolvedItems.push({
+          productId: product.id,
+          quantity: qty,
+          unitPrice: String(item.unitPrice ?? product.price ?? "0"),
+          freeQuantity: freeQty,
+        });
+      }
+
+      if (notFound.length > 0) {
+        return res.status(400).json({
+          message: `Products not found for SKUs: ${notFound.join(', ')}`,
+          notFoundSkus: notFound,
+        });
+      }
+
+      const total = resolvedItems.reduce((sum, item) => sum + (Number(item.unitPrice) * item.quantity), 0);
+
+      const adminUsers = await storage.getAllUsers();
+      const adminUser = adminUsers.find(u => u.isAdmin);
+      if (!adminUser) {
+        return res.status(500).json({ message: "No admin user found to assign as order owner" });
+      }
+
+      const order = await storage.createOrder({
+        userId: adminUser.id,
+        createdBy: adminUser.id,
+        brand: brand.trim(),
+        total: String(total),
+        partyName: partyName.trim(),
+        status: orderStatus,
+        deliveryCompany: deliveryCompany || "Guided",
+        specialNotes: specialNotes || null,
+        invoiceNumber: invoiceNumber || null,
+        invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
+        dispatchDate: dispatchDate ? new Date(dispatchDate) : null,
+        dispatchBy: dispatchBy || null,
+        cases: cases ? Number(cases) : null,
+        actualOrderValue: actualOrderValue ? String(actualOrderValue) : null,
+      });
+
+      const orderItemsData = resolvedItems.map(item => ({
+        orderId: order.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        freeQuantity: item.freeQuantity,
+        unitPrice: item.unitPrice,
+      }));
+
+      await storage.createOrderItems(orderItemsData);
+
+      const orderItems = await storage.getOrderItems(order.id);
+
+      res.status(201).json({
+        message: "Order created successfully",
+        order: {
+          id: order.id,
+          brand: order.brand,
+          partyName: order.partyName,
+          status: order.status,
+          total: order.total,
+          actualOrderValue: order.actualOrderValue,
+          invoiceNumber: order.invoiceNumber,
+          invoiceDate: order.invoiceDate,
+          createdAt: order.createdAt,
+        },
+        items: orderItems.map(item => ({
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          freeQuantity: item.freeQuantity,
+          unitPrice: item.unitPrice,
+        })),
+        itemCount: orderItems.length,
+      });
+    } catch (error: any) {
+      console.error("Error creating external order:", error);
+      res.status(500).json({ message: "Failed to create order" });
+    }
+  });
+
   return httpServer;
 }
