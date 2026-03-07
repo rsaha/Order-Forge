@@ -2215,17 +2215,14 @@ export async function registerRoutes(
         const qty = parseInt(row[3]) || 0;
         const freeQty = parseInt(row[4]) || 0;
         const rate = parseFloat(row[5]) || 0;
-        const netAmount = parseFloat(row[7]) || 0;
+        const netAmount = parseFloat(row[6]) || 0;
 
         if (nameField.toLowerCase().includes('all customers')) continue;
 
-        // Customer row detection: has a name, NO entry number, and either no qty/rate OR has a net amount
-        // This is flexible to handle any customer name format
-        const isCustomerRow = !entryNo && (qty === 0 || rate === 0);
+        const isCustomerRow = !entryNo && !entryDate;
         
         if (isCustomerRow) {
           currentCustomer = nameField;
-          // Remove any trailing location in parentheses for display
           const partyName = nameField.replace(/\([^)]*\)$/, '').trim();
           
           if (!orderGroups.has(currentCustomer)) {
@@ -2396,9 +2393,8 @@ export async function registerRoutes(
       // Col 2: Entry Date (Invoice Date as Excel serial - only on product rows)
       // Col 3: Qty(Unit1)
       // Col 4: Free Qty(Unit1)
-      // Col 5: Rate
-      // Col 6: Amount
-      // Col 7: Net Amount
+      // Col 5: Amount
+      // Col 6: Net Amount
       
       // Helper function to convert Excel serial date to JavaScript Date
       const excelSerialToDate = (serial: number): Date => {
@@ -2433,14 +2429,12 @@ export async function registerRoutes(
         const freeQty = parseInt(row[4]) || 0;
         const rate = parseFloat(row[5]) || 0;
         const amount = parseFloat(row[6]) || 0;
-        const netAmount = parseFloat(row[7]) || 0; // Net Amount column
+        const netAmount = amount; // Net Amount is in the last data column
 
         // Skip "All Customers" summary
         if (nameField.toLowerCase().includes('all customers')) continue;
 
-        // Customer row detection: has a name, NO entry number, and either no qty/rate OR has a net amount
-        // This is flexible to handle any customer name format
-        const isCustomerRow = !entryNo && (qty === 0 || rate === 0);
+        const isCustomerRow = !entryNo && !entryDate;
         
         if (isCustomerRow) {
           currentCustomer = nameField;
