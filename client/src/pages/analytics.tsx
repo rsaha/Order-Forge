@@ -437,6 +437,18 @@ export default function AnalyticsPage() {
     ];
   }, [ordersData]);
 
+  const invoicedExcludingBiostige = useMemo(() => {
+    const invoicedStatuses = ["invoiced", "dispatched", "delivered", "podreceived"];
+    const filtered = ordersData.filter(o => 
+      invoicedStatuses.includes(o.status.toLowerCase()) && o.brand?.toLowerCase() !== 'biostige'
+    );
+    const biostigeCount = ordersData.filter(o => 
+      invoicedStatuses.includes(o.status.toLowerCase()) && o.brand?.toLowerCase() === 'biostige'
+    ).length;
+    const value = filtered.reduce((sum, o) => sum + parseFloat(o.actualOrderValue || o.total || '0'), 0);
+    return { value, count: filtered.length, biostigeExcludedCount: biostigeCount };
+  }, [ordersData]);
+
   // Velocity chart data - split into minutes (for fast transitions) and hours (for longer transitions)
   const velocityChartDataMinutes = useMemo(() => [
     { stage: "Created → Invoiced", minutes: velocityMetrics.createdToInvoiced.avgMinutes, count: velocityMetrics.createdToInvoiced.count },
@@ -485,6 +497,7 @@ export default function AnalyticsPage() {
   const deliveryCostSummary = useMemo(() => {
     const deliveredStatuses = ["Delivered", "PODReceived"];
     const excludedDispatchers = ["hand delivery", "by hand"];
+    const zeroCostDispatchers = ["apurba", "baban"];
 
     const isHandDelivery = (dispatchBy: string) => {
       const lower = dispatchBy.toLowerCase().trim();
@@ -494,8 +507,17 @@ export default function AnalyticsPage() {
       const lower = dispatchBy.toLowerCase().trim();
       return lower === 'self';
     };
+    const isZeroCostDispatcher = (dispatchBy: string) => {
+      const lower = dispatchBy.toLowerCase().trim();
+      return zeroCostDispatchers.some(name => lower.includes(name));
+    };
 
-    const deliveredOrders = ordersData.filter(order => deliveredStatuses.includes(order.status));
+    const deliveredOrders = ordersData.filter(order => 
+      deliveredStatuses.includes(order.status) && order.brand?.toLowerCase() !== 'biostige'
+    );
+    const biostigeExcludedCount = ordersData.filter(order => 
+      deliveredStatuses.includes(order.status) && order.brand?.toLowerCase() === 'biostige'
+    ).length;
 
     const totals: Record<string, { cost: number; count: number; orderValue: number }> = {};
     let noCostCount = 0;
@@ -505,31 +527,34 @@ export default function AnalyticsPage() {
     const missingCostOrders: { id: string; partyName: string; dispatchBy: string; total: string }[] = [];
 
     deliveredOrders.forEach(order => {
-      const hasCost = order.deliveryCost && parseFloat(order.deliveryCost) > 0;
       const hasDispatcher = !!order.dispatchBy && order.dispatchBy.trim() !== '';
       const handDelivery = hasDispatcher && isHandDelivery(order.dispatchBy!);
       const selfDelivery = hasDispatcher && isSelfDelivery(order.dispatchBy!);
+      const zeroCostDispatch = hasDispatcher && isZeroCostDispatcher(order.dispatchBy!);
       const orderValue = parseFloat(order.actualOrderValue || order.total || '0');
 
-      if (handDelivery || selfDelivery) {
+      if (handDelivery || selfDelivery || zeroCostDispatch) {
         selfHandCount++;
         selfHandValue += orderValue;
-      } else if (hasCost && hasDispatcher) {
-        const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
-        if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
-        totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
-        totals[dispatcher].count += 1;
-        totals[dispatcher].orderValue += orderValue;
       } else {
-        noCostCount++;
-        noCostValue += orderValue;
-        if (hasDispatcher) {
-          missingCostOrders.push({
-            id: order.id,
-            partyName: order.partyName || '',
-            dispatchBy: order.dispatchBy || '',
-            total: order.actualOrderValue || order.total || '0',
-          });
+        const hasCost = order.deliveryCost && parseFloat(order.deliveryCost) > 0;
+        if (hasCost && hasDispatcher) {
+          const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
+          if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
+          totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
+          totals[dispatcher].count += 1;
+          totals[dispatcher].orderValue += orderValue;
+        } else {
+          noCostCount++;
+          noCostValue += orderValue;
+          if (hasDispatcher) {
+            missingCostOrders.push({
+              id: order.id,
+              partyName: order.partyName || '',
+              dispatchBy: order.dispatchBy || '',
+              total: order.actualOrderValue || order.total || '0',
+            });
+          }
         }
       }
     });
@@ -548,6 +573,7 @@ export default function AnalyticsPage() {
     const totalOrders = summaryData.reduce((sum, row) => sum + row.orderCount, 0);
     const grandOrderValue = summaryData.reduce((sum, row) => sum + row.orderValue, 0);
     const grandCostPercentage = grandOrderValue > 0 ? (grandTotal / grandOrderValue) * 100 : 0;
+    const totalDeliveredValue = deliveredOrders.reduce((sum, o) => sum + parseFloat(o.actualOrderValue || o.total || '0'), 0);
 
     return {
       summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage,
@@ -555,6 +581,8 @@ export default function AnalyticsPage() {
       selfHandCount, selfHandValue,
       missingCostOrders,
       totalDeliveredOrders: deliveredOrders.length,
+      totalDeliveredValue,
+      biostigeExcludedCount,
     };
   }, [ordersData, normalizeDispatcher]);
 
@@ -562,15 +590,18 @@ export default function AnalyticsPage() {
   const dailyTransportCost = useMemo(() => {
     const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
     const excludedDispatchers = ["hand delivery", "by hand"];
+    const zeroCostDispatchers = ["apurba", "baban"];
     
     const dailyTotals: Record<string, number> = {};
     
     ordersData.forEach(order => {
       if (!validStatuses.includes(order.status)) return;
+      if (order.brand?.toLowerCase() === 'biostige') return;
       if (!order.deliveryCost || parseFloat(order.deliveryCost) === 0) return;
       if (!order.dispatchBy) return;
       const dispatcherLower = order.dispatchBy.toLowerCase().trim();
       if (excludedDispatchers.some(ex => dispatcherLower.includes(ex))) return;
+      if (zeroCostDispatchers.some(name => dispatcherLower.includes(name))) return;
       
       // Use dispatch date if available, otherwise invoice date
       const dateField = order.dispatchDate || order.invoiceDate || order.createdAt;
@@ -752,9 +783,14 @@ export default function AnalyticsPage() {
                   <span className="text-sm font-medium text-muted-foreground">Value Invoiced</span>
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-value-invoiced">
-                  {formatINR((analytics?.invoiced?.value || 0) + (analytics?.dispatched?.value || 0) + (analytics?.delivered?.value || 0))}
+                  {formatINR(invoicedExcludingBiostige.value)}
                 </p>
-                <p className="text-sm text-muted-foreground">{(analytics?.invoiced?.count || 0) + (analytics?.dispatched?.count || 0) + (analytics?.delivered?.count || 0)} invoiced orders</p>
+                <p className="text-sm text-muted-foreground">
+                  {invoicedExcludingBiostige.count} invoiced orders
+                  {invoicedExcludingBiostige.biostigeExcludedCount > 0 && (
+                    <span className="text-xs ml-1">({invoicedExcludingBiostige.biostigeExcludedCount} Biostige excluded)</span>
+                  )}
+                </p>
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -767,10 +803,10 @@ export default function AnalyticsPage() {
                   {formatINR(deliveryCostSummary.grandTotal)}
                 </p>
                 <p className="text-sm text-muted-foreground" data-testid="text-transport-percentage">
-                  {((analytics?.delivered?.value || 0) > 0 
-                    ? ((deliveryCostSummary.grandTotal / (analytics?.delivered?.value || 1)) * 100).toFixed(1)
+                  {deliveryCostSummary.totalDeliveredValue > 0 
+                    ? ((deliveryCostSummary.grandTotal / deliveryCostSummary.totalDeliveredValue) * 100).toFixed(1)
                     : 0
-                  )}% of delivered value
+                  }% of delivered value (excl. Biostige)
                 </p>
               </Card>
               <Card className="p-4">
@@ -1141,6 +1177,9 @@ export default function AnalyticsPage() {
                     <h2 className="text-lg font-semibold mb-4">Delivery Cost Summary</h2>
                     <p className="text-xs text-muted-foreground mb-4">
                       {deliveryCostSummary.totalDeliveredOrders} delivered orders — {deliveryCostSummary.totalOrders} with transport cost, {deliveryCostSummary.selfHandCount} self/hand delivered, {deliveryCostSummary.noCostCount} without cost
+                      {deliveryCostSummary.biostigeExcludedCount > 0 && (
+                        <span> ({deliveryCostSummary.biostigeExcludedCount} Biostige excluded)</span>
+                      )}
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm" data-testid="table-delivery-cost-summary">
