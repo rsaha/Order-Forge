@@ -497,7 +497,7 @@ export default function AnalyticsPage() {
   const deliveryCostSummary = useMemo(() => {
     const deliveredStatuses = ["Delivered", "PODReceived"];
     const excludedDispatchers = ["hand delivery", "by hand"];
-    const zeroCostDispatchers = ["apurba", "baban"];
+    const zeroCostDispatchers = ["apurba", "apurbo", "baban"];
 
     const isHandDelivery = (dispatchBy: string) => {
       const lower = dispatchBy.toLowerCase().trim();
@@ -590,7 +590,7 @@ export default function AnalyticsPage() {
   const dailyTransportCost = useMemo(() => {
     const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
     const excludedDispatchers = ["hand delivery", "by hand"];
-    const zeroCostDispatchers = ["apurba", "baban"];
+    const zeroCostDispatchers = ["apurba", "apurbo", "baban"];
     
     const dailyTotals: Record<string, number> = {};
     
