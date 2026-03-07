@@ -1242,7 +1242,6 @@ export default function AnalyticsPage() {
                           <table className="w-full text-sm" data-testid="table-missing-cost-orders">
                             <thead>
                               <tr className="border-b">
-                                <th className="text-left py-1 px-3 font-medium">Order ID</th>
                                 <th className="text-left py-1 px-3 font-medium">Party</th>
                                 <th className="text-left py-1 px-3 font-medium">Transport Company</th>
                                 <th className="text-right py-1 px-3 font-medium">Order Value</th>
@@ -1251,7 +1250,6 @@ export default function AnalyticsPage() {
                             <tbody>
                               {deliveryCostSummary.missingCostOrders.map((order) => (
                                 <tr key={order.id} className="border-b last:border-0">
-                                  <td className="py-1 px-3">{order.id}</td>
                                   <td className="py-1 px-3">{order.partyName}</td>
                                   <td className="py-1 px-3">{order.dispatchBy}</td>
                                   <td className="py-1 px-3 text-right">{formatINRFull(parseFloat(order.total))}</td>
