@@ -445,7 +445,8 @@ export default function OrdersPage() {
         const invoiceMatch = o.invoiceNumber?.toLowerCase().includes(query);
         const createdByName = (o as any).createdByName?.toLowerCase().includes(query);
         const createdByEmail = (o as any).createdByEmail?.toLowerCase().includes(query);
-        return partyMatch || invoiceMatch || createdByName || createdByEmail;
+        const dispatchByMatch = o.dispatchBy?.toLowerCase().includes(query);
+        return partyMatch || invoiceMatch || createdByName || createdByEmail || dispatchByMatch;
       });
     }
     return allOrders.filter(o => o.status === statusFilter);
