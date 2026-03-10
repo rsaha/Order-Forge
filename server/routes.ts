@@ -1855,7 +1855,7 @@ export async function registerRoutes(
         }
       }
 
-      const result = await storage.createPendingOrder(order.id, userId);
+      const result = await storage.createPendingOrder(order.id, order.userId);
       if (!result) {
         return res.status(400).json({ message: "No out-of-stock items found. All items have sufficient stock." });
       }
