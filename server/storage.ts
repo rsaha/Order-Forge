@@ -173,6 +173,7 @@ export interface OrderFilters {
   fromDate?: Date;
   toDate?: Date;
   includeActive?: boolean;
+  createdBy?: string;
 }
 
 export interface BulkOrderSummary {
@@ -708,6 +709,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.brand) {
       conditions.push(eq(orders.brand, filters.brand));
+    }
+    if (filters?.createdBy) {
+      conditions.push(eq(orders.userId, filters.createdBy));
     }
     
     if (filters?.includeActive && !filters?.status && (filters.fromDate || filters.toDate)) {

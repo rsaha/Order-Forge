@@ -29,6 +29,7 @@ async function getCachedAnalytics(filters: any): Promise<any> {
     toDate: filters.toDate?.toISOString(),
     brand: filters.brand,
     deliveryCompany: filters.deliveryCompany,
+    createdBy: filters.createdBy,
   });
   
   const cached = analyticsCache.get(cacheKey);
@@ -1484,7 +1485,7 @@ export async function registerRoutes(
       }
       
       // Parse filters from query params
-      const { fromDate, toDate, brand, deliveryCompany } = req.query;
+      const { fromDate, toDate, brand, deliveryCompany, createdBy } = req.query;
       
       const filters: any = {};
       
@@ -1499,6 +1500,9 @@ export async function registerRoutes(
       }
       if (deliveryCompany && deliveryCompany !== 'all') {
         filters.deliveryCompany = deliveryCompany as string;
+      }
+      if (createdBy && createdBy !== 'all') {
+        filters.createdBy = createdBy as string;
       }
       
       
@@ -1615,13 +1619,14 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const filters: { status?: string; deliveryCompany?: string; brand?: string; fromDate?: Date; toDate?: Date; includeActive?: boolean } = {};
+      const filters: { status?: string; deliveryCompany?: string; brand?: string; fromDate?: Date; toDate?: Date; includeActive?: boolean; createdBy?: string } = {};
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.deliveryCompany) filters.deliveryCompany = req.query.deliveryCompany as string;
       if (req.query.brand) filters.brand = req.query.brand as string;
       if (req.query.fromDate) filters.fromDate = new Date(req.query.fromDate as string);
       if (req.query.toDate) filters.toDate = new Date(req.query.toDate as string);
       if (req.query.includeActive === 'true') filters.includeActive = true;
+      if (req.query.createdBy && req.query.createdBy !== 'all') filters.createdBy = req.query.createdBy as string;
       
       let orders;
       if (user.isAdmin) {

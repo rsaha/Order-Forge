@@ -31,7 +31,7 @@ import {
   Package,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { BrandRecord, Order } from "@shared/schema";
+import type { BrandRecord, Order, User } from "@shared/schema";
 import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import {
   LineChart,
@@ -214,6 +214,7 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<"7days" | "30days" | "90days" | "thisMonth" | "lastMonth" | "all">("30days");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("Guided");
+  const [creatorFilter, setCreatorFilter] = useState<string>("all");
   const [statusViewMode, setStatusViewMode] = useState<"chart" | "table">("chart");
   const [expandedBlocker, setExpandedBlocker] = useState<string | null>(null);
 
@@ -229,6 +230,9 @@ export default function AnalyticsPage() {
     }
     if (deliveryCompanyFilter !== "all") {
       params.append("deliveryCompany", deliveryCompanyFilter);
+    }
+    if (creatorFilter !== "all") {
+      params.append("createdBy", creatorFilter);
     }
     
     if (dateRange === "7days") {
@@ -260,7 +264,7 @@ export default function AnalyticsPage() {
   const queryUrl = `/api/analytics/orders${queryParams ? `?${queryParams}` : ""}`;
 
   const { data: analytics, isLoading, isError } = useQuery<OrderAnalytics>({
-    queryKey: ["/api/analytics/orders", dateRange, brandFilter, deliveryCompanyFilter],
+    queryKey: ["/api/analytics/orders", dateRange, brandFilter, deliveryCompanyFilter, creatorFilter],
     queryFn: async () => {
       const res = await fetch(queryUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch analytics");
@@ -277,10 +281,24 @@ export default function AnalyticsPage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: allUsers = [] } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: canViewAnalytics,
+  });
+
+  const orderCreators = useMemo(() => {
+    return allUsers
+      .filter(u => u.role === 'User' || u.role === 'Customer')
+      .map(u => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || u.id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allUsers]);
+
   // Fetch orders for delivery cost analysis and status breakdown
   const ordersQueryUrl = `/api/admin/orders${queryParams ? `?${queryParams}` : ""}`;
   const { data: ordersData = [] } = useQuery<Order[]>({
-    queryKey: ["/api/admin/orders", dateRange, brandFilter, deliveryCompanyFilter],
+    queryKey: ["/api/admin/orders", dateRange, brandFilter, deliveryCompanyFilter, creatorFilter],
     queryFn: async () => {
       const res = await fetch(ordersQueryUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch orders");
@@ -740,6 +758,21 @@ export default function AnalyticsPage() {
                   <SelectItem value="all">All Companies</SelectItem>
                   {DELIVERY_COMPANY_OPTIONS.map((company) => (
                     <SelectItem key={company} value={company}>{company}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex-1 min-w-[120px]">
+              <Label className="text-sm text-muted-foreground">Order Creator</Label>
+              <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+                <SelectTrigger data-testid="select-order-creator">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Creators</SelectItem>
+                  {orderCreators.map((creator) => (
+                    <SelectItem key={creator.id} value={creator.id}>{creator.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

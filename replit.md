@@ -39,6 +39,7 @@ Both methods share a PostgreSQL-backed session management system with a one-week
 -   **WhatsApp Sharing**: Generates and shares order details via WhatsApp with status-dependent messaging.
 -   **Party-Salesperson Linking**: Admins can link salespeople (User role) to customer parties via the `userPartyAccess` table. Linked salespeople can view and modify (add/edit/delete items) orders for their assigned parties when orders are in Created, Approved, or Pending status. The Users page provides a UI for managing these linkages with autocomplete suggestions from existing party names.
 -   **Customer-Sales User Linking**: Customer users can be linked to sales users via the `linkedSalesUserId` field. When admins create customer users, they can select a sales user to manage that customer. Sales users can view all their linked customer users, and customer users can see their assigned sales user. This enables proper customer-salesperson relationship management.
+-   **Analytics Dashboard**: Admin-only page with KPIs (Total Orders, Value Invoiced excl. Biostige, Transport Cost, On-Time Delivery), Order Flow Funnel, velocity metrics, blocker detection, and delivery cost breakdown by dispatcher. Filters: date range, brand, delivery company, and order creator (filters by order owner/salesperson userId). Analytics endpoint uses in-memory caching with 2-minute TTL keyed on all filter params.
 
 ## External Dependencies
 
