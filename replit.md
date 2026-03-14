@@ -21,9 +21,9 @@ PostgreSQL serves as the primary database, managed with Drizzle ORM. The databas
 
 ### Authentication
 The application supports two authentication methods:
-1.  **Replit Auth**: Utilizes Replit's OIDC provider, automatically syncing user data.
+1.  **Google OAuth 2.0**: Uses `passport-google-oauth20` for direct Google login. Users are matched by email to avoid duplicates when migrating from Replit OIDC. Admin status is determined by the `ADMIN_EMAILS` list in `server/replitAuth.ts`.
 2.  **Phone/Password Authentication**: Admin-created users log in with a phone number and a bcrypt-hashed password.
-Both methods share a PostgreSQL-backed session management system with a one-week TTL.
+Both methods share a PostgreSQL-backed session management system with a one-week TTL. A dev-mode bypass auto-logs in as an admin user when `NODE_ENV !== "production"`.
 
 ### Core Features
 -   **File Processing (Admin)**: Supports Excel (.xlsx, .xls) uploads for product inventory. Required columns: Brand, Name, Product SKU ID, Size, with an optional MRP. Products are parsed server-side and assigned to the admin's catalog.
@@ -46,22 +46,21 @@ Both methods share a PostgreSQL-backed session management system with a one-week
 ## External Dependencies
 
 ### Third-Party Services
--   **Replit Auth**: OpenID Connect authentication service.
+-   **Google OAuth 2.0**: Direct Google login via `passport-google-oauth20`.
 -   **PostgreSQL**: Database service provided through Replit.
 
 ### Key NPM Packages
 -   `drizzle-orm`, `drizzle-kit`: ORM for database interactions and migrations.
 -   `xlsx`: Library for parsing Excel files.
 -   `@tanstack/react-query`: For server state management in the frontend.
--   `openid-client`: OpenID Connect client for authentication.
--   `passport`, `passport-local`: Authentication middleware for Node.js.
+-   `passport`, `passport-google-oauth20`: Authentication middleware for Node.js with Google OAuth.
 -   `express-session`, `connect-pg-simple`: For session management with PostgreSQL.
 
 ### Environment Variables
 -   `DATABASE_URL`: PostgreSQL connection string.
 -   `SESSION_SECRET`: Secret for session encryption.
--   `REPL_ID`: Automatically provided by Replit.
--   `ISSUER_URL`: OIDC issuer endpoint (defaults to Replit's).
+-   `GOOGLE_CLIENT_ID`: Google OAuth 2.0 client ID.
+-   `GOOGLE_CLIENT_SECRET`: Google OAuth 2.0 client secret.
 -   `CASHDESK_API_KEY`: API key for external API authentication.
 
 ## External API Endpoints

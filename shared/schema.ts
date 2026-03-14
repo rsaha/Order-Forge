@@ -29,7 +29,7 @@ export const sessions = pgTable(
 export const USER_ROLES = ["Customer", "User", "BrandAdmin", "Admin"] as const;
 export type UserRole = typeof USER_ROLES[number];
 
-// User storage table - required for Replit Auth
+// User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),

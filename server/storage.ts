@@ -444,7 +444,7 @@ export class DatabaseStorage implements IStorage {
     const customerResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, "Customer"), eq(users.linkedSalesUserId, sourceId)));
     const customersTransferred = Number(customerResult[0].count);
 
-    const sessionCountResult = await db.execute(sql`SELECT count(*) as count FROM sessions WHERE sess->'passport'->'user'->'claims'->>'sub' = ${sourceId} OR sess->>'userId' = ${sourceId}`);
+    const sessionCountResult = await db.execute(sql`SELECT count(*) as count FROM sessions WHERE sess->'passport'->'user'->>'id' = ${sourceId} OR sess->'passport'->'user'->'claims'->>'sub' = ${sourceId} OR sess->>'userId' = ${sourceId}`);
     const sessionsCleared = Number((sessionCountResult.rows[0] as { count: string }).count);
 
     await db.transaction(async (tx) => {
@@ -466,7 +466,7 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(userBrandAccess).where(eq(userBrandAccess.userId, sourceId));
       await tx.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, sourceId));
       await tx.delete(userPartyAccess).where(eq(userPartyAccess.userId, sourceId));
-      await tx.execute(sql`DELETE FROM sessions WHERE sess->'passport'->'user'->'claims'->>'sub' = ${sourceId} OR sess->>'userId' = ${sourceId}`);
+      await tx.execute(sql`DELETE FROM sessions WHERE sess->'passport'->'user'->>'id' = ${sourceId} OR sess->'passport'->'user'->'claims'->>'sub' = ${sourceId} OR sess->>'userId' = ${sourceId}`);
       await tx.delete(users).where(eq(users.id, sourceId));
     });
 
