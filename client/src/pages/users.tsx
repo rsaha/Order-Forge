@@ -14,11 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Shield, ShieldCheck, User as UserIcon, Loader2, Trash2,
-  Pencil, X, Check, Plus, Mail, Phone, Key, Search, GitMerge, ChevronRight, AlertTriangle
+  Pencil, X, Check, Plus, Mail, Phone, Key, Search, GitMerge, ChevronRight, AlertTriangle, CheckCircle2
 } from "lucide-react";
 import {
   AlertDialog,
@@ -65,9 +65,10 @@ export default function UsersPage() {
   const [editingLinkedSalesUser, setEditingLinkedSalesUser] = useState<string>("");
   const [newPassword, setNewPassword] = useState("");
 
-  const [mergeStep, setMergeStep] = useState<"select" | "preview" | null>(null);
+  const [mergeStep, setMergeStep] = useState<"select" | "preview" | "success" | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [mergeSearchQuery, setMergeSearchQuery] = useState("");
+  const [mergeResult, setMergeResult] = useState<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number } | null>(null);
 
   const [newUser, setNewUser] = useState({
     email: "",
@@ -297,15 +298,13 @@ export default function UsersPage() {
 
   const mergeMutation = useMutation({
     mutationFn: async ({ sourceUserId, targetUserId }: { sourceUserId: string; targetUserId: string }) => {
-      return apiRequest("POST", "/api/admin/users/merge", { sourceUserId, targetUserId });
+      const res = await apiRequest("POST", "/api/admin/users/merge", { sourceUserId, targetUserId });
+      return res.json();
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setSelectedUser(null);
-      setMergeStep(null);
-      setMergeTargetId("");
-      setMergeSearchQuery("");
-      toast({ title: "Users merged successfully" });
+      setMergeResult(data);
+      setMergeStep("success");
     },
     onError: (error: Error) => {
       toast({ title: "Failed to merge users", description: error.message, variant: "destructive" });
@@ -990,6 +989,7 @@ export default function UsersPage() {
                         <div className="mt-2 space-y-1 text-xs">
                           <p>{mergePreview.source.orderCount} orders</p>
                           <p>{mergePreview.source.brandAccess.length} brands</p>
+                          <p>{mergePreview.source.deliveryCompanyAccess.length} delivery cos.</p>
                           <p>{mergePreview.source.partyAccess.length} parties</p>
                           <p>{mergePreview.source.linkedCustomerCount} linked customers</p>
                         </div>
@@ -1001,6 +1001,7 @@ export default function UsersPage() {
                         <div className="mt-2 space-y-1 text-xs">
                           <p>{mergePreview.target.orderCount} orders</p>
                           <p>{mergePreview.target.brandAccess.length} brands</p>
+                          <p>{mergePreview.target.deliveryCompanyAccess.length} delivery cos.</p>
                           <p>{mergePreview.target.partyAccess.length} parties</p>
                           <p>{mergePreview.target.linkedCustomerCount} linked customers</p>
                         </div>
@@ -1013,6 +1014,9 @@ export default function UsersPage() {
                         {mergePreview.source.orderCount > 0 && <li>{mergePreview.source.orderCount} orders will be transferred</li>}
                         {mergePreview.source.brandAccess.filter((b: string) => !mergePreview.target.brandAccess.includes(b)).length > 0 && (
                           <li>Brand access added: {mergePreview.source.brandAccess.filter((b: string) => !mergePreview.target.brandAccess.includes(b)).join(", ")}</li>
+                        )}
+                        {mergePreview.source.deliveryCompanyAccess.filter((dc: string) => !mergePreview.target.deliveryCompanyAccess.includes(dc)).length > 0 && (
+                          <li>Delivery company access added: {mergePreview.source.deliveryCompanyAccess.filter((dc: string) => !mergePreview.target.deliveryCompanyAccess.includes(dc)).join(", ")}</li>
                         )}
                         {mergePreview.source.partyAccess.filter((p: string) => !mergePreview.target.partyAccess.includes(p)).length > 0 && (
                           <li>Party access added: {mergePreview.source.partyAccess.filter((p: string) => !mergePreview.target.partyAccess.includes(p)).join(", ")}</li>
@@ -1033,6 +1037,32 @@ export default function UsersPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Failed to load preview.</p>
                 )}
+              </div>
+            </>
+          ) : mergeStep === "success" && mergeResult ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>Merge Complete</SheetTitle>
+                <SheetDescription>The accounts have been successfully merged.</SheetDescription>
+              </SheetHeader>
+              <div className="space-y-4 mt-4">
+                <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-4 border border-green-200 dark:border-green-900">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">Merge Summary</p>
+                  </div>
+                  <ul className="text-sm space-y-1.5 text-muted-foreground" data-testid="merge-success-summary">
+                    {mergeResult.ordersTransferred > 0 && <li>{mergeResult.ordersTransferred} order(s) transferred</li>}
+                    {mergeResult.brandsAdded.length > 0 && <li>Brand access added: {mergeResult.brandsAdded.join(", ")}</li>}
+                    {mergeResult.deliveryCompaniesAdded.length > 0 && <li>Delivery company access added: {mergeResult.deliveryCompaniesAdded.join(", ")}</li>}
+                    {mergeResult.partiesAdded.length > 0 && <li>Party access added: {mergeResult.partiesAdded.join(", ")}</li>}
+                    {mergeResult.customersTransferred > 0 && <li>{mergeResult.customersTransferred} linked customer(s) reassigned</li>}
+                    <li>Source account has been deleted</li>
+                  </ul>
+                </div>
+                <Button onClick={() => { setSelectedUser(null); setMergeStep(null); setMergeTargetId(""); setMergeSearchQuery(""); setMergeResult(null); }} className="w-full" data-testid="button-merge-done">
+                  Done
+                </Button>
               </div>
             </>
           ) : null}

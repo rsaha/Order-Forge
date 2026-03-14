@@ -362,8 +362,8 @@ export class DatabaseStorage implements IStorage {
     if (!sourceUser || !targetUser) return null;
 
     const [srcOrders, tgtOrders] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.userId, sourceId)),
-      db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.userId, targetId)),
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(or(eq(orders.userId, sourceId), eq(orders.createdBy, sourceId))),
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(or(eq(orders.userId, targetId), eq(orders.createdBy, targetId))),
     ]);
 
     const [srcBrands, tgtBrands] = await Promise.all([
@@ -427,7 +427,7 @@ export class DatabaseStorage implements IStorage {
     const dcToAdd = srcDC.filter(dc => !tgtDC.includes(dc));
     const partiesToAdd = srcParty.filter(p => !tgtParty.includes(p));
 
-    const orderResult = await db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.userId, sourceId));
+    const orderResult = await db.select({ count: sql<number>`count(*)` }).from(orders).where(or(eq(orders.userId, sourceId), eq(orders.createdBy, sourceId)));
     const ordersTransferred = Number(orderResult[0].count);
 
     const customerResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, "Customer"), eq(users.linkedSalesUserId, sourceId)));
