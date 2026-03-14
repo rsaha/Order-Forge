@@ -346,9 +346,116 @@ export class DatabaseStorage implements IStorage {
     await db.delete(userBrandAccess).where(eq(userBrandAccess.userId, userId));
     // Delete user's delivery company access
     await db.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, userId));
+    // Delete user's party access
+    await db.delete(userPartyAccess).where(eq(userPartyAccess.userId, userId));
     // Delete the user
     const result = await db.delete(users).where(eq(users.id, userId));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getMergePreview(sourceId: string, targetId: string): Promise<{
+    source: { user: User; orderCount: number; brandAccess: string[]; deliveryCompanyAccess: string[]; partyAccess: string[]; linkedCustomerCount: number };
+    target: { user: User; orderCount: number; brandAccess: string[]; deliveryCompanyAccess: string[]; partyAccess: string[]; linkedCustomerCount: number };
+  } | null> {
+    const sourceUser = await this.getUser(sourceId);
+    const targetUser = await this.getUser(targetId);
+    if (!sourceUser || !targetUser) return null;
+
+    const [srcOrders, tgtOrders] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.userId, sourceId)),
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.userId, targetId)),
+    ]);
+
+    const [srcBrands, tgtBrands] = await Promise.all([
+      this.getUserBrandAccess(sourceId),
+      this.getUserBrandAccess(targetId),
+    ]);
+
+    const [srcDC, tgtDC] = await Promise.all([
+      this.getUserDeliveryCompanyAccess(sourceId),
+      this.getUserDeliveryCompanyAccess(targetId),
+    ]);
+
+    const [srcParty, tgtParty] = await Promise.all([
+      this.getUserPartyAccess(sourceId),
+      this.getUserPartyAccess(targetId),
+    ]);
+
+    const [srcCustomers, tgtCustomers] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, "Customer"), eq(users.linkedSalesUserId, sourceId))),
+      db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, "Customer"), eq(users.linkedSalesUserId, targetId))),
+    ]);
+
+    return {
+      source: {
+        user: sourceUser,
+        orderCount: Number(srcOrders[0].count),
+        brandAccess: srcBrands,
+        deliveryCompanyAccess: srcDC,
+        partyAccess: srcParty,
+        linkedCustomerCount: Number(srcCustomers[0].count),
+      },
+      target: {
+        user: targetUser,
+        orderCount: Number(tgtOrders[0].count),
+        brandAccess: tgtBrands,
+        deliveryCompanyAccess: tgtDC,
+        partyAccess: tgtParty,
+        linkedCustomerCount: Number(tgtCustomers[0].count),
+      },
+    };
+  }
+
+  async mergeUsers(sourceId: string, targetId: string): Promise<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number }> {
+    const sourceUser = await this.getUser(sourceId);
+    const targetUser = await this.getUser(targetId);
+    if (!sourceUser) throw new Error("Source user not found");
+    if (!targetUser) throw new Error("Target user not found");
+
+    const [tgtBrands, tgtDC, tgtParty] = await Promise.all([
+      this.getUserBrandAccess(targetId),
+      this.getUserDeliveryCompanyAccess(targetId),
+      this.getUserPartyAccess(targetId),
+    ]);
+    const [srcBrands, srcDC, srcParty] = await Promise.all([
+      this.getUserBrandAccess(sourceId),
+      this.getUserDeliveryCompanyAccess(sourceId),
+      this.getUserPartyAccess(sourceId),
+    ]);
+
+    const brandsToAdd = srcBrands.filter(b => !tgtBrands.includes(b));
+    const dcToAdd = srcDC.filter(dc => !tgtDC.includes(dc));
+    const partiesToAdd = srcParty.filter(p => !tgtParty.includes(p));
+
+    const orderResult = await db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.userId, sourceId));
+    const ordersTransferred = Number(orderResult[0].count);
+
+    const customerResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, "Customer"), eq(users.linkedSalesUserId, sourceId)));
+    const customersTransferred = Number(customerResult[0].count);
+
+    await db.transaction(async (tx) => {
+      await tx.update(orders).set({ userId: targetId }).where(eq(orders.userId, sourceId));
+      await tx.update(orders).set({ createdBy: targetId }).where(eq(orders.createdBy, sourceId));
+
+      if (brandsToAdd.length > 0) {
+        await tx.insert(userBrandAccess).values(brandsToAdd.map(brand => ({ userId: targetId, brand }))).onConflictDoNothing();
+      }
+      if (dcToAdd.length > 0) {
+        await tx.insert(userDeliveryCompanyAccess).values(dcToAdd.map(deliveryCompany => ({ userId: targetId, deliveryCompany }))).onConflictDoNothing();
+      }
+      if (partiesToAdd.length > 0) {
+        await tx.insert(userPartyAccess).values(partiesToAdd.map(partyName => ({ userId: targetId, partyName }))).onConflictDoNothing();
+      }
+
+      await tx.update(users).set({ linkedSalesUserId: targetId }).where(eq(users.linkedSalesUserId, sourceId));
+
+      await tx.delete(userBrandAccess).where(eq(userBrandAccess.userId, sourceId));
+      await tx.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, sourceId));
+      await tx.delete(userPartyAccess).where(eq(userPartyAccess.userId, sourceId));
+      await tx.delete(users).where(eq(users.id, sourceId));
+    });
+
+    return { ordersTransferred, brandsAdded: brandsToAdd, deliveryCompaniesAdded: dcToAdd, partiesAdded: partiesToAdd, customersTransferred };
   }
 
   // Product operations

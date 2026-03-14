@@ -3489,6 +3489,72 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/admin/users/merge-preview', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { sourceId, targetId } = req.query;
+      if (!sourceId || !targetId) {
+        return res.status(400).json({ message: "sourceId and targetId are required" });
+      }
+      if (sourceId === targetId) {
+        return res.status(400).json({ message: "Source and target must be different users" });
+      }
+
+      const preview = await storage.getMergePreview(sourceId as string, targetId as string);
+      if (!preview) {
+        return res.status(404).json({ message: "One or both users not found" });
+      }
+
+      const sanitize = (u: any) => {
+        const { passwordHash, ...rest } = u;
+        return rest;
+      };
+      res.json({
+        source: { ...preview.source, user: sanitize(preview.source.user) },
+        target: { ...preview.target, user: sanitize(preview.target.user) },
+      });
+    } catch (error) {
+      console.error("Error getting merge preview:", error);
+      res.status(500).json({ message: "Failed to get merge preview" });
+    }
+  });
+
+  app.post('/api/admin/users/merge', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { sourceUserId, targetUserId } = req.body;
+      if (!sourceUserId || !targetUserId) {
+        return res.status(400).json({ message: "sourceUserId and targetUserId are required" });
+      }
+      if (sourceUserId === targetUserId) {
+        return res.status(400).json({ message: "Cannot merge a user into themselves" });
+      }
+      if (sourceUserId === userId) {
+        return res.status(400).json({ message: "Cannot merge your own account" });
+      }
+
+      const result = await storage.mergeUsers(sourceUserId, targetUserId);
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("Error merging users:", error);
+      const msg = error.message || "Failed to merge users";
+      if (msg.includes("not found")) {
+        return res.status(404).json({ message: msg });
+      }
+      res.status(500).json({ message: msg });
+    }
+  });
+
   // Get user role options
   app.get('/api/options/roles', isAuthenticated, async (req: any, res) => {
     res.json({ roles: USER_ROLES });

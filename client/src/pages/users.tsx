@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Header from "@/components/Header";
@@ -14,11 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { 
-  ArrowLeft, Shield, ShieldCheck, User as UserIcon, Save, Loader2, Trash2, 
-  ChevronDown, ChevronRight, Pencil, X, Check, Plus, Mail, Phone, Key
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import {
+  ArrowLeft, Shield, ShieldCheck, User as UserIcon, Loader2, Trash2,
+  Pencil, X, Check, Plus, Mail, Phone, Key, Search, GitMerge, ChevronRight, AlertTriangle
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,11 +30,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import type { User, UserRole, BrandRecord } from "@shared/schema";
 import { USER_ROLES } from "@shared/schema";
 
@@ -45,32 +41,34 @@ interface UserWithBrands extends User {
 
 const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
 
+const ROLE_TABS = ["All", "Admin", "BrandAdmin", "User", "Customer"] as const;
+
 export default function UsersPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  const [editingBrandsUserId, setEditingBrandsUserId] = useState<string | null>(null);
-  const [editingBrands, setEditingBrands] = useState<string[]>([]);
-  const [editingNameUserId, setEditingNameUserId] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<string>("All");
+  const [selectedUser, setSelectedUser] = useState<UserWithBrands | null>(null);
+  const [sheetMode, setSheetMode] = useState<"view" | "add">("view");
+  const [userToDelete, setUserToDelete] = useState<UserWithBrands | null>(null);
+
+  const [editingField, setEditingField] = useState<string | null>(null);
   const [editingFirstName, setEditingFirstName] = useState("");
   const [editingLastName, setEditingLastName] = useState("");
-  const [userToDelete, setUserToDelete] = useState<UserWithBrands | null>(null);
-  const [editingDeliveryCompaniesUserId, setEditingDeliveryCompaniesUserId] = useState<string | null>(null);
+  const [editingBrands, setEditingBrands] = useState<string[]>([]);
   const [editingDeliveryCompanies, setEditingDeliveryCompanies] = useState<string[]>([]);
-  const [editingPartyNameUserId, setEditingPartyNameUserId] = useState<string | null>(null);
   const [editingPartyName, setEditingPartyName] = useState("");
-  const [editingPartyAccessUserId, setEditingPartyAccessUserId] = useState<string | null>(null);
   const [editingPartyAccess, setEditingPartyAccess] = useState<string[]>([]);
   const [partyAccessInput, setPartyAccessInput] = useState("");
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    Admin: true,
-    BrandAdmin: true,
-    User: true,
-    Customer: true,
-  });
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [passwordResetUser, setPasswordResetUser] = useState<UserWithBrands | null>(null);
+  const [editingLinkedSalesUser, setEditingLinkedSalesUser] = useState<string>("");
   const [newPassword, setNewPassword] = useState("");
+
+  const [mergeStep, setMergeStep] = useState<"select" | "preview" | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [mergeSearchQuery, setMergeSearchQuery] = useState("");
+
   const [newUser, setNewUser] = useState({
     email: "",
     phone: "",
@@ -83,8 +81,6 @@ export default function UsersPage() {
     deliveryCompanies: [] as string[],
     linkedSalesUserId: "",
   });
-  const [editingLinkedSalesUserId, setEditingLinkedSalesUserId] = useState<string | null>(null);
-  const [editingLinkedSalesUser, setEditingLinkedSalesUser] = useState<string>("");
 
   const isAdmin = user?.isAdmin === true;
 
@@ -102,30 +98,55 @@ export default function UsersPage() {
     enabled: isAdmin,
   });
 
-  // Fetch sales users for linking to customer users
   const { data: salesUsers = [] } = useQuery<{ id: string; firstName: string | null; lastName: string | null; phone: string | null; email: string | null }[]>({
     queryKey: ["/api/admin/sales-users"],
     enabled: isAdmin,
   });
 
-  const usersByRole = useMemo(() => {
-    const grouped: Record<string, UserWithBrands[]> = {
-      Admin: [],
-      BrandAdmin: [],
-      User: [],
-      Customer: [],
-    };
-    
-    users.forEach((u) => {
-      const role = u.role || "User";
-      if (grouped[role]) {
-        grouped[role].push(u);
-      } else {
-        grouped["User"].push(u);
+  const { data: mergePreview, isLoading: mergePreviewLoading } = useQuery({
+    queryKey: ["/api/admin/users/merge-preview", selectedUser?.id, mergeTargetId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/users/merge-preview?sourceId=${selectedUser?.id}&targetId=${mergeTargetId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load preview");
+      return res.json();
+    },
+    enabled: mergeStep === "preview" && !!selectedUser?.id && !!mergeTargetId,
+  });
+
+  useEffect(() => {
+    if (selectedUser) {
+      const updated = users.find(u => u.id === selectedUser.id);
+      if (updated && updated !== selectedUser) {
+        setSelectedUser(updated);
       }
+    }
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    let list = users;
+    if (activeTab !== "All") {
+      list = list.filter(u => (u.role || "User") === activeTab);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(u =>
+        (u.firstName || "").toLowerCase().includes(q) ||
+        (u.lastName || "").toLowerCase().includes(q) ||
+        (u.email || "").toLowerCase().includes(q) ||
+        (u.phone || "").toLowerCase().includes(q) ||
+        (u.partyName || "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [users, activeTab, searchQuery]);
+
+  const roleCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: users.length, Admin: 0, BrandAdmin: 0, User: 0, Customer: 0 };
+    users.forEach(u => {
+      const role = u.role || "User";
+      if (counts[role] !== undefined) counts[role]++;
     });
-    
-    return grouped;
+    return counts;
   }, [users]);
 
   const updateRoleMutation = useMutation({
@@ -147,7 +168,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingNameUserId(null);
+      setEditingField(null);
       toast({ title: "Name updated" });
     },
     onError: (error: Error) => {
@@ -161,12 +182,10 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingBrandsUserId(null);
+      setEditingField(null);
       toast({ title: "Brand access updated" });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingBrandsUserId(null);
       toast({ title: "Failed to update brand access", description: error.message, variant: "destructive" });
     },
   });
@@ -177,12 +196,10 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingDeliveryCompaniesUserId(null);
+      setEditingField(null);
       toast({ title: "Delivery company access updated" });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingDeliveryCompaniesUserId(null);
       toast({ title: "Failed to update delivery companies", description: error.message, variant: "destructive" });
     },
   });
@@ -193,7 +210,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingPartyNameUserId(null);
+      setEditingField(null);
       toast({ title: "Party name updated" });
     },
     onError: (error: Error) => {
@@ -207,14 +224,11 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingPartyAccessUserId(null);
+      setEditingField(null);
       setPartyAccessInput("");
       toast({ title: "Party access updated" });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingPartyAccessUserId(null);
-      setPartyAccessInput("");
       toast({ title: "Failed to update party access", description: error.message, variant: "destructive" });
     },
   });
@@ -225,8 +239,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setEditingLinkedSalesUserId(null);
-      setEditingLinkedSalesUser("");
+      setEditingField(null);
       toast({ title: "Linked sales user updated" });
     },
     onError: (error: Error) => {
@@ -241,6 +254,7 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setUserToDelete(null);
+      setSelectedUser(null);
       toast({ title: "User deleted" });
     },
     onError: (error: Error) => {
@@ -254,18 +268,11 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      setShowAddUserModal(false);
+      setSheetMode("view");
+      setSelectedUser(null);
       setNewUser({
-        email: "",
-        phone: "",
-        initialPassword: "",
-        firstName: "",
-        lastName: "",
-        partyName: "",
-        role: "User",
-        brands: [],
-        deliveryCompanies: [],
-        linkedSalesUserId: "",
+        email: "", phone: "", initialPassword: "", firstName: "", lastName: "",
+        partyName: "", role: "User", brands: [], deliveryCompanies: [], linkedSalesUserId: "",
       });
       toast({ title: "User created successfully" });
     },
@@ -279,7 +286,7 @@ export default function UsersPage() {
       return apiRequest("PATCH", `/api/admin/users/${userId}/password`, { password });
     },
     onSuccess: () => {
-      setPasswordResetUser(null);
+      setEditingField(null);
       setNewPassword("");
       toast({ title: "Password updated successfully" });
     },
@@ -288,149 +295,41 @@ export default function UsersPage() {
     },
   });
 
-  const handleRoleChange = (userId: string, role: string) => {
-    updateRoleMutation.mutate({ userId, role });
-  };
+  const mergeMutation = useMutation({
+    mutationFn: async ({ sourceUserId, targetUserId }: { sourceUserId: string; targetUserId: string }) => {
+      return apiRequest("POST", "/api/admin/users/merge", { sourceUserId, targetUserId });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setSelectedUser(null);
+      setMergeStep(null);
+      setMergeTargetId("");
+      setMergeSearchQuery("");
+      toast({ title: "Users merged successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to merge users", description: error.message, variant: "destructive" });
+    },
+  });
 
-  const handleEditName = (u: UserWithBrands) => {
-    setEditingNameUserId(u.id);
-    setEditingFirstName(u.firstName || "");
-    setEditingLastName(u.lastName || "");
-  };
-
-  const handleSaveName = () => {
-    if (editingNameUserId) {
-      updateNameMutation.mutate({ 
-        userId: editingNameUserId, 
-        firstName: editingFirstName.trim(), 
-        lastName: editingLastName.trim() 
-      });
+  const getDisplayName = (u: UserWithBrands | User | { firstName: string | null; lastName: string | null; email?: string | null; phone?: string | null }) => {
+    if (u.firstName || u.lastName) {
+      return `${u.firstName || ""} ${u.lastName || ""}`.trim();
     }
-  };
-
-  const handleCancelNameEdit = () => {
-    setEditingNameUserId(null);
-    setEditingFirstName("");
-    setEditingLastName("");
-  };
-
-  const handleEditBrands = (userId: string, currentBrands: string[]) => {
-    setEditingBrandsUserId(userId);
-    setEditingBrands([...currentBrands]);
-  };
-
-  const handleBrandToggle = (brand: string) => {
-    setEditingBrands(prev =>
-      prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
-    );
-  };
-
-  const handleSaveBrands = () => {
-    if (editingBrandsUserId) {
-      updateBrandsMutation.mutate({ userId: editingBrandsUserId, brands: editingBrands });
-    }
-  };
-
-  const handleCancelBrandsEdit = () => {
-    setEditingBrandsUserId(null);
-    setEditingBrands([]);
-  };
-
-  const handleEditDeliveryCompanies = (userId: string, currentDeliveryCompanies: string[]) => {
-    setEditingDeliveryCompaniesUserId(userId);
-    setEditingDeliveryCompanies([...currentDeliveryCompanies]);
-  };
-
-  const handleDeliveryCompanyToggle = (company: string) => {
-    setEditingDeliveryCompanies(prev =>
-      prev.includes(company) ? prev.filter(c => c !== company) : [...prev, company]
-    );
-  };
-
-  const handleSaveDeliveryCompanies = () => {
-    if (editingDeliveryCompaniesUserId) {
-      updateDeliveryCompaniesMutation.mutate({ 
-        userId: editingDeliveryCompaniesUserId, 
-        deliveryCompanies: editingDeliveryCompanies 
-      });
-    }
-  };
-
-  const handleCancelDeliveryCompaniesEdit = () => {
-    setEditingDeliveryCompaniesUserId(null);
-    setEditingDeliveryCompanies([]);
-  };
-
-  const handleEditPartyName = (u: UserWithBrands) => {
-    setEditingPartyNameUserId(u.id);
-    setEditingPartyName(u.partyName || "");
-  };
-
-  const handleSavePartyName = () => {
-    if (editingPartyNameUserId) {
-      updatePartyNameMutation.mutate({ 
-        userId: editingPartyNameUserId, 
-        partyName: editingPartyName.trim() 
-      });
-    }
-  };
-
-  const handleCancelPartyNameEdit = () => {
-    setEditingPartyNameUserId(null);
-    setEditingPartyName("");
-  };
-
-  const handleEditPartyAccess = (userId: string, currentPartyAccess: string[]) => {
-    setEditingPartyAccessUserId(userId);
-    setEditingPartyAccess([...currentPartyAccess]);
-    setPartyAccessInput("");
-  };
-
-  const handleAddPartyAccess = () => {
-    const trimmed = partyAccessInput.trim();
-    if (trimmed && !editingPartyAccess.includes(trimmed)) {
-      setEditingPartyAccess(prev => [...prev, trimmed]);
-    }
-    setPartyAccessInput("");
-  };
-
-  const handleRemovePartyAccess = (party: string) => {
-    setEditingPartyAccess(prev => prev.filter(p => p !== party));
-  };
-
-  const handleSavePartyAccess = () => {
-    if (editingPartyAccessUserId) {
-      updatePartyAccessMutation.mutate({ 
-        userId: editingPartyAccessUserId, 
-        partyNames: editingPartyAccess 
-      });
-    }
-  };
-
-  const handleCancelPartyAccessEdit = () => {
-    setEditingPartyAccessUserId(null);
-    setEditingPartyAccess([]);
-    setPartyAccessInput("");
-  };
-
-  const toggleSection = (role: string) => {
-    setExpandedSections(prev => ({ ...prev, [role]: !prev[role] }));
+    if ('email' in u && u.email) return u.email.split("@")[0];
+    return "Unnamed";
   };
 
   const getRoleIcon = (role: string | null) => {
     switch (role) {
-      case "Admin":
-        return <ShieldCheck className="w-4 h-4 text-destructive" />;
-      case "BrandAdmin":
-        return <Shield className="w-4 h-4 text-yellow-600 dark:text-yellow-500" />;
-      case "Customer":
-        return <UserIcon className="w-4 h-4 text-green-600 dark:text-green-500" />;
-      default:
-        return <UserIcon className="w-4 h-4 text-muted-foreground" />;
+      case "Admin": return <ShieldCheck className="w-4 h-4 text-destructive" />;
+      case "BrandAdmin": return <Shield className="w-4 h-4 text-yellow-600 dark:text-yellow-500" />;
+      case "Customer": return <UserIcon className="w-4 h-4 text-green-600 dark:text-green-500" />;
+      default: return <UserIcon className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
-  const getRoleBadgeVariant = (role: string | null) => {
+  const getRoleBadgeVariant = (role: string | null): "destructive" | "secondary" | "default" | "outline" => {
     switch (role) {
       case "Admin": return "destructive";
       case "BrandAdmin": return "secondary";
@@ -439,11 +338,32 @@ export default function UsersPage() {
     }
   };
 
-  const getDisplayName = (u: UserWithBrands) => {
-    if (u.firstName || u.lastName) {
-      return `${u.firstName || ""} ${u.lastName || ""}`.trim();
-    }
-    return u.email?.split("@")[0] || "Unnamed";
+  const openUserSheet = (u: UserWithBrands) => {
+    setSelectedUser(u);
+    setSheetMode("view");
+    setEditingField(null);
+    setMergeStep(null);
+    setMergeTargetId("");
+    setMergeSearchQuery("");
+  };
+
+  const openAddUserSheet = () => {
+    setSelectedUser(null);
+    setSheetMode("add");
+    setEditingField(null);
+    setNewUser({
+      email: "", phone: "", initialPassword: "", firstName: "", lastName: "",
+      partyName: "", role: "User", brands: [], deliveryCompanies: [], linkedSalesUserId: "",
+    });
+  };
+
+  const closeSheet = () => {
+    setSelectedUser(null);
+    setSheetMode("view");
+    setEditingField(null);
+    setMergeStep(null);
+    setMergeTargetId("");
+    setMergeSearchQuery("");
   };
 
   if (!isAdmin) {
@@ -453,7 +373,7 @@ export default function UsersPage() {
           <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
           <p className="text-muted-foreground mb-4">Only administrators can access this page.</p>
-          <Button onClick={() => navigate("/")}>
+          <Button onClick={() => navigate("/")} data-testid="button-go-home">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Go Home
           </Button>
@@ -462,504 +382,7 @@ export default function UsersPage() {
     );
   }
 
-  const renderUserRow = (u: UserWithBrands) => {
-    const isEditingName = editingNameUserId === u.id;
-    const isEditingBrands = editingBrandsUserId === u.id;
-    const isEditingPartyName = editingPartyNameUserId === u.id;
-    const isEditingDeliveryCompanies = editingDeliveryCompaniesUserId === u.id;
-
-    return (
-      <div 
-        key={u.id} 
-        className="flex flex-col gap-2 py-2 px-3 border-b last:border-b-0 hover-elevate"
-        data-testid={`row-user-${u.id}`}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <Avatar className="w-7 h-7 flex-shrink-0">
-            <AvatarImage src={u.profileImageUrl || undefined} alt={u.firstName || "User"} />
-            <AvatarFallback className="text-xs">
-              {(u.firstName?.[0] || u.email?.[0] || "U").toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-
-          {isEditingName ? (
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              <Input
-                value={editingFirstName}
-                onChange={(e) => setEditingFirstName(e.target.value)}
-                placeholder="First"
-                className="text-sm w-24"
-                data-testid={`input-firstname-${u.id}`}
-              />
-              <Input
-                value={editingLastName}
-                onChange={(e) => setEditingLastName(e.target.value)}
-                placeholder="Last"
-                className="text-sm w-24"
-                data-testid={`input-lastname-${u.id}`}
-              />
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                onClick={handleSaveName}
-                disabled={updateNameMutation.isPending}
-                data-testid={`button-save-name-${u.id}`}
-              >
-                {updateNameMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              </Button>
-              <Button size="icon" variant="ghost" onClick={handleCancelNameEdit} data-testid={`button-cancel-name-${u.id}`}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              <span className="font-medium text-sm truncate" data-testid={`text-user-name-${u.id}`}>
-                {getDisplayName(u)}
-              </span>
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                onClick={() => handleEditName(u)}
-                className="opacity-60"
-                data-testid={`button-edit-name-${u.id}`}
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-
-          <Select
-            value={u.role || "User"}
-            onValueChange={(value) => handleRoleChange(u.id, value)}
-            disabled={updateRoleMutation.isPending}
-          >
-            <SelectTrigger className="w-28 text-xs" data-testid={`select-role-${u.id}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {USER_ROLES.map((role) => (
-                <SelectItem key={role} value={role}>
-                  <div className="flex items-center gap-1">
-                    {getRoleIcon(role)}
-                    <span className="text-xs">{role}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {u.phone && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPasswordResetUser(u)}
-              title="Set Password"
-              data-testid={`button-set-password-${u.id}`}
-            >
-              <Key className="w-4 h-4" />
-            </Button>
-          )}
-          {u.id !== user?.id && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setUserToDelete(u)}
-              className="text-destructive"
-              data-testid={`button-delete-user-${u.id}`}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 ml-9 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1" data-testid={`text-user-email-${u.id}`}>
-            <Mail className="w-3 h-3" />
-            <span className="truncate max-w-[180px]">{u.email || "—"}</span>
-          </div>
-          <div className="flex items-center gap-1" data-testid={`text-user-phone-${u.id}`}>
-            <Phone className="w-3 h-3" />
-            <span>{u.phone || "—"}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ml-9">
-          <span className="text-xs text-muted-foreground">Brands:</span>
-          {isEditingBrands ? (
-            <div className="flex flex-wrap items-center gap-1">
-              {brandRecords.map((brand) => (
-                <Badge
-                  key={brand.id}
-                  variant={editingBrands.includes(brand.name) ? "default" : "outline"}
-                  className="text-xs cursor-pointer"
-                  onClick={() => handleBrandToggle(brand.name)}
-                  data-testid={`badge-brand-${u.id}-${brand.name}`}
-                >
-                  {brand.name}
-                </Badge>
-              ))}
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={handleSaveBrands}
-                disabled={updateBrandsMutation.isPending}
-                data-testid={`button-save-brands-${u.id}`}
-              >
-                {updateBrandsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handleCancelBrandsEdit} data-testid={`button-cancel-brands-${u.id}`}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-1">
-              {u.brandAccess.length > 0 ? (
-                u.brandAccess.map((brand) => (
-                  <Badge key={brand} variant="secondary" className="text-xs">
-                    {brand}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-xs text-muted-foreground">None</span>
-              )}
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => handleEditBrands(u.id, u.brandAccess)}
-                className="opacity-60"
-                data-testid={`button-edit-brands-${u.id}`}
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {u.role === "User" && (
-          <>
-          <div className="flex items-start gap-2 ml-9">
-            <span className="text-xs text-muted-foreground pt-1">Linked Parties:</span>
-            {editingPartyAccessUserId === u.id ? (
-              <div className="flex flex-col gap-2 flex-1">
-                <div className="flex flex-wrap items-center gap-1">
-                  {editingPartyAccess.map((party) => (
-                    <Badge
-                      key={party}
-                      variant="default"
-                      className="text-xs cursor-pointer"
-                      onClick={() => handleRemovePartyAccess(party)}
-                      data-testid={`badge-party-access-${u.id}-${party.replace(/\s+/g, '-')}`}
-                    >
-                      {party}
-                      <X className="w-3 h-3 ml-1" />
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={partyAccessInput}
-                    onChange={(e) => setPartyAccessInput(e.target.value)}
-                    placeholder="Add party name..."
-                    className="text-sm w-48"
-                    list={`party-suggestions-${u.id}`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddPartyAccess();
-                      }
-                    }}
-                    data-testid={`input-party-access-${u.id}`}
-                  />
-                  <datalist id={`party-suggestions-${u.id}`}>
-                    {partyNames
-                      .filter(p => !editingPartyAccess.includes(p))
-                      .map(p => (
-                        <option key={p} value={p} />
-                      ))
-                    }
-                  </datalist>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={handleAddPartyAccess}
-                    disabled={!partyAccessInput.trim()}
-                    data-testid={`button-add-party-${u.id}`}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={handleSavePartyAccess}
-                    disabled={updatePartyAccessMutation.isPending}
-                    data-testid={`button-save-party-access-${u.id}`}
-                  >
-                    {updatePartyAccessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleCancelPartyAccessEdit} data-testid={`button-cancel-party-access-${u.id}`}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-1">
-                {(u.partyAccess && u.partyAccess.length > 0) ? (
-                  u.partyAccess.map((party) => (
-                    <Badge key={party} variant="secondary" className="text-xs">
-                      {party}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-xs text-muted-foreground">None</span>
-                )}
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={() => handleEditPartyAccess(u.id, u.partyAccess || [])}
-                  className="opacity-60"
-                  data-testid={`button-edit-party-access-${u.id}`}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          {/* Show linked customer users for this sales user */}
-          <div className="flex items-start gap-2 ml-9">
-            <span className="text-xs text-muted-foreground pt-1">Linked Customers:</span>
-            <div className="flex flex-wrap items-center gap-1">
-              {(() => {
-                const linkedCustomers = users.filter(
-                  cu => cu.role === "Customer" && cu.linkedSalesUserId === u.id
-                );
-                if (linkedCustomers.length === 0) {
-                  return <span className="text-xs text-muted-foreground">None</span>;
-                }
-                return linkedCustomers.map((cu) => (
-                  <Badge key={cu.id} variant="secondary" className="text-xs" data-testid={`badge-linked-customer-${u.id}-${cu.id}`}>
-                    {cu.firstName || cu.lastName 
-                      ? `${cu.firstName || ''} ${cu.lastName || ''}`.trim()
-                      : cu.partyName || cu.phone || cu.email || cu.id}
-                  </Badge>
-                ));
-              })()}
-            </div>
-          </div>
-          </>
-        )}
-
-        {u.role === "Customer" && (
-          <>
-            <div className="flex items-center gap-2 ml-9">
-              <span className="text-xs text-muted-foreground">Party Name:</span>
-              {isEditingPartyName ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={editingPartyName}
-                    onChange={(e) => setEditingPartyName(e.target.value)}
-                    placeholder="Party name"
-                    className="text-sm w-48"
-                    data-testid={`input-party-name-${u.id}`}
-                  />
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={handleSavePartyName}
-                    disabled={updatePartyNameMutation.isPending}
-                    data-testid={`button-save-party-name-${u.id}`}
-                  >
-                    {updatePartyNameMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleCancelPartyNameEdit} data-testid={`button-cancel-party-name-${u.id}`}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-sm" data-testid={`text-party-name-${u.id}`}>
-                    {u.partyName || <span className="text-muted-foreground">Not set</span>}
-                  </span>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => handleEditPartyName(u)}
-                    className="opacity-60"
-                    data-testid={`button-edit-party-name-${u.id}`}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 ml-9">
-              <span className="text-xs text-muted-foreground">Sales User:</span>
-              {editingLinkedSalesUserId === u.id ? (
-                <div className="flex items-center gap-1">
-                  <Select
-                    value={editingLinkedSalesUser || "none"}
-                    onValueChange={(value) => setEditingLinkedSalesUser(value === "none" ? "" : value)}
-                  >
-                    <SelectTrigger className="w-40 text-xs" data-testid={`select-linked-sales-user-${u.id}`}>
-                      <SelectValue placeholder="Select sales user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No linked sales user</SelectItem>
-                      {salesUsers.map((su) => (
-                        <SelectItem key={su.id} value={su.id}>
-                          {su.firstName || su.lastName 
-                            ? `${su.firstName || ''} ${su.lastName || ''}`.trim()
-                            : su.phone || su.email || su.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => {
-                      updateLinkedSalesUserMutation.mutate({
-                        userId: u.id,
-                        linkedSalesUserId: editingLinkedSalesUser || null
-                      });
-                    }}
-                    disabled={updateLinkedSalesUserMutation.isPending}
-                    data-testid={`button-save-linked-sales-user-${u.id}`}
-                  >
-                    {updateLinkedSalesUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => {
-                      setEditingLinkedSalesUserId(null);
-                      setEditingLinkedSalesUser("");
-                    }}
-                    data-testid={`button-cancel-linked-sales-user-${u.id}`}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-sm" data-testid={`text-linked-sales-user-${u.id}`}>
-                    {(() => {
-                      const linkedUser = salesUsers.find(su => su.id === u.linkedSalesUserId);
-                      if (linkedUser) {
-                        return linkedUser.firstName || linkedUser.lastName 
-                          ? `${linkedUser.firstName || ''} ${linkedUser.lastName || ''}`.trim()
-                          : linkedUser.phone || linkedUser.email || linkedUser.id;
-                      }
-                      return <span className="text-muted-foreground">Not linked</span>;
-                    })()}
-                  </span>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => {
-                      setEditingLinkedSalesUserId(u.id);
-                      setEditingLinkedSalesUser(u.linkedSalesUserId || "");
-                    }}
-                    className="opacity-60"
-                    data-testid={`button-edit-linked-sales-user-${u.id}`}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 ml-9">
-              <span className="text-xs text-muted-foreground">Delivery Companies:</span>
-              {isEditingDeliveryCompanies ? (
-                <div className="flex flex-wrap items-center gap-1">
-                  {DELIVERY_COMPANIES.map((company) => (
-                    <Badge
-                      key={company}
-                      variant={editingDeliveryCompanies.includes(company) ? "default" : "outline"}
-                      className="text-xs cursor-pointer"
-                      onClick={() => handleDeliveryCompanyToggle(company)}
-                      data-testid={`badge-delivery-${u.id}-${company.toLowerCase()}`}
-                    >
-                      {company}
-                    </Badge>
-                  ))}
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={handleSaveDeliveryCompanies}
-                    disabled={updateDeliveryCompaniesMutation.isPending}
-                    data-testid={`button-save-delivery-${u.id}`}
-                  >
-                    {updateDeliveryCompaniesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleCancelDeliveryCompaniesEdit} data-testid={`button-cancel-delivery-${u.id}`}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-1">
-                  {(u.deliveryCompanyAccess && u.deliveryCompanyAccess.length > 0) ? (
-                    u.deliveryCompanyAccess.map((company) => (
-                      <Badge key={company} variant="secondary" className="text-xs">
-                        {company}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">None</span>
-                  )}
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => handleEditDeliveryCompanies(u.id, u.deliveryCompanyAccess || [])}
-                    className="opacity-60"
-                    data-testid={`button-edit-delivery-${u.id}`}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  const renderRoleSection = (role: string, usersInRole: UserWithBrands[]) => {
-    const isExpanded = expandedSections[role];
-    const count = usersInRole.length;
-
-    return (
-      <Collapsible key={role} open={isExpanded} onOpenChange={() => toggleSection(role)}>
-        <CollapsibleTrigger asChild>
-          <div 
-            className="flex items-center gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover-elevate rounded-t-md"
-            data-testid={`button-toggle-${role.toLowerCase()}-section`}
-          >
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            {getRoleIcon(role)}
-            <span className="font-medium text-sm">{role}s</span>
-            <Badge variant={getRoleBadgeVariant(role) as any} className="text-xs">
-              {count}
-            </Badge>
-          </div>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <Card className="rounded-t-none border-t-0">
-            {usersInRole.length > 0 ? (
-              usersInRole.map(renderUserRow)
-            ) : (
-              <div className="py-4 text-center text-sm text-muted-foreground">
-                No {role.toLowerCase()}s
-              </div>
-            )}
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
-    );
-  };
+  const sheetOpen = sheetMode === "add" || !!selectedUser;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -972,308 +395,668 @@ export default function UsersPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="border-b bg-card">
           <div className="flex items-center gap-2 px-4 py-2">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")} data-testid="button-back">
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="text-lg font-semibold" data-testid="text-page-title">User Management</h1>
-            <Badge variant="outline" className="ml-auto">
-              {users.length} users
-            </Badge>
-            <Button size="sm" onClick={() => setShowAddUserModal(true)} data-testid="button-add-user">
-              <Plus className="w-4 h-4 mr-1" />
-              Add User
-            </Button>
+            <h1 className="text-lg font-semibold" data-testid="text-page-title">Users</h1>
+            <div className="ml-auto">
+              <Button size="sm" onClick={openAddUserSheet} data-testid="button-add-user">
+                <Plus className="w-4 h-4 mr-1" />
+                Add User
+              </Button>
+            </div>
+          </div>
+
+          <div className="px-4 pb-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, phone, or party..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-users"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-1 px-4 pb-2 overflow-x-auto">
+            {ROLE_TABS.map(tab => (
+              <Button
+                key={tab}
+                variant={activeTab === tab ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setActiveTab(tab)}
+                className="text-xs whitespace-nowrap"
+                data-testid={`button-tab-${tab.toLowerCase()}`}
+              >
+                {tab === "BrandAdmin" ? "Brand Admin" : tab}
+                <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0">
+                  {roleCounts[tab]}
+                </Badge>
+              </Button>
+            ))}
           </div>
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-3 max-w-4xl mx-auto">
+          <div className="p-4 space-y-1 max-w-4xl mx-auto">
             {isLoading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <Card className="p-6 text-center">
-                <p className="text-muted-foreground">No users found</p>
+                <p className="text-muted-foreground" data-testid="text-no-users">
+                  {searchQuery ? "No users match your search" : "No users found"}
+                </p>
               </Card>
             ) : (
-              <>
-                {renderRoleSection("Admin", usersByRole.Admin)}
-                {renderRoleSection("BrandAdmin", usersByRole.BrandAdmin)}
-                {renderRoleSection("User", usersByRole.User)}
-                {renderRoleSection("Customer", usersByRole.Customer)}
-              </>
+              filteredUsers.map(u => (
+                <div
+                  key={u.id}
+                  onClick={() => openUserSheet(u)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
+                  data-testid={`row-user-${u.id}`}
+                >
+                  <Avatar className="w-8 h-8 flex-shrink-0">
+                    <AvatarImage src={u.profileImageUrl || undefined} alt={u.firstName || "User"} />
+                    <AvatarFallback className="text-xs">
+                      {(u.firstName?.[0] || u.email?.[0] || "U").toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm truncate" data-testid={`text-user-name-${u.id}`}>
+                        {getDisplayName(u)}
+                      </span>
+                      <Badge variant={getRoleBadgeVariant(u.role)} className="text-[10px] px-1.5 py-0 flex-shrink-0">
+                        {u.role || "User"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                      {u.email && (
+                        <span className="truncate max-w-[180px]" data-testid={`text-user-email-${u.id}`}>{u.email}</span>
+                      )}
+                      {u.phone && (
+                        <span data-testid={`text-user-phone-${u.id}`}>{u.phone}</span>
+                      )}
+                      {u.partyName && (
+                        <span className="truncate max-w-[120px]">{u.partyName}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                </div>
+              ))
             )}
           </div>
         </ScrollArea>
       </div>
+
+      <Sheet open={sheetOpen} onOpenChange={(open) => { if (!open) closeSheet(); }}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          {sheetMode === "add" ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>Add New User</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 mt-6">
+                <div className="space-y-2">
+                  <Label>Role *</Label>
+                  <Select value={newUser.role} onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value as typeof newUser.role }))}>
+                    <SelectTrigger data-testid="select-new-user-role"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="User">User (Sales Rep)</SelectItem>
+                      <SelectItem value="BrandAdmin">Brand Admin</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Customer">Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">Provide either email (for Google login) or phone number (for password login)</p>
+                <div className="space-y-2">
+                  <Label>Email {newUser.phone.trim() ? "(optional)" : ""}</Label>
+                  <Input type="email" placeholder="user@example.com" value={newUser.email} onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))} data-testid="input-new-user-email" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Phone {newUser.email.trim() ? "(optional)" : ""}</Label>
+                    <Input type="tel" placeholder="9876543210" value={newUser.phone} onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))} data-testid="input-new-user-phone" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Password {newUser.phone.trim() ? "*" : "(for phone login)"}</Label>
+                    <Input type="text" placeholder="Min 6 chars" value={newUser.initialPassword} onChange={(e) => setNewUser(prev => ({ ...prev, initialPassword: e.target.value }))} data-testid="input-new-user-password" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>First Name</Label>
+                    <Input placeholder="First name" value={newUser.firstName} onChange={(e) => setNewUser(prev => ({ ...prev, firstName: e.target.value }))} data-testid="input-new-user-first-name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name</Label>
+                    <Input placeholder="Last name" value={newUser.lastName} onChange={(e) => setNewUser(prev => ({ ...prev, lastName: e.target.value }))} data-testid="input-new-user-last-name" />
+                  </div>
+                </div>
+                {newUser.role === "Customer" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Party Name *</Label>
+                      <Input placeholder="Business or party name" value={newUser.partyName} onChange={(e) => setNewUser(prev => ({ ...prev, partyName: e.target.value }))} data-testid="input-new-user-party-name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Linked Sales User</Label>
+                      <Select value={newUser.linkedSalesUserId || "none"} onValueChange={(value) => setNewUser(prev => ({ ...prev, linkedSalesUserId: value === "none" ? "" : value }))}>
+                        <SelectTrigger data-testid="select-new-user-linked-sales-user"><SelectValue placeholder="Select sales user" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No linked sales user</SelectItem>
+                          {salesUsers.map(su => (
+                            <SelectItem key={su.id} value={su.id}>
+                              {su.firstName || su.lastName ? `${su.firstName || ''} ${su.lastName || ''}`.trim() : su.phone || su.email || su.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+                <div className="space-y-2">
+                  <Label>Allowed Brands</Label>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                    {brandRecords.filter(b => b.isActive).map(brand => (
+                      <div key={brand.id} className="flex items-center gap-1">
+                        <Checkbox
+                          id={`new-brand-${brand.id}`}
+                          checked={newUser.brands.includes(brand.name)}
+                          onCheckedChange={(checked) => setNewUser(prev => ({ ...prev, brands: checked ? [...prev.brands, brand.name] : prev.brands.filter(b => b !== brand.name) }))}
+                        />
+                        <Label htmlFor={`new-brand-${brand.id}`} className="text-sm cursor-pointer">{brand.name}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Delivery Companies</Label>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                    {DELIVERY_COMPANIES.map(company => (
+                      <div key={company} className="flex items-center gap-1">
+                        <Checkbox
+                          id={`new-dc-${company}`}
+                          checked={newUser.deliveryCompanies.includes(company)}
+                          onCheckedChange={(checked) => setNewUser(prev => ({ ...prev, deliveryCompanies: checked ? [...prev.deliveryCompanies, company] : prev.deliveryCompanies.filter(c => c !== company) }))}
+                        />
+                        <Label htmlFor={`new-dc-${company}`} className="text-sm cursor-pointer">{company}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" onClick={closeSheet} className="flex-1" data-testid="button-cancel-add-user">Cancel</Button>
+                  <Button
+                    onClick={() => createUserMutation.mutate(newUser)}
+                    disabled={(!newUser.email.trim() && !newUser.phone.trim()) || (newUser.phone.trim() && newUser.initialPassword.length < 6) || (newUser.role === "Customer" && !newUser.partyName.trim()) || createUserMutation.isPending}
+                    className="flex-1"
+                    data-testid="button-save-user"
+                  >
+                    {createUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                    Create
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : selectedUser && !mergeStep ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>User Details</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-6">
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-12 h-12">
+                    <AvatarImage src={selectedUser.profileImageUrl || undefined} />
+                    <AvatarFallback>{(selectedUser.firstName?.[0] || selectedUser.email?.[0] || "U").toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    {editingField === "name" ? (
+                      <div className="flex items-center gap-1">
+                        <Input value={editingFirstName} onChange={(e) => setEditingFirstName(e.target.value)} placeholder="First" className="text-sm h-8 w-24" data-testid={`input-firstname-${selectedUser.id}`} />
+                        <Input value={editingLastName} onChange={(e) => setEditingLastName(e.target.value)} placeholder="Last" className="text-sm h-8 w-24" data-testid={`input-lastname-${selectedUser.id}`} />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateNameMutation.mutate({ userId: selectedUser.id, firstName: editingFirstName.trim(), lastName: editingLastName.trim() })} disabled={updateNameMutation.isPending} data-testid={`button-save-name-${selectedUser.id}`}>
+                          {updateNameMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingField(null)} data-testid={`button-cancel-name-${selectedUser.id}`}><X className="w-3 h-3" /></Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold">{getDisplayName(selectedUser)}</span>
+                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-60" onClick={() => { setEditingField("name"); setEditingFirstName(selectedUser.firstName || ""); setEditingLastName(selectedUser.lastName || ""); }} data-testid={`button-edit-name-${selectedUser.id}`}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                    <Badge variant={getRoleBadgeVariant(selectedUser.role)} className="text-xs mt-1">{selectedUser.role || "User"}</Badge>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Identity</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span data-testid={`text-user-email-${selectedUser.id}`}>{selectedUser.email || "No email"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span data-testid={`text-user-phone-${selectedUser.id}`}>{selectedUser.phone || "No phone"}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm">Role</Label>
+                    <Select value={selectedUser.role || "User"} onValueChange={(value) => { updateRoleMutation.mutate({ userId: selectedUser.id, role: value }); }}>
+                      <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-role-${selectedUser.id}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {USER_ROLES.map(role => (
+                          <SelectItem key={role} value={role}>
+                            <div className="flex items-center gap-1">{getRoleIcon(role)}<span className="text-xs">{role}</span></div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedUser.phone && (
+                    <div>
+                      {editingField === "password" ? (
+                        <div className="flex items-center gap-1">
+                          <Input type="password" placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="h-8 text-sm" data-testid="input-new-password" />
+                          <Button size="sm" variant="ghost" onClick={() => { resetPasswordMutation.mutate({ userId: selectedUser.id, password: newPassword }); }} disabled={newPassword.length < 6 || resetPasswordMutation.isPending} data-testid="button-save-password">
+                            {resetPasswordMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingField(null); setNewPassword(""); }} data-testid="button-cancel-password-reset"><X className="w-3 h-3" /></Button>
+                        </div>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => { setEditingField("password"); setNewPassword(""); }} data-testid={`button-set-password-${selectedUser.id}`}>
+                          <Key className="w-3 h-3 mr-1" /> Set Password
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Access Permissions</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Brands</Label>
+                      {editingField !== "brands" && (
+                        <Button size="sm" variant="ghost" className="h-6 opacity-60" onClick={() => { setEditingField("brands"); setEditingBrands([...selectedUser.brandAccess]); }} data-testid={`button-edit-brands-${selectedUser.id}`}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                    {editingField === "brands" ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                          {brandRecords.map(brand => (
+                            <Badge key={brand.id} variant={editingBrands.includes(brand.name) ? "default" : "outline"} className="text-xs cursor-pointer" onClick={() => setEditingBrands(prev => prev.includes(brand.name) ? prev.filter(b => b !== brand.name) : [...prev, brand.name])} data-testid={`badge-brand-${selectedUser.id}-${brand.name}`}>
+                              {brand.name}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={() => updateBrandsMutation.mutate({ userId: selectedUser.id, brands: editingBrands })} disabled={updateBrandsMutation.isPending} data-testid={`button-save-brands-${selectedUser.id}`}>
+                            {updateBrandsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-1" />} Save
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingField(null)} data-testid={`button-cancel-brands-${selectedUser.id}`}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {selectedUser.brandAccess.length > 0 ? selectedUser.brandAccess.map(brand => (
+                          <Badge key={brand} variant="secondary" className="text-xs">{brand}</Badge>
+                        )) : <span className="text-xs text-muted-foreground">None</span>}
+                      </div>
+                    )}
+                  </div>
+
+                  {(selectedUser.role === "Customer") && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Delivery Companies</Label>
+                        {editingField !== "deliveryCompanies" && (
+                          <Button size="sm" variant="ghost" className="h-6 opacity-60" onClick={() => { setEditingField("deliveryCompanies"); setEditingDeliveryCompanies([...(selectedUser.deliveryCompanyAccess || [])]); }} data-testid={`button-edit-delivery-${selectedUser.id}`}>
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                      {editingField === "deliveryCompanies" ? (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1">
+                            {DELIVERY_COMPANIES.map(company => (
+                              <Badge key={company} variant={editingDeliveryCompanies.includes(company) ? "default" : "outline"} className="text-xs cursor-pointer" onClick={() => setEditingDeliveryCompanies(prev => prev.includes(company) ? prev.filter(c => c !== company) : [...prev, company])} data-testid={`badge-delivery-${selectedUser.id}-${company.toLowerCase()}`}>
+                                {company}
+                              </Badge>
+                            ))}
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" onClick={() => updateDeliveryCompaniesMutation.mutate({ userId: selectedUser.id, deliveryCompanies: editingDeliveryCompanies })} disabled={updateDeliveryCompaniesMutation.isPending} data-testid={`button-save-delivery-${selectedUser.id}`}>
+                              {updateDeliveryCompaniesMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-1" />} Save
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingField(null)} data-testid={`button-cancel-delivery-${selectedUser.id}`}>Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {(selectedUser.deliveryCompanyAccess && selectedUser.deliveryCompanyAccess.length > 0) ? selectedUser.deliveryCompanyAccess.map(c => (
+                            <Badge key={c} variant="secondary" className="text-xs">{c}</Badge>
+                          )) : <span className="text-xs text-muted-foreground">None</span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Relationships</h3>
+
+                  {selectedUser.role === "Customer" && (
+                    <>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Party Name</Label>
+                          {editingField !== "partyName" && (
+                            <Button size="sm" variant="ghost" className="h-6 opacity-60" onClick={() => { setEditingField("partyName"); setEditingPartyName(selectedUser.partyName || ""); }} data-testid={`button-edit-party-name-${selectedUser.id}`}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                        {editingField === "partyName" ? (
+                          <div className="flex items-center gap-1">
+                            <Input value={editingPartyName} onChange={(e) => setEditingPartyName(e.target.value)} placeholder="Party name" className="text-sm h-8" data-testid={`input-party-name-${selectedUser.id}`} />
+                            <Button size="sm" variant="ghost" onClick={() => updatePartyNameMutation.mutate({ userId: selectedUser.id, partyName: editingPartyName.trim() })} disabled={updatePartyNameMutation.isPending} data-testid={`button-save-party-name-${selectedUser.id}`}>
+                              {updatePartyNameMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingField(null)} data-testid={`button-cancel-party-name-${selectedUser.id}`}><X className="w-3 h-3" /></Button>
+                          </div>
+                        ) : (
+                          <span className="text-sm" data-testid={`text-party-name-${selectedUser.id}`}>{selectedUser.partyName || <span className="text-muted-foreground">Not set</span>}</span>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Sales User</Label>
+                          {editingField !== "linkedSalesUser" && (
+                            <Button size="sm" variant="ghost" className="h-6 opacity-60" onClick={() => { setEditingField("linkedSalesUser"); setEditingLinkedSalesUser(selectedUser.linkedSalesUserId || ""); }} data-testid={`button-edit-linked-sales-user-${selectedUser.id}`}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                        {editingField === "linkedSalesUser" ? (
+                          <div className="flex items-center gap-1">
+                            <Select value={editingLinkedSalesUser || "none"} onValueChange={(v) => setEditingLinkedSalesUser(v === "none" ? "" : v)}>
+                              <SelectTrigger className="h-8 text-xs" data-testid={`select-linked-sales-user-${selectedUser.id}`}><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No linked sales user</SelectItem>
+                                {salesUsers.map(su => (
+                                  <SelectItem key={su.id} value={su.id}>
+                                    {su.firstName || su.lastName ? `${su.firstName || ''} ${su.lastName || ''}`.trim() : su.phone || su.email || su.id}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button size="sm" variant="ghost" onClick={() => updateLinkedSalesUserMutation.mutate({ userId: selectedUser.id, linkedSalesUserId: editingLinkedSalesUser || null })} disabled={updateLinkedSalesUserMutation.isPending} data-testid={`button-save-linked-sales-user-${selectedUser.id}`}>
+                              {updateLinkedSalesUserMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingField(null)} data-testid={`button-cancel-linked-sales-user-${selectedUser.id}`}><X className="w-3 h-3" /></Button>
+                          </div>
+                        ) : (
+                          <span className="text-sm" data-testid={`text-linked-sales-user-${selectedUser.id}`}>
+                            {(() => {
+                              const linked = salesUsers.find(su => su.id === selectedUser.linkedSalesUserId);
+                              if (linked) return linked.firstName || linked.lastName ? `${linked.firstName || ''} ${linked.lastName || ''}`.trim() : linked.phone || linked.email || linked.id;
+                              return <span className="text-muted-foreground">Not linked</span>;
+                            })()}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {selectedUser.role === "User" && (
+                    <>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Linked Parties</Label>
+                          {editingField !== "partyAccess" && (
+                            <Button size="sm" variant="ghost" className="h-6 opacity-60" onClick={() => { setEditingField("partyAccess"); setEditingPartyAccess([...(selectedUser.partyAccess || [])]); setPartyAccessInput(""); }} data-testid={`button-edit-party-access-${selectedUser.id}`}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                        {editingField === "partyAccess" ? (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1">
+                              {editingPartyAccess.map(party => (
+                                <Badge key={party} variant="default" className="text-xs cursor-pointer" onClick={() => setEditingPartyAccess(prev => prev.filter(p => p !== party))} data-testid={`badge-party-access-${selectedUser.id}-${party.replace(/\s+/g, '-')}`}>
+                                  {party} <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Input value={partyAccessInput} onChange={(e) => setPartyAccessInput(e.target.value)} placeholder="Add party..." className="text-sm h-8" list={`party-sugg-${selectedUser.id}`} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const t = partyAccessInput.trim(); if (t && !editingPartyAccess.includes(t)) setEditingPartyAccess(prev => [...prev, t]); setPartyAccessInput(""); } }} data-testid={`input-party-access-${selectedUser.id}`} />
+                              <datalist id={`party-sugg-${selectedUser.id}`}>
+                                {partyNames.filter(p => !editingPartyAccess.includes(p)).map(p => <option key={p} value={p} />)}
+                              </datalist>
+                              <Button size="sm" variant="ghost" disabled={!partyAccessInput.trim()} onClick={() => { const t = partyAccessInput.trim(); if (t && !editingPartyAccess.includes(t)) setEditingPartyAccess(prev => [...prev, t]); setPartyAccessInput(""); }} data-testid={`button-add-party-${selectedUser.id}`}>
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button size="sm" onClick={() => updatePartyAccessMutation.mutate({ userId: selectedUser.id, partyNames: editingPartyAccess })} disabled={updatePartyAccessMutation.isPending} data-testid={`button-save-party-access-${selectedUser.id}`}>
+                                {updatePartyAccessMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-1" />} Save
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => { setEditingField(null); setPartyAccessInput(""); }} data-testid={`button-cancel-party-access-${selectedUser.id}`}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {(selectedUser.partyAccess && selectedUser.partyAccess.length > 0) ? selectedUser.partyAccess.map(party => (
+                              <Badge key={party} variant="secondary" className="text-xs">{party}</Badge>
+                            )) : <span className="text-xs text-muted-foreground">None</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Linked Customers</Label>
+                        <div className="flex flex-wrap gap-1">
+                          {(() => {
+                            const linkedCustomers = users.filter(cu => cu.role === "Customer" && cu.linkedSalesUserId === selectedUser.id);
+                            if (linkedCustomers.length === 0) return <span className="text-xs text-muted-foreground">None</span>;
+                            return linkedCustomers.map(cu => (
+                              <Badge key={cu.id} variant="secondary" className="text-xs" data-testid={`badge-linked-customer-${selectedUser.id}-${cu.id}`}>
+                                {cu.firstName || cu.lastName ? `${cu.firstName || ''} ${cu.lastName || ''}`.trim() : cu.partyName || cu.phone || cu.email || cu.id}
+                              </Badge>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2 pb-4">
+                  <h3 className="text-sm font-medium text-muted-foreground">Actions</h3>
+                  {selectedUser.id !== user?.id && (
+                    <div className="flex flex-col gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setMergeStep("select")} data-testid={`button-merge-${selectedUser.id}`}>
+                        <GitMerge className="w-4 h-4 mr-2" /> Merge into another user
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setUserToDelete(selectedUser)} data-testid={`button-delete-user-${selectedUser.id}`}>
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete user
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : selectedUser && mergeStep === "select" ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>Merge User</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Merging (will be removed)</p>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="w-7 h-7">
+                      <AvatarFallback className="text-xs">{(selectedUser.firstName?.[0] || selectedUser.email?.[0] || "U").toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <span className="font-medium text-sm">{getDisplayName(selectedUser)}</span>
+                      <p className="text-xs text-muted-foreground">{selectedUser.email || selectedUser.phone}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Select target user (will be kept)</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input placeholder="Search users..." value={mergeSearchQuery} onChange={(e) => setMergeSearchQuery(e.target.value)} className="pl-9" data-testid="input-merge-search" />
+                  </div>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto space-y-1 border rounded-lg p-1">
+                  {users
+                    .filter(u => u.id !== selectedUser.id)
+                    .filter(u => {
+                      if (!mergeSearchQuery.trim()) return true;
+                      const q = mergeSearchQuery.toLowerCase();
+                      return (u.firstName || "").toLowerCase().includes(q) || (u.lastName || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q) || (u.phone || "").toLowerCase().includes(q);
+                    })
+                    .map(u => (
+                      <div key={u.id} onClick={() => setMergeTargetId(u.id)} className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors ${mergeTargetId === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'}`} data-testid={`merge-target-${u.id}`}>
+                        <Avatar className="w-7 h-7">
+                          <AvatarFallback className="text-xs">{(u.firstName?.[0] || u.email?.[0] || "U").toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium truncate block">{getDisplayName(u)}</span>
+                          <span className="text-xs text-muted-foreground">{u.email || u.phone}</span>
+                        </div>
+                        <Badge variant={getRoleBadgeVariant(u.role)} className="text-[10px]">{u.role}</Badge>
+                      </div>
+                    ))
+                  }
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setMergeStep(null); setMergeTargetId(""); setMergeSearchQuery(""); }} className="flex-1" data-testid="button-merge-back-select">Back</Button>
+                  <Button onClick={() => setMergeStep("preview")} disabled={!mergeTargetId} className="flex-1" data-testid="button-merge-preview">Next</Button>
+                </div>
+              </div>
+            </>
+          ) : selectedUser && mergeStep === "preview" ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>Confirm Merge</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
+                {mergePreviewLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : mergePreview ? (
+                  <>
+                    <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">This action cannot be undone</p>
+                        <p className="text-xs text-muted-foreground mt-1">All data from the source user will be transferred to the target user, and the source account will be permanently deleted.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-red-50 dark:bg-red-950/30 rounded-lg p-3 border border-red-200 dark:border-red-900">
+                        <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-2">Source (removing)</p>
+                        <p className="text-sm font-medium">{getDisplayName(mergePreview.source.user)}</p>
+                        <p className="text-xs text-muted-foreground">{mergePreview.source.user.email || mergePreview.source.user.phone}</p>
+                        <div className="mt-2 space-y-1 text-xs">
+                          <p>{mergePreview.source.orderCount} orders</p>
+                          <p>{mergePreview.source.brandAccess.length} brands</p>
+                          <p>{mergePreview.source.partyAccess.length} parties</p>
+                          <p>{mergePreview.source.linkedCustomerCount} linked customers</p>
+                        </div>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3 border border-green-200 dark:border-green-900">
+                        <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-2">Target (keeping)</p>
+                        <p className="text-sm font-medium">{getDisplayName(mergePreview.target.user)}</p>
+                        <p className="text-xs text-muted-foreground">{mergePreview.target.user.email || mergePreview.target.user.phone}</p>
+                        <div className="mt-2 space-y-1 text-xs">
+                          <p>{mergePreview.target.orderCount} orders</p>
+                          <p>{mergePreview.target.brandAccess.length} brands</p>
+                          <p>{mergePreview.target.partyAccess.length} parties</p>
+                          <p>{mergePreview.target.linkedCustomerCount} linked customers</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                      <p className="text-xs font-medium">What will happen:</p>
+                      <ul className="text-xs text-muted-foreground space-y-0.5 list-disc pl-4">
+                        {mergePreview.source.orderCount > 0 && <li>{mergePreview.source.orderCount} orders will be transferred</li>}
+                        {mergePreview.source.brandAccess.filter((b: string) => !mergePreview.target.brandAccess.includes(b)).length > 0 && (
+                          <li>Brand access added: {mergePreview.source.brandAccess.filter((b: string) => !mergePreview.target.brandAccess.includes(b)).join(", ")}</li>
+                        )}
+                        {mergePreview.source.partyAccess.filter((p: string) => !mergePreview.target.partyAccess.includes(p)).length > 0 && (
+                          <li>Party access added: {mergePreview.source.partyAccess.filter((p: string) => !mergePreview.target.partyAccess.includes(p)).join(", ")}</li>
+                        )}
+                        {mergePreview.source.linkedCustomerCount > 0 && <li>{mergePreview.source.linkedCustomerCount} linked customers will be reassigned</li>}
+                        <li>Source account will be permanently deleted</li>
+                      </ul>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setMergeStep("select")} className="flex-1" data-testid="button-merge-back-preview">Back</Button>
+                      <Button variant="destructive" onClick={() => mergeMutation.mutate({ sourceUserId: selectedUser.id, targetUserId: mergeTargetId })} disabled={mergeMutation.isPending} className="flex-1" data-testid="button-confirm-merge">
+                        {mergeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GitMerge className="w-4 h-4 mr-2" />}
+                        Merge Users
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Failed to load preview.</p>
+                )}
+              </div>
+            </>
+          ) : null}
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete User</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{userToDelete?.firstName || userToDelete?.email || 'this user'}"? 
+              Are you sure you want to delete "{userToDelete?.firstName || userToDelete?.email || 'this user'}"?
               This will remove their account and all associated data. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete"
-            >
-              {deleteUserMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Trash2 className="w-4 h-4 mr-2" />
-              )}
+            <AlertDialogAction onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-delete">
+              {deleteUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog open={showAddUserModal} onOpenChange={setShowAddUserModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-user-role">Role *</Label>
-              <Select
-                value={newUser.role}
-                onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value as typeof newUser.role }))}
-              >
-                <SelectTrigger id="new-user-role" data-testid="select-new-user-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="User">User (Sales Rep)</SelectItem>
-                  <SelectItem value="BrandAdmin">Brand Admin</SelectItem>
-                  <SelectItem value="Admin">Admin</SelectItem>
-                  <SelectItem value="Customer">Customer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">Provide either email (for Google login) or phone number (for password login)</p>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-email">Email {newUser.phone.trim() ? "(optional)" : ""}</Label>
-              <Input
-                id="new-user-email"
-                type="email"
-                placeholder="user@example.com"
-                value={newUser.email}
-                onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                data-testid="input-new-user-email"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="new-user-phone">Phone Number {newUser.email.trim() ? "(optional)" : ""}</Label>
-                <Input
-                  id="new-user-phone"
-                  type="tel"
-                  placeholder="9876543210"
-                  value={newUser.phone}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
-                  data-testid="input-new-user-phone"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-user-password">Password {newUser.phone.trim() ? "*" : "(for phone login)"}</Label>
-                <Input
-                  id="new-user-password"
-                  type="text"
-                  placeholder="Min 6 characters"
-                  value={newUser.initialPassword}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, initialPassword: e.target.value }))}
-                  data-testid="input-new-user-password"
-                />
-              </div>
-            </div>
-            {newUser.phone.trim() && (
-              <p className="text-xs text-muted-foreground">Share this password with the user for phone login</p>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="new-user-first-name">First Name</Label>
-                <Input
-                  id="new-user-first-name"
-                  placeholder="First name"
-                  value={newUser.firstName}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, firstName: e.target.value }))}
-                  data-testid="input-new-user-first-name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-user-last-name">Last Name</Label>
-                <Input
-                  id="new-user-last-name"
-                  placeholder="Last name"
-                  value={newUser.lastName}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, lastName: e.target.value }))}
-                  data-testid="input-new-user-last-name"
-                />
-              </div>
-            </div>
-            {newUser.role === "Customer" && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="new-user-party-name">Party Name *</Label>
-                  <Input
-                    id="new-user-party-name"
-                    placeholder="Business or party name"
-                    value={newUser.partyName}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, partyName: e.target.value }))}
-                    data-testid="input-new-user-party-name"
-                  />
-                  <p className="text-xs text-muted-foreground">This will be auto-filled when the customer creates orders</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-user-linked-sales-user">Linked Sales User</Label>
-                  <Select
-                    value={newUser.linkedSalesUserId || "none"}
-                    onValueChange={(value) => setNewUser(prev => ({ ...prev, linkedSalesUserId: value === "none" ? "" : value }))}
-                  >
-                    <SelectTrigger id="new-user-linked-sales-user" data-testid="select-new-user-linked-sales-user">
-                      <SelectValue placeholder="Select sales user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No linked sales user</SelectItem>
-                      {salesUsers.map((su) => (
-                        <SelectItem key={su.id} value={su.id}>
-                          {su.firstName || su.lastName 
-                            ? `${su.firstName || ''} ${su.lastName || ''}`.trim()
-                            : su.phone || su.email || su.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">The sales user who manages this customer</p>
-                </div>
-              </>
-            )}
-            <div className="space-y-2">
-              <Label>Allowed Brands</Label>
-              <div className="flex flex-wrap gap-2 p-2 border rounded-md">
-                {brandRecords.filter(b => b.isActive).map((brand) => (
-                  <div key={brand.id} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`new-user-brand-${brand.id}`}
-                      checked={newUser.brands.includes(brand.name)}
-                      onCheckedChange={(checked) => {
-                        setNewUser(prev => ({
-                          ...prev,
-                          brands: checked
-                            ? [...prev.brands, brand.name]
-                            : prev.brands.filter(b => b !== brand.name)
-                        }));
-                      }}
-                    />
-                    <Label htmlFor={`new-user-brand-${brand.id}`} className="text-sm cursor-pointer">
-                      {brand.name}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Allowed Delivery Companies</Label>
-              <div className="flex flex-wrap gap-2 p-2 border rounded-md">
-                {DELIVERY_COMPANIES.map((company) => (
-                  <div key={company} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`new-user-delivery-${company}`}
-                      checked={newUser.deliveryCompanies.includes(company)}
-                      onCheckedChange={(checked) => {
-                        setNewUser(prev => ({
-                          ...prev,
-                          deliveryCompanies: checked
-                            ? [...prev.deliveryCompanies, company]
-                            : prev.deliveryCompanies.filter(c => c !== company)
-                        }));
-                      }}
-                    />
-                    <Label htmlFor={`new-user-delivery-${company}`} className="text-sm cursor-pointer">
-                      {company}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowAddUserModal(false)}
-              data-testid="button-cancel-add-user"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => createUserMutation.mutate(newUser)}
-              disabled={(!newUser.email.trim() && !newUser.phone.trim()) || (newUser.phone.trim() && newUser.initialPassword.length < 6) || (newUser.role === "Customer" && !newUser.partyName.trim()) || createUserMutation.isPending}
-              data-testid="button-save-user"
-            >
-              {createUserMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Plus className="w-4 h-4 mr-2" />
-              )}
-              Create {newUser.role === "Customer" ? "Customer" : newUser.role === "BrandAdmin" ? "Brand Admin" : newUser.role}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!passwordResetUser} onOpenChange={(open) => { if (!open) { setPasswordResetUser(null); setNewPassword(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set Password</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Set a new password for <span className="font-medium">{passwordResetUser?.firstName || passwordResetUser?.lastName || passwordResetUser?.phone}</span>
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                placeholder="Minimum 6 characters"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                data-testid="input-new-password"
-              />
-              <p className="text-xs text-muted-foreground">Share this password with the user for phone login</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => { setPasswordResetUser(null); setNewPassword(""); }}
-              data-testid="button-cancel-password-reset"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => passwordResetUser && resetPasswordMutation.mutate({ userId: passwordResetUser.id, password: newPassword })}
-              disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
-              data-testid="button-save-password"
-            >
-              {resetPasswordMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Key className="w-4 h-4 mr-2" />
-              )}
-              Set Password
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
