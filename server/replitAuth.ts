@@ -17,29 +17,6 @@ interface AuthenticatedRequest {
   };
 }
 
-const isDev = process.env.NODE_ENV !== "production";
-let devAdminUserId: string | null = null;
-
-async function getDevAdminUserId(): Promise<string> {
-  if (devAdminUserId) return devAdminUserId;
-  const allUsers = await storage.getAllUsers();
-  const admin = allUsers.find(u => u.isAdmin && u.role === "Admin");
-  if (admin) {
-    devAdminUserId = admin.id;
-    return admin.id;
-  }
-  await storage.upsertUser({
-    id: "dev-admin",
-    email: "dev@admin.local",
-    firstName: "Dev",
-    lastName: "Admin",
-    profileImageUrl: null,
-    isAdmin: true,
-  });
-  devAdminUserId = "dev-admin";
-  return "dev-admin";
-}
-
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
   const pgStore = connectPg(session);
@@ -101,14 +78,6 @@ async function upsertGoogleUser(profile: Profile): Promise<string> {
 }
 
 export async function setupAuth(app: Express) {
-  if (isDev) {
-    console.log("[DEV MODE] Auth bypass enabled - auto-login as admin user");
-    app.get("/api/login", (_req, res) => res.redirect("/"));
-    app.get("/api/callback", (_req, res) => res.redirect("/"));
-    app.get("/api/logout", (_req, res) => res.redirect("/"));
-    return;
-  }
-
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set for Google OAuth");
   }
@@ -180,14 +149,6 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
-  if (isDev) {
-    const adminId = await getDevAdminUserId();
-    (req as unknown as AuthenticatedRequest).user = {
-      claims: { sub: adminId },
-    };
-    return next();
-  }
-
   const typedSession = req.session as session.Session & { userId?: string; phoneAuth?: boolean };
 
   if (typedSession.userId && typedSession.phoneAuth) {
