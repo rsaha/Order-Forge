@@ -423,9 +423,15 @@ export class DatabaseStorage implements IStorage {
       this.getUserPartyAccess(sourceId),
     ]);
 
-    const brandsToAdd = srcBrands.filter(b => !tgtBrands.includes(b));
-    const dcToAdd = srcDC.filter(dc => !tgtDC.includes(dc));
-    const partiesToAdd = srcParty.filter(p => !tgtParty.includes(p));
+    const uniqueSrcBrands = [...new Set(srcBrands)];
+    const uniqueSrcDC = [...new Set(srcDC)];
+    const uniqueSrcParty = [...new Set(srcParty)];
+    const uniqueTgtBrands = new Set(tgtBrands);
+    const uniqueTgtDC = new Set(tgtDC);
+    const uniqueTgtParty = new Set(tgtParty);
+    const brandsToAdd = uniqueSrcBrands.filter(b => !uniqueTgtBrands.has(b));
+    const dcToAdd = uniqueSrcDC.filter(dc => !uniqueTgtDC.has(dc));
+    const partiesToAdd = uniqueSrcParty.filter(p => !uniqueTgtParty.has(p));
 
     const orderResult = await db.select({ count: sql<number>`count(*)` }).from(orders).where(or(eq(orders.userId, sourceId), eq(orders.createdBy, sourceId)));
     const ordersTransferred = Number(orderResult[0].count);

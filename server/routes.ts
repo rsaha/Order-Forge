@@ -3510,13 +3510,11 @@ export async function registerRoutes(
         return res.status(404).json({ message: "One or both users not found" });
       }
 
-      const sanitize = (u: any) => {
-        const { passwordHash, ...rest } = u;
-        return rest;
-      };
+      const { passwordHash: _ph1, ...sourceUserSafe } = preview.source.user;
+      const { passwordHash: _ph2, ...targetUserSafe } = preview.target.user;
       res.json({
-        source: { ...preview.source, user: sanitize(preview.source.user) },
-        target: { ...preview.target, user: sanitize(preview.target.user) },
+        source: { ...preview.source, user: sourceUserSafe },
+        target: { ...preview.target, user: targetUserSafe },
       });
     } catch (error) {
       console.error("Error getting merge preview:", error);
@@ -3545,9 +3543,9 @@ export async function registerRoutes(
 
       const result = await storage.mergeUsers(sourceUserId, targetUserId);
       res.json({ success: true, ...result });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error merging users:", error);
-      const msg = error.message || "Failed to merge users";
+      const msg = error instanceof Error ? error.message : "Failed to merge users";
       if (msg.includes("not found")) {
         return res.status(404).json({ message: msg });
       }
