@@ -79,12 +79,24 @@ async function upsertGoogleUser(profile: Profile): Promise<string> {
 }
 
 export async function setupAuth(app: Express) {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set for Google OAuth");
+  const isDev = process.env.NODE_ENV !== "production";
+  const clientID = isDev
+    ? (process.env.GOOGLE_DEV_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
+    : process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = isDev
+    ? (process.env.GOOGLE_DEV_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET)
+    : process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientID || !clientSecret) {
+    throw new Error(isDev
+      ? "GOOGLE_DEV_CLIENT_ID/GOOGLE_DEV_CLIENT_SECRET (or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET) must be set"
+      : "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set for Google OAuth");
   }
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET must be set for session management");
   }
+
+  console.log(`[Auth] Using ${isDev ? "development" : "production"} Google OAuth credentials`);
 
   app.set("trust proxy", 1);
   app.use(getSession());
@@ -102,8 +114,8 @@ export async function setupAuth(app: Express) {
     "google",
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientID,
+        clientSecret,
         callbackURL: "/api/callback",
         scope: ["email", "profile"],
         state: true,
