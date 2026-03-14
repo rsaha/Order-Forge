@@ -68,7 +68,7 @@ export default function UsersPage() {
   const [mergeStep, setMergeStep] = useState<"select" | "preview" | "success" | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [mergeSearchQuery, setMergeSearchQuery] = useState("");
-  const [mergeResult, setMergeResult] = useState<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number } | null>(null);
+  const [mergeResult, setMergeResult] = useState<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number; sessionsCleared: number } | null>(null);
 
   const [newUser, setNewUser] = useState({
     email: "",
@@ -1057,6 +1057,7 @@ export default function UsersPage() {
                     {mergeResult.deliveryCompaniesAdded.length > 0 && <li>Delivery company access added: {mergeResult.deliveryCompaniesAdded.join(", ")}</li>}
                     {mergeResult.partiesAdded.length > 0 && <li>Party access added: {mergeResult.partiesAdded.join(", ")}</li>}
                     {mergeResult.customersTransferred > 0 && <li>{mergeResult.customersTransferred} linked customer(s) reassigned</li>}
+                    {mergeResult.sessionsCleared > 0 && <li>{mergeResult.sessionsCleared} active session(s) cleared</li>}
                     <li>Source account has been deleted</li>
                   </ul>
                 </div>

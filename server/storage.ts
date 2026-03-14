@@ -44,6 +44,11 @@ export interface IStorage {
   updateUserName(userId: string, firstName: string | null, lastName: string | null): Promise<User | undefined>;
   updateUserPassword(userId: string, passwordHash: string): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
+  getMergePreview(sourceId: string, targetId: string): Promise<{
+    source: { user: User; orderCount: number; brandAccess: string[]; deliveryCompanyAccess: string[]; partyAccess: string[]; linkedCustomerCount: number };
+    target: { user: User; orderCount: number; brandAccess: string[]; deliveryCompanyAccess: string[]; partyAccess: string[]; linkedCustomerCount: number };
+  } | null>;
+  mergeUsers(sourceId: string, targetId: string): Promise<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number; sessionsCleared: number }>;
   
   // Product operations
   getProduct(id: string): Promise<Product | undefined>;
@@ -406,7 +411,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async mergeUsers(sourceId: string, targetId: string): Promise<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number }> {
+  async mergeUsers(sourceId: string, targetId: string): Promise<{ ordersTransferred: number; brandsAdded: string[]; deliveryCompaniesAdded: string[]; partiesAdded: string[]; customersTransferred: number; sessionsCleared: number }> {
     const sourceUser = await this.getUser(sourceId);
     const targetUser = await this.getUser(targetId);
     if (!sourceUser) throw new Error("Source user not found");
@@ -439,6 +444,9 @@ export class DatabaseStorage implements IStorage {
     const customerResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, "Customer"), eq(users.linkedSalesUserId, sourceId)));
     const customersTransferred = Number(customerResult[0].count);
 
+    const sessionCountResult = await db.execute(sql`SELECT count(*) as count FROM sessions WHERE sess->'passport'->'user'->'claims'->>'sub' = ${sourceId} OR sess->>'userId' = ${sourceId}`);
+    const sessionsCleared = Number((sessionCountResult.rows[0] as { count: string }).count);
+
     await db.transaction(async (tx) => {
       await tx.update(orders).set({ userId: targetId }).where(eq(orders.userId, sourceId));
       await tx.update(orders).set({ createdBy: targetId }).where(eq(orders.createdBy, sourceId));
@@ -458,10 +466,11 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(userBrandAccess).where(eq(userBrandAccess.userId, sourceId));
       await tx.delete(userDeliveryCompanyAccess).where(eq(userDeliveryCompanyAccess.userId, sourceId));
       await tx.delete(userPartyAccess).where(eq(userPartyAccess.userId, sourceId));
+      await tx.execute(sql`DELETE FROM sessions WHERE sess->'passport'->'user'->'claims'->>'sub' = ${sourceId} OR sess->>'userId' = ${sourceId}`);
       await tx.delete(users).where(eq(users.id, sourceId));
     });
 
-    return { ordersTransferred, brandsAdded: brandsToAdd, deliveryCompaniesAdded: dcToAdd, partiesAdded: partiesToAdd, customersTransferred };
+    return { ordersTransferred, brandsAdded: brandsToAdd, deliveryCompaniesAdded: dcToAdd, partiesAdded: partiesToAdd, customersTransferred, sessionsCleared };
   }
 
   // Product operations
