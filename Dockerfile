@@ -12,8 +12,8 @@ RUN npm install --production
 COPY . .
 
 # Cloud Run uses port 8080 by default
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=8000
+EXPOSE 8000
 
 # Starts your app using the 'start' script in package.json
 CMD ["npm", "start"]
