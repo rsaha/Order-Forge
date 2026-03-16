@@ -39,6 +39,8 @@ export function generateOrderCreatedMessage(order: OrderWithItems, status?: stri
     header = "*Order Pending*";
   } else if (status === "Approved") {
     header = "*Order Approved*";
+  } else if (status === "Backordered") {
+    header = "*Order Backordered*";
   } else if (status === "Invoiced") {
     header = "*Order Invoiced*";
   }
@@ -168,7 +170,7 @@ export function generateDeliveredMessage(order: OrderWithItems, deliveryDate?: s
   return message;
 }
 
-export type WhatsAppMessageType = "created" | "pending" | "approved" | "invoiced" | "dispatched" | "delivered";
+export type WhatsAppMessageType = "created" | "pending" | "approved" | "backordered" | "invoiced" | "dispatched" | "delivered";
 
 export function generateWhatsAppMessage(order: OrderWithItems, type: WhatsAppMessageType, customDate?: string): string {
   switch (type) {
@@ -178,6 +180,8 @@ export function generateWhatsAppMessage(order: OrderWithItems, type: WhatsAppMes
       return generateOrderCreatedMessage(order, "Pending");
     case "approved":
       return generateOrderCreatedMessage(order, "Approved");
+    case "backordered":
+      return generateOrderCreatedMessage(order, "Backordered");
     case "invoiced":
       return generateOrderCreatedMessage(order, "Invoiced");
     case "dispatched":

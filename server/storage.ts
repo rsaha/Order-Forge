@@ -837,7 +837,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (filters?.includeActive && !filters?.status && (filters.fromDate || filters.toDate)) {
-      const activeStatuses = ['Created', 'Approved', 'Invoiced', 'Dispatched'];
+      const activeStatuses = ['Created', 'Approved', 'Backordered', 'Invoiced', 'Dispatched'];
       const dateConditions: any[] = [];
       
       if (filters.fromDate) {
@@ -1362,6 +1362,10 @@ export class DatabaseStorage implements IStorage {
           if (isOnTime) {
             onTimeCount++;
           }
+          break;
+        case 'Backordered':
+          created.count++;
+          created.value += value;
           break;
         case 'Pending':
           created.count++;

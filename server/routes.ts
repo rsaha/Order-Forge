@@ -4914,7 +4914,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Brand "${brand}" is not valid or has been deactivated` });
       }
 
-      const validStatuses = ['Created', 'Approved', 'Invoiced', 'Dispatched', 'Delivered'];
+      const validStatuses = ['Created', 'Approved', 'Backordered', 'Invoiced', 'Dispatched', 'Delivered'];
       const orderStatus = status || 'Created';
       if (!validStatuses.includes(orderStatus)) {
         return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });

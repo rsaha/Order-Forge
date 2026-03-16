@@ -337,6 +337,7 @@ export default function AnalyticsPage() {
     ordersData.forEach((order) => {
       const status = order.status.toLowerCase();
       if (status === "created" || status === "approved") metrics.created++;
+      else if (status === "backordered") metrics.created++;
       else if (status === "invoiced") metrics.invoiced++;
       else if (status === "dispatched") metrics.dispatched++;
       else if (status === "delivered" || status === "podreceived") metrics.delivered++;
@@ -412,7 +413,7 @@ export default function AnalyticsPage() {
       const invoiceDate = order.invoiceDate ? new Date(order.invoiceDate) : null;
       const estimatedDelivery = order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate) : null;
 
-      if ((status === "created" || status === "approved") && createdAt) {
+      if ((status === "created" || status === "approved" || status === "backordered") && createdAt) {
         const hoursStuck = differenceInHours(now, createdAt);
         if (hoursStuck > STUCK_THRESHOLDS.created) {
           blockers.stuckAtCreated.push(order);
@@ -638,17 +639,17 @@ export default function AnalyticsPage() {
 
   // Order Status Over Time - aggregate by createdAt date
   const orderStatusByDay = useMemo(() => {
-    const statusesToShow = ["Created", "Approved", "Invoiced", "Pending", "Dispatched", "Delivered"] as const;
+    const statusesToShow = ["Created", "Approved", "Backordered", "Invoiced", "Pending", "Dispatched", "Delivered"] as const;
     
     // Group by createdAt date
-    const grouped: Record<string, { Created: number; Approved: number; Invoiced: number; Pending: number; Dispatched: number; Delivered: number }> = {};
+    const grouped: Record<string, { Created: number; Approved: number; Backordered: number; Invoiced: number; Pending: number; Dispatched: number; Delivered: number }> = {};
     
     ordersData.forEach(order => {
       if (!order.createdAt) return;
       const dateStr = format(new Date(order.createdAt), 'yyyy-MM-dd');
       
       if (!grouped[dateStr]) {
-        grouped[dateStr] = { Created: 0, Approved: 0, Invoiced: 0, Pending: 0, Dispatched: 0, Delivered: 0 };
+        grouped[dateStr] = { Created: 0, Approved: 0, Backordered: 0, Invoiced: 0, Pending: 0, Dispatched: 0, Delivered: 0 };
       }
       
       if (statusesToShow.includes(order.status as typeof statusesToShow[number])) {
@@ -663,6 +664,7 @@ export default function AnalyticsPage() {
       rawDate: date,
       Created: grouped[date].Created,
       Approved: grouped[date].Approved,
+      Backordered: grouped[date].Backordered,
       Invoiced: grouped[date].Invoiced,
       Pending: grouped[date].Pending,
       Dispatched: grouped[date].Dispatched,

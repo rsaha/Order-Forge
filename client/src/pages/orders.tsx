@@ -76,11 +76,12 @@ import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   Pending: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   Dispatched: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
@@ -92,6 +93,7 @@ const statusColors: Record<OrderStatus, string> = {
 const tabColors: Record<OrderStatus, string> = {
   Created: "border-blue-500 text-blue-700 dark:text-blue-300",
   Approved: "border-green-500 text-green-700 dark:text-green-300",
+  Backordered: "border-rose-500 text-rose-700 dark:text-rose-300",
   Invoiced: "border-purple-500 text-purple-700 dark:text-purple-300",
   Pending: "border-amber-500 text-amber-700 dark:text-amber-300",
   Dispatched: "border-orange-500 text-orange-700 dark:text-orange-300",
@@ -103,6 +105,7 @@ const tabColors: Record<OrderStatus, string> = {
 const tabBgColors: Record<OrderStatus, string> = {
   Created: "bg-blue-50 dark:bg-blue-950",
   Approved: "bg-green-50 dark:bg-green-950",
+  Backordered: "bg-rose-50 dark:bg-rose-950",
   Invoiced: "bg-purple-50 dark:bg-purple-950",
   Pending: "bg-amber-50 dark:bg-amber-950",
   Dispatched: "bg-orange-50 dark:bg-orange-950",
@@ -114,6 +117,7 @@ const tabBgColors: Record<OrderStatus, string> = {
 const statusIcons: Record<OrderStatus, typeof Package> = {
   Created: FileText,
   Approved: Clock,
+  Backordered: Package,
   Invoiced: FileText,
   Pending: AlertCircle,
   Dispatched: Truck,
@@ -456,6 +460,7 @@ export default function OrdersPage() {
   const statusCounts: Record<OrderStatus, number> = {
     Created: allOrders.filter(o => o.status === "Created").length,
     Approved: allOrders.filter(o => o.status === "Approved").length,
+    Backordered: allOrders.filter(o => o.status === "Backordered").length,
     Invoiced: allOrders.filter(o => o.status === "Invoiced").length,
     Pending: allOrders.filter(o => o.status === "Pending").length,
     Dispatched: allOrders.filter(o => o.status === "Dispatched").length,
@@ -919,6 +924,8 @@ export default function OrdersPage() {
         messageType = "pending";
       } else if (order.status === "Approved") {
         messageType = "approved";
+      } else if (order.status === "Backordered") {
+        messageType = "backordered";
       } else if (order.status === "Invoiced") {
         messageType = "invoiced";
       } else if (order.status === "Dispatched") {
@@ -1403,6 +1410,18 @@ export default function OrdersPage() {
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
+                    {/* Backordered Tab Headers */}
+                    {!searchQuery.trim() && statusFilter === "Backordered" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
                     {/* Invoiced Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Invoiced" && (
                       <tr>
@@ -1424,6 +1443,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium text-xs">Date</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Salesperson</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Parent Order</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
                         <th className="text-right p-2 font-medium">Total</th>
@@ -1572,6 +1592,23 @@ export default function OrdersPage() {
                             </td>
                           </>
                         )}
+                        {/* Backordered Tab Cells */}
+                        {!searchQuery.trim() && statusFilter === "Backordered" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
+                            <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.specialNotes || ""}>{order.specialNotes || "-"}</div></td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                              </div>
+                            </td>
+                          </>
+                        )}
                         {/* Invoiced Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Invoiced" && (
                           <>
@@ -1620,6 +1657,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.parentOrderId ? `#${order.parentOrderId.slice(-6)}` : "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.specialNotes || ""}>{order.specialNotes || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
@@ -2224,13 +2262,13 @@ export default function OrdersPage() {
                     </div>
 
                     <div>
-                      <Label htmlFor="partyName">Party Name {["Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status) && <span className="text-xs text-muted-foreground">(locked)</span>}</Label>
+                      <Label htmlFor="partyName">Party Name {["Backordered", "Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status) && <span className="text-xs text-muted-foreground">(locked)</span>}</Label>
                       <Input
                         id="partyName"
                         value={editFormData.partyName}
                         onChange={(e) => setEditFormData({ ...editFormData, partyName: e.target.value })}
                         placeholder="Customer name"
-                        disabled={["Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status)}
+                        disabled={["Backordered", "Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status)}
                         data-testid="input-party-name"
                       />
                     </div>
@@ -3135,6 +3173,7 @@ export default function OrdersPage() {
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="Created">Created</SelectItem>
                   <SelectItem value="Approved">Approved</SelectItem>
+                  <SelectItem value="Backordered">Backordered</SelectItem>
                   <SelectItem value="Pending">Pending</SelectItem>
                   <SelectItem value="Invoiced">Invoiced</SelectItem>
                   <SelectItem value="Dispatched">Dispatched</SelectItem>

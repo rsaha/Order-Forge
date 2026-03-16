@@ -171,7 +171,7 @@ export default function OrderInsightsPage() {
     };
     ordersData.forEach((order) => {
       const status = order.status.toLowerCase();
-      if (status === "created" || status === "approved") metrics.created++;
+      if (status === "created" || status === "approved" || status === "backordered") metrics.created++;
       else if (status === "invoiced") metrics.invoiced++;
       else if (status === "dispatched") metrics.dispatched++;
       else if (status === "delivered" || status === "podreceived") metrics.delivered++;
@@ -246,7 +246,7 @@ export default function OrderInsightsPage() {
       const invoiceDate = order.invoiceDate ? new Date(order.invoiceDate) : null;
       const estimatedDelivery = order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate) : null;
 
-      if ((status === "created" || status === "approved") && createdAt) {
+      if ((status === "created" || status === "approved" || status === "backordered") && createdAt) {
         const hoursStuck = differenceInHours(now, createdAt);
         if (hoursStuck > STUCK_THRESHOLDS.created) {
           blockers.stuckAtCreated.push(order);
