@@ -29,19 +29,20 @@ interface OrderDetailsFormProps {
 
 const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 
-const GUIDED_KOL_BRANDS = ["Tynor", "Shikon", "Blefit", "Karemed", "UM", "Vissco", "Lifewear"];
+const GUIDED_KOL_BRANDS_UPPER = ["TYNOR", "SHIKON", "BLEFIT", "KAREMED", "UM", "VISSCO", "LIFEWEAR"];
 
 function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] {
-  if (brand === "Biostige") {
+  const brandUpper = brand?.toUpperCase();
+  if (brandUpper === "BIOSTIGE") {
     return ["Guided"];
   }
-  if (brand === "Elmeric") {
+  if (brandUpper === "ELMERIC") {
     return ["Elmeric", "Guided"];
   }
-  if (brand === "Morison") {
+  if (brandUpper === "MORISON") {
     return ["Xmaple", "Elmeric"];
   }
-  if (brand && GUIDED_KOL_BRANDS.includes(brand)) {
+  if (brandUpper && GUIDED_KOL_BRANDS_UPPER.includes(brandUpper)) {
     return ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
   }
   return ["Guided", "Xmaple", "Elmeric"];

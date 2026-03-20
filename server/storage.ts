@@ -1486,7 +1486,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getBrandByName(name: string): Promise<BrandRecord | undefined> {
-    const [brand] = await db.select().from(brands).where(eq(brands.name, name));
+    const [brand] = await db.select().from(brands).where(sql`lower(${brands.name}) = lower(${name})`);
     return brand;
   }
 
