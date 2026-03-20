@@ -27,7 +27,9 @@ interface OrderDetailsFormProps {
   allowedDeliveryCompanies?: string[];
 }
 
-const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"];
+const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
+
+const GUIDED_KOL_BRANDS = ["Tynor", "Shikon", "Blefit", "Karemed", "UM", "Vissco", "Lifewear"];
 
 function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] {
   if (brand === "Biostige") {
@@ -39,7 +41,10 @@ function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] 
   if (brand === "Morison") {
     return ["Xmaple", "Elmeric"];
   }
-  return DELIVERY_COMPANY_OPTIONS;
+  if (brand && GUIDED_KOL_BRANDS.includes(brand)) {
+    return ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
+  }
+  return ["Guided", "Xmaple", "Elmeric"];
 }
 
 export default function OrderDetailsForm({

@@ -85,7 +85,7 @@ export const brands = pgTable("brands", {
 });
 
 // Delivery company options
-export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric"] as const;
+export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"] as const;
 export type DeliveryCompany = typeof DELIVERY_COMPANY_OPTIONS[number];
 
 // Announcement priority levels
