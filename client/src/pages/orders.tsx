@@ -75,6 +75,7 @@ import {
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
+import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
@@ -361,6 +362,23 @@ export default function OrdersPage() {
     location?: string;
     salesOwner?: string;
   } | null>(null);
+
+  // Created→Invoiced mandatory fields
+  const [advanceInvoiceNumber, setAdvanceInvoiceNumber] = useState("");
+  const [advanceInvoiceDate, setAdvanceInvoiceDate] = useState("");
+  const [advanceActualValue, setAdvanceActualValue] = useState("");
+
+  // Invoiced→Dispatched mandatory fields
+  const [dispatchBy, setDispatchBy] = useState("");
+  const [dispatchDate, setDispatchDate] = useState("");
+  const [dispatchCases, setDispatchCases] = useState("");
+  const [dispatchDeliveryCompany, setDispatchDeliveryCompany] = useState("");
+  const [dispatchEstimatedDate, setDispatchEstimatedDate] = useState("");
+
+  // Dispatched→Delivered dialog
+  const [showDeliveredDialog, setShowDeliveredDialog] = useState(false);
+  const [deliveredOrder, setDeliveredOrder] = useState<Order | null>(null);
+  const [deliveredActualDate, setDeliveredActualDate] = useState("");
 
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
@@ -723,9 +741,23 @@ export default function OrdersPage() {
   });
 
   const advanceMutation = useMutation({
-    mutationFn: async ({ id, status, partyName }: { id: string; status: string; partyName?: string }) => {
+    mutationFn: async ({ id, status, partyName, invoiceNumber, invoiceDate, actualOrderValue, dispatchByVal, dispatchDateVal, casesVal, deliveryCompanyVal, estimatedDeliveryDateVal, actualDeliveryDateVal }: {
+      id: string; status: string; partyName?: string;
+      invoiceNumber?: string; invoiceDate?: string; actualOrderValue?: string;
+      dispatchByVal?: string; dispatchDateVal?: string; casesVal?: string; deliveryCompanyVal?: string; estimatedDeliveryDateVal?: string;
+      actualDeliveryDateVal?: string;
+    }) => {
       const payload: Record<string, unknown> = { status };
       if (partyName !== undefined) payload.partyName = partyName;
+      if (invoiceNumber) payload.invoiceNumber = invoiceNumber;
+      if (invoiceDate) payload.invoiceDate = invoiceDate;
+      if (actualOrderValue) payload.actualOrderValue = actualOrderValue;
+      if (dispatchByVal) payload.dispatchBy = dispatchByVal;
+      if (dispatchDateVal) payload.dispatchDate = dispatchDateVal;
+      if (casesVal) payload.cases = parseInt(casesVal);
+      if (deliveryCompanyVal) payload.deliveryCompany = deliveryCompanyVal;
+      if (estimatedDeliveryDateVal) payload.estimatedDeliveryDate = estimatedDeliveryDateVal;
+      if (actualDeliveryDateVal) payload.actualDeliveryDate = actualDeliveryDateVal;
       return apiRequest("PATCH", `/api/admin/orders/${id}`, payload);
     },
     onSuccess: () => {
@@ -737,6 +769,9 @@ export default function OrdersPage() {
       setDispatchOrder(null);
       setDispatchTransportData(null);
       setDispatchTransportStatus("loading");
+      setShowDeliveredDialog(false);
+      setDeliveredOrder(null);
+      setDeliveredActualDate("");
       toast({ title: "Order advanced successfully" });
     },
     onError: (error: Error) => {
@@ -753,12 +788,19 @@ export default function OrdersPage() {
       setAdvancePartyName(order.partyName || "");
       setAdvanceVerifyStatus("idle");
       setAdvanceVerifyMatches([]);
+      setAdvanceInvoiceNumber("");
+      setAdvanceInvoiceDate("");
+      setAdvanceActualValue("");
       setShowPartyVerifyDialog(true);
     } else if (order.status === "Invoiced") {
-      // Open transport dialog and auto-fetch
       setDispatchOrder(order);
       setDispatchTransportStatus("loading");
       setDispatchTransportData(null);
+      setDispatchBy("");
+      setDispatchDate("");
+      setDispatchCases("");
+      setDispatchDeliveryCompany(order.deliveryCompany || "");
+      setDispatchEstimatedDate("");
       setShowDispatchDialog(true);
       const partyName = order.partyName || "";
       if (partyName.length >= 2) {
@@ -776,6 +818,10 @@ export default function OrdersPage() {
       } else {
         setDispatchTransportStatus("not_found");
       }
+    } else if (order.status === "Dispatched") {
+      setDeliveredOrder(order);
+      setDeliveredActualDate("");
+      setShowDeliveredDialog(true);
     } else {
       advanceMutation.mutate({ id: order.id, status: nextStatus });
     }
@@ -3844,7 +3890,65 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <div className="flex gap-2 justify-end pt-1 border-t">
+              {/* Dispatch mandatory fields */}
+              <div className="border-t pt-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dispatch Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Dispatch By <span className="text-red-500">*</span></label>
+                    <Input
+                      value={dispatchBy}
+                      onChange={e => setDispatchBy(e.target.value)}
+                      placeholder="Carrier / person"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Dispatch Date <span className="text-red-500">*</span></label>
+                    <Input
+                      type="date"
+                      value={dispatchDate}
+                      onChange={e => setDispatchDate(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Cases <span className="text-red-500">*</span></label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={dispatchCases}
+                      onChange={e => setDispatchCases(e.target.value)}
+                      placeholder="No. of cases"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
+                    <select
+                      value={dispatchDeliveryCompany}
+                      onChange={e => setDispatchDeliveryCompany(e.target.value)}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    >
+                      <option value="">Select…</option>
+                      {DELIVERY_COMPANY_OPTIONS.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Est. Delivery Date</label>
+                  <Input
+                    type="date"
+                    value={dispatchEstimatedDate}
+                    onChange={e => setDispatchEstimatedDate(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2 border-t">
                 <Button
                   variant="outline"
                   size="sm"
@@ -3860,10 +3964,18 @@ export default function OrdersPage() {
                 </Button>
                 <Button
                   size="sm"
-                  disabled={advanceMutation.isPending || dispatchTransportStatus === "loading"}
+                  disabled={advanceMutation.isPending || dispatchTransportStatus === "loading" || !dispatchBy.trim() || !dispatchDate || !dispatchCases || !dispatchDeliveryCompany}
                   onClick={() => {
                     if (!dispatchOrder) return;
-                    advanceMutation.mutate({ id: dispatchOrder.id, status: "Dispatched" });
+                    advanceMutation.mutate({
+                      id: dispatchOrder.id,
+                      status: "Dispatched",
+                      dispatchByVal: dispatchBy.trim(),
+                      dispatchDateVal: dispatchDate,
+                      casesVal: dispatchCases,
+                      deliveryCompanyVal: dispatchDeliveryCompany,
+                      estimatedDeliveryDateVal: dispatchEstimatedDate || undefined,
+                    });
                   }}
                   data-testid="button-dispatch-confirm"
                 >
@@ -3875,6 +3987,51 @@ export default function OrdersPage() {
                   ) : (
                     "Confirm & Dispatch"
                   )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Advance: Delivered Dialog (Dispatched → Delivered) */}
+      <Dialog open={showDeliveredDialog} onOpenChange={(open) => {
+        if (!open) { setShowDeliveredDialog(false); setDeliveredOrder(null); setDeliveredActualDate(""); }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Confirm Delivered
+            </DialogTitle>
+            <DialogDescription>Enter the actual delivery date to mark this order as Delivered.</DialogDescription>
+          </DialogHeader>
+          {deliveredOrder && (
+            <div className="flex flex-col gap-4">
+              <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
+                <div className="font-medium">{deliveredOrder.brand} — Order #{deliveredOrder.id.slice(-6)}</div>
+                <div className="text-muted-foreground">Party: <span className="font-medium text-foreground">{deliveredOrder.partyName || "—"}</span></div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Actual Delivery Date <span className="text-red-500">*</span></label>
+                <Input
+                  type="date"
+                  value={deliveredActualDate}
+                  onChange={e => setDeliveredActualDate(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-1 border-t">
+                <Button variant="outline" size="sm" onClick={() => { setShowDeliveredDialog(false); setDeliveredOrder(null); setDeliveredActualDate(""); }}>Cancel</Button>
+                <Button
+                  size="sm"
+                  disabled={advanceMutation.isPending || !deliveredActualDate}
+                  onClick={() => {
+                    if (!deliveredOrder) return;
+                    advanceMutation.mutate({ id: deliveredOrder.id, status: "Delivered", actualDeliveryDateVal: deliveredActualDate });
+                  }}
+                >
+                  {advanceMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Confirm & Deliver"}
                 </Button>
               </div>
             </div>
@@ -4044,8 +4201,43 @@ export default function OrdersPage() {
                 </div>
               )}
 
+              {/* Invoice mandatory fields */}
+              <div className="border-t pt-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Invoice Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Invoice Number <span className="text-red-500">*</span></label>
+                    <Input
+                      value={advanceInvoiceNumber}
+                      onChange={e => setAdvanceInvoiceNumber(e.target.value)}
+                      placeholder="e.g. INV-1234"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Invoice Date <span className="text-red-500">*</span></label>
+                    <Input
+                      type="date"
+                      value={advanceInvoiceDate}
+                      onChange={e => setAdvanceInvoiceDate(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Actual Invoice Value (₹) <span className="text-red-500">*</span></label>
+                  <Input
+                    type="number"
+                    value={advanceActualValue}
+                    onChange={e => setAdvanceActualValue(e.target.value)}
+                    placeholder="e.g. 15000"
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+
               {/* Footer */}
-              <div className="flex gap-2 justify-between items-center pt-1 border-t">
+              <div className="flex gap-2 justify-between items-center pt-2 border-t">
                 <div className="text-xs text-muted-foreground truncate">
                   {advancePartyName.trim() ? (
                     <>Will use: <span className="font-medium text-foreground">{advancePartyName.trim()}</span></>
@@ -4076,9 +4268,12 @@ export default function OrdersPage() {
                         id: advanceOrder.id,
                         status: "Invoiced",
                         partyName: advancePartyName.trim() || advanceOrder.partyName || undefined,
+                        invoiceNumber: advanceInvoiceNumber.trim(),
+                        invoiceDate: advanceInvoiceDate,
+                        actualOrderValue: advanceActualValue.trim(),
                       });
                     }}
-                    disabled={advanceMutation.isPending || !advancePartyName.trim()}
+                    disabled={advanceMutation.isPending || !advancePartyName.trim() || !advanceInvoiceNumber.trim() || !advanceInvoiceDate || !advanceActualValue.trim()}
                     data-testid="button-advance-party-confirm"
                   >
                     {advanceMutation.isPending ? (
