@@ -1236,6 +1236,52 @@ export async function registerRoutes(
     }
   });
 
+  // Proxy: look up transport details for a debtor/party name from CashDesk
+  app.get('/api/transport/debtor', isAuthenticated, async (req: any, res) => {
+    try {
+      const name = (req.query.name as string || "").trim();
+      if (name.length < 2) {
+        return res.status(400).json({ found: false, message: "Name must be at least 2 characters" });
+      }
+      const apiKey = process.env.CASHDESK_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ found: false, message: "API key not configured" });
+      }
+      const url = `https://cash.guidedgateway.com/api/debtor/transport?name=${encodeURIComponent(name)}`;
+      console.log(`Transport lookup: ${url}`);
+      const extRes = await fetch(url, {
+        headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      });
+      const text = await extRes.text();
+      console.log(`Transport response: ${extRes.status} ${text.substring(0, 300)}`);
+      if (!extRes.ok || !text || text.trim() === '') {
+        return res.json({ found: false });
+      }
+      let data: any;
+      try { data = JSON.parse(text); } catch { return res.json({ found: false }); }
+      // Normalise response — CashDesk returns { found, match: { ... } }
+      const match = data.match || (data.found ? data : null);
+      if (!data.found || !match) {
+        return res.json({ found: false });
+      }
+      return res.json({
+        found: true,
+        match: {
+          debtorId: match.debtorId,
+          name: match.name || match.Name,
+          matchPercent: match.matchPercent ?? (match.matchType === 'exact' ? 100 : 80),
+          transportOption: match.transportOption,
+          costPerCarton: match.costPerCarton != null ? Number(match.costPerCarton) : null,
+          location: match.location,
+          salesOwner: match.salesOwner,
+        },
+      });
+    } catch (error) {
+      console.error("Transport debtor lookup error:", error);
+      res.status(500).json({ found: false, message: "Error looking up transport" });
+    }
+  });
+
   // Admin-only: Verify and fix party name for Invoiced orders with outstanding balance
   app.post('/api/admin/orders/:orderId/verify-party', isAuthenticated, async (req: any, res) => {
     try {

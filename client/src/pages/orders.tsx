@@ -349,6 +349,19 @@ export default function OrdersPage() {
   const advanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const advanceAbortRef = useRef<AbortController | null>(null);
 
+  // Dispatch transport dialog state (Invoiced → Dispatched)
+  const [showDispatchDialog, setShowDispatchDialog] = useState(false);
+  const [dispatchOrder, setDispatchOrder] = useState<Order | null>(null);
+  const [dispatchTransportStatus, setDispatchTransportStatus] = useState<"loading" | "found" | "not_found" | "error">("loading");
+  const [dispatchTransportData, setDispatchTransportData] = useState<{
+    name?: string;
+    matchPercent?: number;
+    transportOption?: string;
+    costPerCarton?: number | null;
+    location?: string;
+    salesOwner?: string;
+  } | null>(null);
+
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
   const [verifyPartyName, setVerifyPartyName] = useState("");
@@ -720,6 +733,10 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       setAdvanceOrder(null);
       setShowPartyVerifyDialog(false);
+      setShowDispatchDialog(false);
+      setDispatchOrder(null);
+      setDispatchTransportData(null);
+      setDispatchTransportStatus("loading");
       toast({ title: "Order advanced successfully" });
     },
     onError: (error: Error) => {
@@ -737,6 +754,28 @@ export default function OrdersPage() {
       setAdvanceVerifyStatus("idle");
       setAdvanceVerifyMatches([]);
       setShowPartyVerifyDialog(true);
+    } else if (order.status === "Invoiced") {
+      // Open transport dialog and auto-fetch
+      setDispatchOrder(order);
+      setDispatchTransportStatus("loading");
+      setDispatchTransportData(null);
+      setShowDispatchDialog(true);
+      const partyName = order.partyName || "";
+      if (partyName.length >= 2) {
+        fetch(`/api/transport/debtor?name=${encodeURIComponent(partyName)}`, { credentials: "include" })
+          .then(r => r.ok ? r.json() : Promise.reject(r.status))
+          .then(data => {
+            if (data.found && data.match) {
+              setDispatchTransportData(data.match);
+              setDispatchTransportStatus("found");
+            } else {
+              setDispatchTransportStatus("not_found");
+            }
+          })
+          .catch(() => setDispatchTransportStatus("error"));
+      } else {
+        setDispatchTransportStatus("not_found");
+      }
     } else {
       advanceMutation.mutate({ id: order.id, status: nextStatus });
     }
@@ -3705,6 +3744,143 @@ export default function OrdersPage() {
               <div className="flex justify-end pt-2">
                 <Button onClick={() => setImportSummary(null)} data-testid="button-close-summary">
                   Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Advance: Transport Details Dialog (Invoiced → Dispatched) */}
+      <Dialog open={showDispatchDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowDispatchDialog(false);
+          setDispatchOrder(null);
+          setDispatchTransportData(null);
+          setDispatchTransportStatus("loading");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="w-5 h-5" />
+              Confirm Dispatch
+            </DialogTitle>
+            <DialogDescription>
+              Transport details for this party before moving to Dispatched.
+            </DialogDescription>
+          </DialogHeader>
+          {dispatchOrder && (
+            <div className="flex flex-col gap-4">
+              {/* Order summary */}
+              <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
+                <div className="font-medium">{dispatchOrder.brand} — Order #{dispatchOrder.id.slice(-6)}</div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <span>Party: <span className="font-medium text-foreground">{dispatchOrder.partyName || "—"}</span></span>
+                  <span>·</span>
+                  <span>Total: {formatINR(dispatchOrder.total)}</span>
+                </div>
+              </div>
+
+              {/* Transport info */}
+              {dispatchTransportStatus === "loading" && (
+                <div className="flex items-center gap-3 p-4 rounded-md border bg-muted/40 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span>Looking up transport details in CashDesk…</span>
+                </div>
+              )}
+
+              {dispatchTransportStatus === "found" && dispatchTransportData && (
+                <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-blue-900 dark:text-blue-100">
+                    <Truck className="w-4 h-4 shrink-0" />
+                    Transport Details
+                    {(dispatchTransportData.matchPercent ?? 100) < 100 && (
+                      <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200">
+                        ~{dispatchTransportData.matchPercent}% match
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    {dispatchTransportData.name && (
+                      <>
+                        <span className="text-muted-foreground">Party (CashDesk)</span>
+                        <span className="font-medium">{dispatchTransportData.name}</span>
+                      </>
+                    )}
+                    {dispatchTransportData.transportOption && (
+                      <>
+                        <span className="text-muted-foreground">Transport</span>
+                        <span className="font-medium">{dispatchTransportData.transportOption}</span>
+                      </>
+                    )}
+                    {dispatchTransportData.costPerCarton != null && (
+                      <>
+                        <span className="text-muted-foreground">Cost / Carton</span>
+                        <span className="font-medium">₹{dispatchTransportData.costPerCarton}</span>
+                      </>
+                    )}
+                    {dispatchTransportData.location && (
+                      <>
+                        <span className="text-muted-foreground">Location</span>
+                        <span className="font-medium">{dispatchTransportData.location}</span>
+                      </>
+                    )}
+                    {dispatchTransportData.salesOwner && (
+                      <>
+                        <span className="text-muted-foreground">Sales Owner</span>
+                        <span className="font-medium">{dispatchTransportData.salesOwner}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {dispatchTransportStatus === "not_found" && (
+                <div className="flex items-center gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-200">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>No transport record found in CashDesk for this party.</span>
+                </div>
+              )}
+
+              {dispatchTransportStatus === "error" && (
+                <div className="flex items-center gap-2 p-3 rounded-md border bg-muted text-sm text-muted-foreground">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>CashDesk transport lookup unavailable — you can still proceed.</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-1 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowDispatchDialog(false);
+                    setDispatchOrder(null);
+                    setDispatchTransportData(null);
+                    setDispatchTransportStatus("loading");
+                  }}
+                  data-testid="button-dispatch-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={advanceMutation.isPending || dispatchTransportStatus === "loading"}
+                  onClick={() => {
+                    if (!dispatchOrder) return;
+                    advanceMutation.mutate({ id: dispatchOrder.id, status: "Dispatched" });
+                  }}
+                  data-testid="button-dispatch-confirm"
+                >
+                  {advanceMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Dispatching…
+                    </>
+                  ) : (
+                    "Confirm & Dispatch"
+                  )}
                 </Button>
               </div>
             </div>
