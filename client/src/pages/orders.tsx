@@ -234,6 +234,38 @@ interface BulkOrderSummary {
   }>;
 }
 
+function scorePartyMatch(query: string, partyName: string): number {
+  if (!query.trim()) return 50;
+  const q = query.toLowerCase().trim();
+  const p = partyName.toLowerCase().trim();
+  if (p === q) return 100;
+  if (p.startsWith(q) || q.startsWith(p)) return 90;
+  if (p.includes(q) || q.includes(p)) return 80;
+  const qWords = q.split(/\s+/).filter(w => w.length > 1);
+  const pWords = p.split(/[\s\-_()&.]+/).filter(w => w.length > 0);
+  if (qWords.length === 0) return 20;
+  let matched = 0;
+  for (const qw of qWords) {
+    if (pWords.some(pw => pw === qw || pw.startsWith(qw) || qw.startsWith(pw) || pw.includes(qw) || qw.includes(pw))) matched++;
+  }
+  const coverage = matched / qWords.length;
+  if (coverage > 0) return Math.round(coverage * 65);
+  // character-level fallback
+  const maxLen = Math.max(q.length, p.length);
+  let sameChars = 0;
+  for (let i = 0; i < Math.min(q.length, p.length); i++) {
+    if (q[i] === p[i]) sameChars++;
+  }
+  return Math.round((sameChars / maxLen) * 40);
+}
+
+function getMatchLabel(score: number): { label: string; className: string } {
+  if (score >= 90) return { label: "Exact", className: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" };
+  if (score >= 70) return { label: "High", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" };
+  if (score >= 50) return { label: "Medium", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300" };
+  return { label: "Low", className: "bg-muted text-muted-foreground" };
+}
+
 function getNextStatus(status: OrderStatus): OrderStatus | null {
   const transitions: Partial<Record<OrderStatus, OrderStatus>> = {
     Created: "Invoiced",
@@ -328,6 +360,7 @@ export default function OrdersPage() {
   const [advanceOrder, setAdvanceOrder] = useState<Order | null>(null);
   const [advancePartyName, setAdvancePartyName] = useState<string>("");
   const [showPartyVerifyDialog, setShowPartyVerifyDialog] = useState(false);
+  const [advanceSelectedParty, setAdvanceSelectedParty] = useState<string | null>(null);
 
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
@@ -577,6 +610,19 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
+  const advancePartyMatches = useMemo(() => {
+    if (!partyNamesList.length) return [];
+    const query = advancePartyName.trim();
+    if (!query) {
+      return partyNamesList.slice(0, 10).map(name => ({ name, score: 50 }));
+    }
+    return partyNamesList
+      .map(name => ({ name, score: scorePartyMatch(query, name) }))
+      .filter(m => m.score >= 15)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  }, [advancePartyName, partyNamesList]);
+
   // Fetch product popularity counts for smart sorting in Add Items dialog
   const { data: popularityCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/products/popularity"],
@@ -656,6 +702,7 @@ export default function OrdersPage() {
     if (order.status === "Created") {
       setAdvanceOrder(order);
       setAdvancePartyName(order.partyName || "");
+      setAdvanceSelectedParty(null);
       setShowPartyVerifyDialog(true);
     } else {
       advanceMutation.mutate({ id: order.id, status: nextStatus });
@@ -3571,70 +3618,134 @@ export default function OrdersPage() {
           setShowPartyVerifyDialog(false);
           setAdvanceOrder(null);
           setAdvancePartyName("");
+          setAdvanceSelectedParty(null);
         }
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Verify Party Name</DialogTitle>
             <DialogDescription>
-              Confirm the party name before moving this order to Invoiced status.
+              Review and confirm the correct party name before invoicing this order.
             </DialogDescription>
           </DialogHeader>
           {advanceOrder && (
-            <div className="space-y-4">
-              <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
+            <div className="flex flex-col gap-4 overflow-hidden">
+              <div className="p-3 rounded-md bg-muted space-y-1 text-sm shrink-0">
                 <div className="font-medium">{advanceOrder.brand} — Order #{advanceOrder.id.slice(-6)}</div>
-                <div className="text-muted-foreground">Total: {formatINR(advanceOrder.total)}</div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <span>Current: <span className="font-medium text-foreground">{advanceOrder.partyName || "—"}</span></span>
+                  <span>·</span>
+                  <span>Total: {formatINR(advanceOrder.total)}</span>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="advance-party-name">Party Name</Label>
-                <Input
-                  id="advance-party-name"
-                  list="advance-party-name-list"
-                  value={advancePartyName}
-                  onChange={(e) => setAdvancePartyName(e.target.value)}
-                  placeholder="Enter or select party name"
-                  data-testid="input-advance-party-name"
-                />
-                <datalist id="advance-party-name-list">
-                  {partyNamesList.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
+
+              <div className="space-y-2 shrink-0">
+                <Label htmlFor="advance-party-name">Search / Enter Party Name</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="advance-party-name"
+                    value={advancePartyName}
+                    onChange={(e) => {
+                      setAdvancePartyName(e.target.value);
+                      setAdvanceSelectedParty(null);
+                    }}
+                    placeholder="Type to search party names…"
+                    className="pl-9"
+                    autoComplete="off"
+                    data-testid="input-advance-party-name"
+                  />
+                </div>
               </div>
-              <div className="flex gap-2 justify-end pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowPartyVerifyDialog(false);
-                    setAdvanceOrder(null);
-                    setAdvancePartyName("");
-                  }}
-                  data-testid="button-advance-party-cancel"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (!advanceOrder) return;
-                    advanceMutation.mutate({
-                      id: advanceOrder.id,
-                      status: "Invoiced",
-                      partyName: advancePartyName.trim() || advanceOrder.partyName || undefined,
-                    });
-                  }}
-                  disabled={advanceMutation.isPending || !advancePartyName.trim()}
-                  data-testid="button-advance-party-confirm"
-                >
-                  {advanceMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Advancing...
-                    </>
+
+              {advancePartyMatches.length > 0 && (
+                <div className="flex flex-col gap-1 overflow-hidden">
+                  <div className="text-xs text-muted-foreground px-1 shrink-0">
+                    {advancePartyName.trim() ? `${advancePartyMatches.length} match${advancePartyMatches.length !== 1 ? "es" : ""} found` : "All party names"}
+                  </div>
+                  <ScrollArea className="flex-1 min-h-0 max-h-52 border rounded-md">
+                    <div className="p-1">
+                      {advancePartyMatches.map(({ name, score }) => {
+                        const { label, className: badgeClass } = getMatchLabel(score);
+                        const isSelected = (advanceSelectedParty ?? advancePartyName.trim()) === name;
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => {
+                              setAdvancePartyName(name);
+                              setAdvanceSelectedParty(name);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm text-left transition-colors ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-muted"
+                            }`}
+                            data-testid={`option-party-${name}`}
+                          >
+                            <span className="truncate mr-2">{name}</span>
+                            <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${isSelected ? "bg-primary-foreground/20 text-primary-foreground" : badgeClass}`}>
+                              {label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
+              {advancePartyMatches.length === 0 && advancePartyName.trim() && (
+                <div className="text-sm text-muted-foreground text-center py-2 border rounded-md">
+                  No existing party names match — you can still use the typed name
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-between items-center pt-1 shrink-0 border-t">
+                <div className="text-xs text-muted-foreground truncate">
+                  {advancePartyName.trim() ? (
+                    <>Will use: <span className="font-medium text-foreground">{advancePartyName.trim()}</span></>
                   ) : (
-                    "Confirm & Mark Invoiced"
+                    "No party name entered"
                   )}
-                </Button>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowPartyVerifyDialog(false);
+                      setAdvanceOrder(null);
+                      setAdvancePartyName("");
+                      setAdvanceSelectedParty(null);
+                    }}
+                    data-testid="button-advance-party-cancel"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!advanceOrder) return;
+                      advanceMutation.mutate({
+                        id: advanceOrder.id,
+                        status: "Invoiced",
+                        partyName: advancePartyName.trim() || advanceOrder.partyName || undefined,
+                      });
+                    }}
+                    disabled={advanceMutation.isPending || !advancePartyName.trim()}
+                    data-testid="button-advance-party-confirm"
+                  >
+                    {advanceMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Advancing...
+                      </>
+                    ) : (
+                      "Confirm & Invoice"
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
