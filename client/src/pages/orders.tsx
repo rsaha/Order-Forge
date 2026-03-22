@@ -735,8 +735,7 @@ export default function OrdersPage() {
       setAdvanceOrder(order);
       setAdvancePartyName(order.partyName || "");
       setAdvanceVerifyStatus("idle");
-      setAdvanceVerifiedName("");
-      setAdvanceVerifyData(null);
+      setAdvanceVerifyMatches([]);
       setShowPartyVerifyDialog(true);
     } else {
       advanceMutation.mutate({ id: order.id, status: nextStatus });
@@ -3653,8 +3652,7 @@ export default function OrdersPage() {
           setAdvanceOrder(null);
           setAdvancePartyName("");
           setAdvanceVerifyStatus("idle");
-          setAdvanceVerifiedName("");
-          setAdvanceVerifyData(null);
+          setAdvanceVerifyMatches([]);
         }
       }}>
         <DialogContent className="max-w-md">
