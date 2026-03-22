@@ -1247,7 +1247,7 @@ export async function registerRoutes(
       if (!apiKey) {
         return res.status(500).json({ found: false, message: "API key not configured" });
       }
-      const url = `https://cash.guidedgateway.com/api/debtor/transport?name=${encodeURIComponent(name)}`;
+      const url = `https://cash.guidedgateway.com/api/verify/transport?name=${encodeURIComponent(name)}`;
       console.log(`Transport lookup: ${url}`);
       const extRes = await fetch(url, {
         headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
