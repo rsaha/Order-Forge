@@ -1119,8 +1119,10 @@ export async function registerRoutes(
         });
       }
       
-      // Call external API to verify party name — request up to 5 matches
-      const externalApiUrl = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(searchTerm.trim())}&limit=5`;
+      // Call external API — caller controls how many matches to return via ?limit=
+      const limitParam = parseInt((req.query.limit as string) || "5", 10);
+      const limit = isNaN(limitParam) || limitParam < 1 ? 5 : Math.min(limitParam, 10);
+      const externalApiUrl = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(searchTerm.trim())}&limit=${limit}`;
       
       const apiKey = process.env.CASHDESK_API_KEY;
       if (!apiKey) {

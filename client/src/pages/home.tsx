@@ -590,15 +590,15 @@ export default function Home() {
     
     setPartyVerificationStatus("verifying");
     try {
-      const response = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name.trim())}`, {
+      const response = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name.trim())}&limit=1`, {
         credentials: "include",
       });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.verified || data.found || data.exists) {
+        if ((data.verified || data.found) && Array.isArray(data.matches) && data.matches.length > 0) {
           setPartyVerificationStatus("verified");
-          setVerifiedPartyName(data.name || name.trim());
+          setVerifiedPartyName(data.matches[0].name || name.trim());
         } else {
           setPartyVerificationStatus("not_found");
           setVerifiedPartyName("");
