@@ -2509,9 +2509,12 @@ export default function OrdersPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {ORDER_STATUSES.map((status) => (
+                            {(selectedOrder.status === "Dispatched"
+                              ? (["Invoiced", "Dispatched", "Delivered"] as OrderStatus[])
+                              : ORDER_STATUSES
+                            ).map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status}
+                                {status === "PODReceived" ? "POD Received" : status}
                               </SelectItem>
                             ))}
                           </SelectContent>
