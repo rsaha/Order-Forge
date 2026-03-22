@@ -1119,8 +1119,8 @@ export async function registerRoutes(
         });
       }
       
-      // Call external API to verify party name
-      const externalApiUrl = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(searchTerm.trim())}`;
+      // Call external API to verify party name — request up to 5 matches
+      const externalApiUrl = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(searchTerm.trim())}&limit=5`;
       
       const apiKey = process.env.CASHDESK_API_KEY;
       if (!apiKey) {
@@ -1142,7 +1142,7 @@ export async function registerRoutes(
       });
       
       const responseText = await externalResponse.text();
-      console.log(`Debtor API response status: ${externalResponse.status}, body: ${responseText.substring(0, 500)}`);
+      console.log(`Debtor API response status: ${externalResponse.status}, body: ${responseText.substring(0, 800)}`);
       
       if (!externalResponse.ok) {
         console.error(`External debtor API returned status: ${externalResponse.status}`);
@@ -1154,83 +1154,66 @@ export async function registerRoutes(
       
       // Handle empty response
       if (!responseText || responseText.trim() === '') {
-        return res.json({ 
-          verified: false, 
-          found: false,
-          message: "Party not found in database" 
-        });
+        return res.json({ verified: false, found: false, matches: [] });
       }
       
-      // Check for "not found" text response from external API
+      // Check for "not found" plain-text responses from external API
       const notFoundMessages = [
-        "couldn't find",
-        "could not find",
-        "no results",
-        "not found",
-        "search criteria"
+        "couldn't find", "could not find", "no results", "not found", "search criteria"
       ];
-      
       const lowerText = responseText.toLowerCase();
-      const isNotFoundMessage = notFoundMessages.some(msg => lowerText.includes(msg));
-      
-      if (isNotFoundMessage) {
-        return res.json({ 
-          verified: false, 
-          found: false,
-          message: "Party not found in database" 
-        });
+      if (notFoundMessages.some(msg => lowerText.includes(msg))) {
+        return res.json({ verified: false, found: false, matches: [] });
       }
       
-      // Try to parse as JSON
-      let data;
+      // Parse JSON
+      let data: any;
       try {
         data = JSON.parse(responseText);
-      } catch (parseError) {
-        // If it's not JSON and not a "not found" message, treat as unknown
+      } catch {
         console.error("Failed to parse debtor API response:", responseText.substring(0, 200));
-        return res.json({ 
-          verified: false, 
-          found: false,
-          message: "Unexpected response from verification service" 
-        });
+        return res.json({ verified: false, found: false, matches: [] });
       }
       
-      // Check if we have any results
-      // The API might return an array of debtors or a single object with found: true/false
-      let hasResults = false;
+      // Normalise to an array of match objects.
+      // External API may return:
+      //   { found: true, match: {...} }          — single match (old format)
+      //   { found: true, matches: [{...}, ...] } — multi match (new format with limit=5)
+      //   [{...}, ...]                           — bare array
+      let rawMatches: any[] = [];
       if (Array.isArray(data)) {
-        hasResults = data.length > 0;
+        rawMatches = data;
       } else if (data && typeof data === 'object') {
-        // Explicitly check 'found' field first - external API returns {found: true/false}
-        if ('found' in data) {
-          hasResults = data.found === true;
-        } else if ('exists' in data) {
-          hasResults = data.exists === true;
-        } else if ('count' in data) {
-          hasResults = data.count > 0;
-        } else {
-          // Fallback for other response formats - only if no explicit found/exists field
-          hasResults = Object.keys(data).length > 0 && !data.error && !data.message;
+        if (Array.isArray(data.matches) && data.matches.length > 0) {
+          rawMatches = data.matches;
+        } else if (data.match) {
+          rawMatches = [data.match];
+        } else if (data.found === false || data.exists === false) {
+          rawMatches = [];
         }
       }
-      
-      if (hasResults) {
-        // Extract the first match if it's an array
-        // External API returns {found: true, match: {name: "...", ...}}
-        const match = Array.isArray(data) ? data[0] : (data.match || data);
-        return res.json({ 
-          verified: true, 
-          found: true,
-          name: match.Name || match.name || searchTerm.trim(),
-          data: match
-        });
-      } else {
-        return res.json({ 
-          verified: false, 
-          found: false,
-          message: "Party not found in database" 
-        });
+
+      if (rawMatches.length === 0) {
+        return res.json({ verified: false, found: false, matches: [] });
       }
+
+      // Shape each match into a consistent object
+      const matches = rawMatches.map((m: any) => ({
+        debtorId: m.debtorId,
+        name: m.Name || m.name,
+        location: m.location,
+        salesOwner: m.salesOwner,
+        creditLimit: m.creditLimit ?? 0,
+        outstandingAmount: m.outstandingAmount ?? 0,
+        outstandingOverdue: m.outstandingOverdue ?? 0,
+        availableCredit: m.availableCredit ?? 0,
+        creditStatus: m.creditStatus,
+        matchScore: m.matchScore ?? 1,
+        matchType: m.matchType ?? 'exact',
+        isActive: m.isActive,
+      }));
+
+      return res.json({ verified: true, found: true, matches });
     } catch (error) {
       console.error("Error verifying debtor:", error);
       res.status(500).json({ 

@@ -210,15 +210,19 @@ function getThisMonthRange(): { fromDate: string; toDate: string } {
 }
 
 interface CashDeskDebtorData {
-  outstandingAmount?: number;
-  availableCredit?: number;
-  creditStatus?: string;
-  creditLimit?: number;
-  location?: string;
   debtorId?: string;
-  salesOwner?: string;
   name?: string;
   Name?: string;
+  location?: string;
+  salesOwner?: string;
+  creditLimit?: number;
+  outstandingAmount?: number;
+  outstandingOverdue?: number;
+  availableCredit?: number;
+  creditStatus?: string;
+  matchScore?: number;
+  matchType?: string;
+  isActive?: boolean;
 }
 
 interface BulkOrderSummary {
@@ -341,8 +345,7 @@ export default function OrdersPage() {
   const [advancePartyName, setAdvancePartyName] = useState<string>("");
   const [showPartyVerifyDialog, setShowPartyVerifyDialog] = useState(false);
   const [advanceVerifyStatus, setAdvanceVerifyStatus] = useState<"idle" | "verifying" | "verified" | "not_found" | "error">("idle");
-  const [advanceVerifiedName, setAdvanceVerifiedName] = useState<string>("");
-  const [advanceVerifyData, setAdvanceVerifyData] = useState<CashDeskDebtorData | null>(null);
+  const [advanceVerifyMatches, setAdvanceVerifyMatches] = useState<CashDeskDebtorData[]>([]);
   const advanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const advanceAbortRef = useRef<AbortController | null>(null);
 
@@ -601,8 +604,7 @@ export default function OrdersPage() {
     const name = advancePartyName.trim();
     if (!name || name.length < 2) {
       setAdvanceVerifyStatus("idle");
-      setAdvanceVerifiedName("");
-      setAdvanceVerifyData(null);
+      setAdvanceVerifyMatches([]);
       return;
     }
     setAdvanceVerifyStatus("verifying");
@@ -619,28 +621,24 @@ export default function OrdersPage() {
           if (res.ok) {
             const data = await res.json();
             if (controller.signal.aborted) return;
-            if (data.verified || data.found || data.exists) {
+            if ((data.verified || data.found) && Array.isArray(data.matches) && data.matches.length > 0) {
               setAdvanceVerifyStatus("verified");
-              setAdvanceVerifiedName(data.name || name);
-              setAdvanceVerifyData((data.data as CashDeskDebtorData) || null);
+              setAdvanceVerifyMatches(data.matches as CashDeskDebtorData[]);
             } else {
               setAdvanceVerifyStatus("not_found");
-              setAdvanceVerifiedName("");
-              setAdvanceVerifyData(null);
+              setAdvanceVerifyMatches([]);
             }
           } else {
             if (!controller.signal.aborted) {
               setAdvanceVerifyStatus("error");
-              setAdvanceVerifiedName("");
-              setAdvanceVerifyData(null);
+              setAdvanceVerifyMatches([]);
             }
           }
         })
         .catch((err) => {
           if (err?.name === "AbortError") return;
           setAdvanceVerifyStatus("error");
-          setAdvanceVerifiedName("");
-          setAdvanceVerifyData(null);
+          setAdvanceVerifyMatches([]);
         });
     };
 
@@ -3699,37 +3697,65 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {/* Verification result */}
-              {advanceVerifyStatus === "verified" && (
-                <div className="space-y-2">
-                  {/* Verified name card */}
-                  <button
-                    type="button"
-                    onClick={() => setAdvancePartyName(advanceVerifiedName)}
-                    className="w-full flex items-center justify-between p-3 rounded-md border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800 text-left hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
-                    data-testid="button-verified-party"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-green-900 dark:text-green-100 truncate">{advanceVerifiedName}</div>
-                        {advanceVerifyData?.location && (
-                          <div className="text-xs text-green-700 dark:text-green-400">{advanceVerifyData.location}</div>
-                        )}
-                      </div>
+              {/* Verification results — pick-list of up to 5 candidates */}
+              {advanceVerifyStatus === "verified" && advanceVerifyMatches.length > 0 && (() => {
+                const selectedMatch = advanceVerifyMatches.find(
+                  m => (m.name || m.Name) === advancePartyName.trim()
+                );
+                return (
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      {advanceVerifyMatches.length === 1 ? "CashDesk Match" : `${advanceVerifyMatches.length} CashDesk Matches — tap to select`}
                     </div>
-                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 font-medium ml-2">
-                      Verified ✓
-                    </span>
-                  </button>
+                    <div className="space-y-1.5">
+                      {advanceVerifyMatches.map((m, i) => {
+                        const mName = m.name || m.Name || "";
+                        const isSelected = mName === advancePartyName.trim();
+                        const isExact = (m.matchScore ?? 1) >= 1 || m.matchType === "exact";
+                        return (
+                          <button
+                            key={m.debtorId || i}
+                            type="button"
+                            onClick={() => setAdvancePartyName(mName)}
+                            className={`w-full flex items-center justify-between p-3 rounded-md border text-left transition-colors ${
+                              isSelected
+                                ? "border-green-300 bg-green-50 dark:bg-green-950/40 dark:border-green-700"
+                                : "border-border bg-background hover:bg-muted/60"
+                            }`}
+                            data-testid={`button-match-party-${i}`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isSelected
+                                ? <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
+                                : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/40 shrink-0" />
+                              }
+                              <div className="min-w-0">
+                                <div className={`text-sm font-medium truncate ${isSelected ? "text-green-900 dark:text-green-100" : "text-foreground"}`}>
+                                  {mName}
+                                </div>
+                                {m.location && (
+                                  <div className="text-xs text-muted-foreground">{m.location}{m.salesOwner ? ` · ${m.salesOwner}` : ""}</div>
+                                )}
+                              </div>
+                            </div>
+                            <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ml-2 ${
+                              isExact
+                                ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                                : "bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200"
+                            }`}>
+                              {isExact ? "Exact" : `${Math.round((m.matchScore ?? 0.9) * 100)}%`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                  {/* Outstanding balance warning */}
-                  {advanceVerifyData && (
-                    (() => {
-                      const outstanding = Number(advanceVerifyData.outstandingAmount ?? 0);
-                      const available = Number(advanceVerifyData.availableCredit ?? 0);
-                      const creditStatus = advanceVerifyData.creditStatus as string | undefined;
-                      const isOverdue = creditStatus && /overdue|past.?due|delinquent/i.test(creditStatus);
+                    {/* Outstanding balance warning for the selected match */}
+                    {selectedMatch && (() => {
+                      const outstanding = Number(selectedMatch.outstandingAmount ?? 0);
+                      const available = Number(selectedMatch.availableCredit ?? 0);
+                      const creditStatus = selectedMatch.creditStatus;
+                      const isOverdue = creditStatus ? /overdue|past.?due|delinquent/i.test(creditStatus) : false;
                       const isOverLimit = available < 0;
                       const hasWarning = outstanding > 0 || isOverdue || isOverLimit;
                       if (!hasWarning) return null;
@@ -3741,6 +3767,9 @@ export default function OrdersPage() {
                               {outstanding > 0 && (
                                 <div className="font-medium text-amber-900 dark:text-amber-100">
                                   Outstanding: {formatINR(outstanding)}
+                                  {Number(selectedMatch.outstandingOverdue ?? 0) > 0 && (
+                                    <span className="font-normal text-amber-700 dark:text-amber-300"> (overdue: {formatINR(selectedMatch.outstandingOverdue!)})</span>
+                                  )}
                                 </div>
                               )}
                               {creditStatus && (
@@ -3760,10 +3789,10 @@ export default function OrdersPage() {
                           </div>
                         </div>
                       );
-                    })()
-                  )}
-                </div>
-              )}
+                    })()}
+                  </div>
+                );
+              })()}
 
               {advanceVerifyStatus === "not_found" && advancePartyName.trim().length >= 2 && (
                 <div className="flex items-center gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-200" data-testid="warning-not-found">
@@ -3797,8 +3826,7 @@ export default function OrdersPage() {
                       setAdvanceOrder(null);
                       setAdvancePartyName("");
                       setAdvanceVerifyStatus("idle");
-                      setAdvanceVerifiedName("");
-                      setAdvanceVerifyData(null);
+                      setAdvanceVerifyMatches([]);
                     }}
                     data-testid="button-advance-party-cancel"
                   >
