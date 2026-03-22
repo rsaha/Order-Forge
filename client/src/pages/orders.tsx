@@ -2187,8 +2187,8 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Verify Party - Admin only, not shown for Dispatched/Delivered/PODReceived */}
-              {isAdmin && !["Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status) && (
+              {/* Verify Party - Admin only, not shown for Dispatched/PODReceived */}
+              {isAdmin && !["Dispatched", "PODReceived"].includes(selectedOrder.status) && (
                 <div className="p-3 rounded-md border bg-muted/30 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
