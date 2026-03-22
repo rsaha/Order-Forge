@@ -220,8 +220,7 @@ interface CashDeskDebtorData {
   outstandingOverdue?: number;
   availableCredit?: number;
   creditStatus?: string;
-  matchScore?: number;
-  matchType?: string;
+  matchPercent?: number;
   isActive?: boolean;
 }
 
@@ -3709,7 +3708,8 @@ export default function OrdersPage() {
                       {advanceVerifyMatches.map((m, i) => {
                         const mName = m.name || m.Name || "";
                         const isSelected = mName === advancePartyName.trim();
-                        const isExact = (m.matchScore ?? 1) >= 1 || m.matchType === "exact";
+                        const pct = m.matchPercent ?? 100;
+                        const isExact = pct >= 100;
                         return (
                           <button
                             key={m.debtorId || i}
@@ -3741,7 +3741,7 @@ export default function OrdersPage() {
                                 ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
                                 : "bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200"
                             }`}>
-                              {isExact ? "Exact" : `${Math.round((m.matchScore ?? 0.9) * 100)}%`}
+                              {isExact ? "Exact" : `${pct}%`}
                             </span>
                           </button>
                         );

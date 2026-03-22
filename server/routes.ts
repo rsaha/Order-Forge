@@ -1200,20 +1200,31 @@ export async function registerRoutes(
       }
 
       // Shape each match into a consistent object
-      const matches = rawMatches.map((m: any) => ({
-        debtorId: m.debtorId,
-        name: m.Name || m.name,
-        location: m.location,
-        salesOwner: m.salesOwner,
-        creditLimit: m.creditLimit ?? 0,
-        outstandingAmount: m.outstandingAmount ?? 0,
-        outstandingOverdue: m.outstandingOverdue ?? 0,
-        availableCredit: m.availableCredit ?? 0,
-        creditStatus: m.creditStatus,
-        matchScore: m.matchScore ?? 1,
-        matchType: m.matchType ?? 'exact',
-        isActive: m.isActive,
-      }));
+      const matches = rawMatches.map((m: any) => {
+        // matchPercent is the canonical 0-100 field from the new API.
+        // Fall back to the old matchScore (0-1 float) if not present.
+        const matchPercent: number =
+          m.matchPercent != null
+            ? Math.round(Number(m.matchPercent))
+            : m.matchType === 'exact'
+            ? 100
+            : m.matchScore != null
+            ? Math.round(Number(m.matchScore) * 100)
+            : 100;
+        return {
+          debtorId: m.debtorId,
+          name: m.Name || m.name,
+          location: m.location,
+          salesOwner: m.salesOwner,
+          creditLimit: m.creditLimit ?? 0,
+          outstandingAmount: m.outstandingAmount ?? 0,
+          outstandingOverdue: m.outstandingOverdue ?? 0,
+          availableCredit: m.availableCredit ?? 0,
+          creditStatus: m.creditStatus,
+          matchPercent,
+          isActive: m.isActive,
+        };
+      });
 
       return res.json({ verified: true, found: true, matches });
     } catch (error) {

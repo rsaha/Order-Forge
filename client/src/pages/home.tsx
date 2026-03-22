@@ -590,7 +590,7 @@ export default function Home() {
     
     setPartyVerificationStatus("verifying");
     try {
-      const response = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name.trim())}&limit=1`, {
+      const response = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name.trim())}&limit=5`, {
         credentials: "include",
       });
       
