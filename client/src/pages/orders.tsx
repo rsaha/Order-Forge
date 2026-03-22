@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -234,38 +234,6 @@ interface BulkOrderSummary {
   }>;
 }
 
-function scorePartyMatch(query: string, partyName: string): number {
-  if (!query.trim()) return 50;
-  const q = query.toLowerCase().trim();
-  const p = partyName.toLowerCase().trim();
-  if (p === q) return 100;
-  if (p.startsWith(q) || q.startsWith(p)) return 90;
-  if (p.includes(q) || q.includes(p)) return 80;
-  const qWords = q.split(/\s+/).filter(w => w.length > 1);
-  const pWords = p.split(/[\s\-_()&.]+/).filter(w => w.length > 0);
-  if (qWords.length === 0) return 20;
-  let matched = 0;
-  for (const qw of qWords) {
-    if (pWords.some(pw => pw === qw || pw.startsWith(qw) || qw.startsWith(pw) || pw.includes(qw) || qw.includes(pw))) matched++;
-  }
-  const coverage = matched / qWords.length;
-  if (coverage > 0) return Math.round(coverage * 65);
-  // character-level fallback
-  const maxLen = Math.max(q.length, p.length);
-  let sameChars = 0;
-  for (let i = 0; i < Math.min(q.length, p.length); i++) {
-    if (q[i] === p[i]) sameChars++;
-  }
-  return Math.round((sameChars / maxLen) * 40);
-}
-
-function getMatchLabel(score: number): { label: string; className: string } {
-  if (score >= 90) return { label: "Exact", className: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" };
-  if (score >= 70) return { label: "High", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" };
-  if (score >= 50) return { label: "Medium", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300" };
-  return { label: "Low", className: "bg-muted text-muted-foreground" };
-}
-
 function getNextStatus(status: OrderStatus): OrderStatus | null {
   const transitions: Partial<Record<OrderStatus, OrderStatus>> = {
     Created: "Invoiced",
@@ -360,7 +328,10 @@ export default function OrdersPage() {
   const [advanceOrder, setAdvanceOrder] = useState<Order | null>(null);
   const [advancePartyName, setAdvancePartyName] = useState<string>("");
   const [showPartyVerifyDialog, setShowPartyVerifyDialog] = useState(false);
-  const [advanceSelectedParty, setAdvanceSelectedParty] = useState<string | null>(null);
+  const [advanceVerifyStatus, setAdvanceVerifyStatus] = useState<"idle" | "verifying" | "verified" | "not_found" | "error">("idle");
+  const [advanceVerifiedName, setAdvanceVerifiedName] = useState<string>("");
+  const [advanceVerifyData, setAdvanceVerifyData] = useState<Record<string, any> | null>(null);
+  const advanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
@@ -603,25 +574,47 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: partyNamesList = [] } = useQuery<string[]>({
-    queryKey: ["/api/admin/party-names"],
-    enabled: !!user && isAdmin,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  const advancePartyMatches = useMemo(() => {
-    if (!partyNamesList.length) return [];
-    const query = advancePartyName.trim();
-    if (!query) {
-      return partyNamesList.slice(0, 10).map(name => ({ name, score: 50 }));
+  // Live CashDesk party lookup for advance dialog (debounced)
+  useEffect(() => {
+    if (!showPartyVerifyDialog) return;
+    if (advanceDebounceRef.current) clearTimeout(advanceDebounceRef.current);
+    const name = advancePartyName.trim();
+    if (!name || name.length < 2) {
+      setAdvanceVerifyStatus("idle");
+      setAdvanceVerifiedName("");
+      setAdvanceVerifyData(null);
+      return;
     }
-    return partyNamesList
-      .map(name => ({ name, score: scorePartyMatch(query, name) }))
-      .filter(m => m.score >= 15)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
-  }, [advancePartyName, partyNamesList]);
+    setAdvanceVerifyStatus("verifying");
+    advanceDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name)}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.verified || data.found || data.exists) {
+            setAdvanceVerifyStatus("verified");
+            setAdvanceVerifiedName(data.name || name);
+            setAdvanceVerifyData(data.data || null);
+          } else {
+            setAdvanceVerifyStatus("not_found");
+            setAdvanceVerifiedName("");
+            setAdvanceVerifyData(null);
+          }
+        } else {
+          setAdvanceVerifyStatus("error");
+          setAdvanceVerifiedName("");
+          setAdvanceVerifyData(null);
+        }
+      } catch {
+        setAdvanceVerifyStatus("error");
+        setAdvanceVerifiedName("");
+        setAdvanceVerifyData(null);
+      }
+    }, 500);
+    return () => {
+      if (advanceDebounceRef.current) clearTimeout(advanceDebounceRef.current);
+    };
+  }, [advancePartyName, showPartyVerifyDialog]);
 
   // Fetch product popularity counts for smart sorting in Add Items dialog
   const { data: popularityCounts = {} } = useQuery<Record<string, number>>({
@@ -702,7 +695,9 @@ export default function OrdersPage() {
     if (order.status === "Created") {
       setAdvanceOrder(order);
       setAdvancePartyName(order.partyName || "");
-      setAdvanceSelectedParty(null);
+      setAdvanceVerifyStatus("idle");
+      setAdvanceVerifiedName("");
+      setAdvanceVerifyData(null);
       setShowPartyVerifyDialog(true);
     } else {
       advanceMutation.mutate({ id: order.id, status: nextStatus });
@@ -3618,39 +3613,44 @@ export default function OrdersPage() {
           setShowPartyVerifyDialog(false);
           setAdvanceOrder(null);
           setAdvancePartyName("");
-          setAdvanceSelectedParty(null);
+          setAdvanceVerifyStatus("idle");
+          setAdvanceVerifiedName("");
+          setAdvanceVerifyData(null);
         }
       }}>
-        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Verify Party Name</DialogTitle>
             <DialogDescription>
-              Review and confirm the correct party name before invoicing this order.
+              Confirm the party before moving this order to Invoiced.
             </DialogDescription>
           </DialogHeader>
           {advanceOrder && (
-            <div className="flex flex-col gap-4 overflow-hidden">
-              <div className="p-3 rounded-md bg-muted space-y-1 text-sm shrink-0">
+            <div className="flex flex-col gap-4">
+              {/* Order summary */}
+              <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
                 <div className="font-medium">{advanceOrder.brand} — Order #{advanceOrder.id.slice(-6)}</div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>Current: <span className="font-medium text-foreground">{advanceOrder.partyName || "—"}</span></span>
+                  <span>Current party: <span className="font-medium text-foreground">{advanceOrder.partyName || "—"}</span></span>
                   <span>·</span>
                   <span>Total: {formatINR(advanceOrder.total)}</span>
                 </div>
               </div>
 
-              <div className="space-y-2 shrink-0">
+              {/* Search input */}
+              <div className="space-y-2">
                 <Label htmlFor="advance-party-name">Search / Enter Party Name</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  {advanceVerifyStatus === "verifying" ? (
+                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+                  ) : (
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  )}
                   <Input
                     id="advance-party-name"
                     value={advancePartyName}
-                    onChange={(e) => {
-                      setAdvancePartyName(e.target.value);
-                      setAdvanceSelectedParty(null);
-                    }}
-                    placeholder="Type to search party names…"
+                    onChange={(e) => setAdvancePartyName(e.target.value)}
+                    placeholder="Type to look up in CashDesk…"
                     className="pl-9"
                     autoComplete="off"
                     data-testid="input-advance-party-name"
@@ -3658,50 +3658,88 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {advancePartyMatches.length > 0 && (
-                <div className="flex flex-col gap-1 overflow-hidden">
-                  <div className="text-xs text-muted-foreground px-1 shrink-0">
-                    {advancePartyName.trim() ? `${advancePartyMatches.length} match${advancePartyMatches.length !== 1 ? "es" : ""} found` : "All party names"}
-                  </div>
-                  <ScrollArea className="flex-1 min-h-0 max-h-52 border rounded-md">
-                    <div className="p-1">
-                      {advancePartyMatches.map(({ name, score }) => {
-                        const { label, className: badgeClass } = getMatchLabel(score);
-                        const isSelected = (advanceSelectedParty ?? advancePartyName.trim()) === name;
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            onClick={() => {
-                              setAdvancePartyName(name);
-                              setAdvanceSelectedParty(name);
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm text-left transition-colors ${
-                              isSelected
-                                ? "bg-primary text-primary-foreground"
-                                : "hover:bg-muted"
-                            }`}
-                            data-testid={`option-party-${name}`}
-                          >
-                            <span className="truncate mr-2">{name}</span>
-                            <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${isSelected ? "bg-primary-foreground/20 text-primary-foreground" : badgeClass}`}>
-                              {label}
-                            </span>
-                          </button>
-                        );
-                      })}
+              {/* Verification result */}
+              {advanceVerifyStatus === "verified" && (
+                <div className="space-y-2">
+                  {/* Verified name card */}
+                  <button
+                    type="button"
+                    onClick={() => setAdvancePartyName(advanceVerifiedName)}
+                    className="w-full flex items-center justify-between p-3 rounded-md border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800 text-left hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
+                    data-testid="button-verified-party"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-green-900 dark:text-green-100 truncate">{advanceVerifiedName}</div>
+                        {advanceVerifyData?.location && (
+                          <div className="text-xs text-green-700 dark:text-green-400">{advanceVerifyData.location}</div>
+                        )}
+                      </div>
                     </div>
-                  </ScrollArea>
+                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 font-medium ml-2">
+                      Verified ✓
+                    </span>
+                  </button>
+
+                  {/* Outstanding balance warning */}
+                  {advanceVerifyData && (
+                    (() => {
+                      const outstanding = Number(advanceVerifyData.outstandingAmount ?? 0);
+                      const available = Number(advanceVerifyData.availableCredit ?? 0);
+                      const creditStatus = advanceVerifyData.creditStatus as string | undefined;
+                      const isOverdue = creditStatus && /overdue|past.?due|delinquent/i.test(creditStatus);
+                      const isOverLimit = available < 0;
+                      const hasWarning = outstanding > 0 || isOverdue || isOverLimit;
+                      if (!hasWarning) return null;
+                      return (
+                        <div className="p-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 space-y-1" data-testid="warning-outstanding">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div className="text-sm space-y-0.5">
+                              {outstanding > 0 && (
+                                <div className="font-medium text-amber-900 dark:text-amber-100">
+                                  Outstanding: {formatINR(outstanding)}
+                                </div>
+                              )}
+                              {creditStatus && (
+                                <div className="text-amber-800 dark:text-amber-200">
+                                  Credit status: <span className="font-medium">{creditStatus}</span>
+                                </div>
+                              )}
+                              {isOverLimit && (
+                                <div className="text-amber-800 dark:text-amber-200">
+                                  Credit limit exceeded (available: {formatINR(available)})
+                                </div>
+                              )}
+                              <div className="text-xs text-amber-700 dark:text-amber-400 pt-0.5">
+                                Admin discretion — you can still proceed with invoicing.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
               )}
 
-              {advancePartyMatches.length === 0 && advancePartyName.trim() && (
-                <div className="text-sm text-muted-foreground text-center py-2 border rounded-md">
-                  No existing party names match — you can still use the typed name
+              {advanceVerifyStatus === "not_found" && advancePartyName.trim().length >= 2 && (
+                <div className="flex items-center gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-200" data-testid="warning-not-found">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>Not found in CashDesk — double-check the name or proceed with caution.</span>
                 </div>
               )}
 
-              <div className="flex gap-2 justify-between items-center pt-1 shrink-0 border-t">
+              {advanceVerifyStatus === "error" && (
+                <div className="flex items-center gap-2 p-3 rounded-md border bg-muted text-sm text-muted-foreground" data-testid="warning-api-error">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>CashDesk lookup unavailable — you can still confirm.</span>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex gap-2 justify-between items-center pt-1 border-t">
                 <div className="text-xs text-muted-foreground truncate">
                   {advancePartyName.trim() ? (
                     <>Will use: <span className="font-medium text-foreground">{advancePartyName.trim()}</span></>
@@ -3717,7 +3755,9 @@ export default function OrdersPage() {
                       setShowPartyVerifyDialog(false);
                       setAdvanceOrder(null);
                       setAdvancePartyName("");
-                      setAdvanceSelectedParty(null);
+                      setAdvanceVerifyStatus("idle");
+                      setAdvanceVerifiedName("");
+                      setAdvanceVerifyData(null);
                     }}
                     data-testid="button-advance-party-cancel"
                   >
