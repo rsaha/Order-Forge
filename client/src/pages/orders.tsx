@@ -2129,8 +2129,8 @@ export default function OrdersPage() {
                 )}
               </div>
 
-              {/* POD Status Toggle - only visible for Admin when order is Dispatched or Delivered */}
-              {isAdmin && (selectedOrder.status === "Dispatched" || selectedOrder.status === "Delivered") && (
+              {/* POD Status Toggle - only visible for Admin when order is Delivered */}
+              {isAdmin && selectedOrder.status === "Delivered" && (
                 <div className="p-3 rounded-md border bg-muted/30 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -2187,8 +2187,8 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Verify Party - Admin only, available at any order status */}
-              {isAdmin && (
+              {/* Verify Party - Admin only, not shown for Dispatched/Delivered/PODReceived */}
+              {isAdmin && !["Dispatched", "Delivered", "PODReceived"].includes(selectedOrder.status) && (
                 <div className="p-3 rounded-md border bg-muted/30 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
