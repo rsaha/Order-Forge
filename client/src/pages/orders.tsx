@@ -588,8 +588,14 @@ export default function OrdersPage() {
   });
 
   // Live CashDesk party lookup for advance dialog (debounced + stale-response protected)
+  // Initial lookup (dialog just opened with prefilled name) fires immediately; subsequent
+  // keystrokes are debounced 500ms to avoid hammering the API.
+  const advanceIsFirstLookupRef = useRef(true);
   useEffect(() => {
-    if (!showPartyVerifyDialog) return;
+    if (!showPartyVerifyDialog) {
+      advanceIsFirstLookupRef.current = true;
+      return;
+    }
     if (advanceDebounceRef.current) clearTimeout(advanceDebounceRef.current);
     if (advanceAbortRef.current) advanceAbortRef.current.abort();
     const name = advancePartyName.trim();
@@ -600,7 +606,8 @@ export default function OrdersPage() {
       return;
     }
     setAdvanceVerifyStatus("verifying");
-    advanceDebounceRef.current = setTimeout(() => {
+
+    const doLookup = () => {
       const controller = new AbortController();
       advanceAbortRef.current = controller;
       fetch(`/api/verify/debtor?name=${encodeURIComponent(name)}`, {
@@ -635,7 +642,15 @@ export default function OrdersPage() {
           setAdvanceVerifiedName("");
           setAdvanceVerifyData(null);
         });
-    }, 500);
+    };
+
+    if (advanceIsFirstLookupRef.current) {
+      advanceIsFirstLookupRef.current = false;
+      doLookup();
+    } else {
+      advanceDebounceRef.current = setTimeout(doLookup, 500);
+    }
+
     return () => {
       if (advanceDebounceRef.current) clearTimeout(advanceDebounceRef.current);
       if (advanceAbortRef.current) advanceAbortRef.current.abort();
