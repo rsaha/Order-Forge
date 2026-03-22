@@ -3826,12 +3826,6 @@ export default function OrdersPage() {
                         <span className="font-medium">{dispatchTransportData.location}</span>
                       </>
                     )}
-                    {dispatchTransportData.salesOwner && (
-                      <>
-                        <span className="text-muted-foreground">Sales Owner</span>
-                        <span className="font-medium">{dispatchTransportData.salesOwner}</span>
-                      </>
-                    )}
                   </div>
                 </div>
               )}
