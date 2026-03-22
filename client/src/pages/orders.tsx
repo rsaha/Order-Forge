@@ -209,6 +209,18 @@ function getThisMonthRange(): { fromDate: string; toDate: string } {
   };
 }
 
+interface CashDeskDebtorData {
+  outstandingAmount?: number;
+  availableCredit?: number;
+  creditStatus?: string;
+  creditLimit?: number;
+  location?: string;
+  debtorId?: string;
+  salesOwner?: string;
+  name?: string;
+  Name?: string;
+}
+
 interface BulkOrderSummary {
   brand: string;
   deliveryCompany: string;
@@ -330,8 +342,9 @@ export default function OrdersPage() {
   const [showPartyVerifyDialog, setShowPartyVerifyDialog] = useState(false);
   const [advanceVerifyStatus, setAdvanceVerifyStatus] = useState<"idle" | "verifying" | "verified" | "not_found" | "error">("idle");
   const [advanceVerifiedName, setAdvanceVerifiedName] = useState<string>("");
-  const [advanceVerifyData, setAdvanceVerifyData] = useState<Record<string, any> | null>(null);
+  const [advanceVerifyData, setAdvanceVerifyData] = useState<CashDeskDebtorData | null>(null);
   const advanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advanceAbortRef = useRef<AbortController | null>(null);
 
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
@@ -574,10 +587,11 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
-  // Live CashDesk party lookup for advance dialog (debounced)
+  // Live CashDesk party lookup for advance dialog (debounced + stale-response protected)
   useEffect(() => {
     if (!showPartyVerifyDialog) return;
     if (advanceDebounceRef.current) clearTimeout(advanceDebounceRef.current);
+    if (advanceAbortRef.current) advanceAbortRef.current.abort();
     const name = advancePartyName.trim();
     if (!name || name.length < 2) {
       setAdvanceVerifyStatus("idle");
@@ -586,33 +600,45 @@ export default function OrdersPage() {
       return;
     }
     setAdvanceVerifyStatus("verifying");
-    advanceDebounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/verify/debtor?name=${encodeURIComponent(name)}`, { credentials: "include" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.verified || data.found || data.exists) {
-            setAdvanceVerifyStatus("verified");
-            setAdvanceVerifiedName(data.name || name);
-            setAdvanceVerifyData(data.data || null);
+    advanceDebounceRef.current = setTimeout(() => {
+      const controller = new AbortController();
+      advanceAbortRef.current = controller;
+      fetch(`/api/verify/debtor?name=${encodeURIComponent(name)}`, {
+        credentials: "include",
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (controller.signal.aborted) return;
+          if (res.ok) {
+            const data = await res.json();
+            if (controller.signal.aborted) return;
+            if (data.verified || data.found || data.exists) {
+              setAdvanceVerifyStatus("verified");
+              setAdvanceVerifiedName(data.name || name);
+              setAdvanceVerifyData((data.data as CashDeskDebtorData) || null);
+            } else {
+              setAdvanceVerifyStatus("not_found");
+              setAdvanceVerifiedName("");
+              setAdvanceVerifyData(null);
+            }
           } else {
-            setAdvanceVerifyStatus("not_found");
-            setAdvanceVerifiedName("");
-            setAdvanceVerifyData(null);
+            if (!controller.signal.aborted) {
+              setAdvanceVerifyStatus("error");
+              setAdvanceVerifiedName("");
+              setAdvanceVerifyData(null);
+            }
           }
-        } else {
+        })
+        .catch((err) => {
+          if (err?.name === "AbortError") return;
           setAdvanceVerifyStatus("error");
           setAdvanceVerifiedName("");
           setAdvanceVerifyData(null);
-        }
-      } catch {
-        setAdvanceVerifyStatus("error");
-        setAdvanceVerifiedName("");
-        setAdvanceVerifyData(null);
-      }
+        });
     }, 500);
     return () => {
       if (advanceDebounceRef.current) clearTimeout(advanceDebounceRef.current);
+      if (advanceAbortRef.current) advanceAbortRef.current.abort();
     };
   }, [advancePartyName, showPartyVerifyDialog]);
 
