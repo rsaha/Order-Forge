@@ -70,6 +70,7 @@ import {
   GitBranch,
   ClipboardCheck,
   FileSpreadsheet,
+  ArrowRight,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -233,6 +234,16 @@ interface BulkOrderSummary {
   }>;
 }
 
+function getNextStatus(status: OrderStatus): OrderStatus | null {
+  const transitions: Partial<Record<OrderStatus, OrderStatus>> = {
+    Created: "Invoiced",
+    Invoiced: "Dispatched",
+    Dispatched: "Delivered",
+    Delivered: "PODReceived",
+  };
+  return transitions[status] ?? null;
+}
+
 export default function OrdersPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -313,6 +324,11 @@ export default function OrdersPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [orderForPendingCreation, setOrderForPendingCreation] = useState<Order | null>(null);
   
+  // Quick Advance state (admin only)
+  const [advanceOrder, setAdvanceOrder] = useState<Order | null>(null);
+  const [advancePartyName, setAdvancePartyName] = useState<string>("");
+  const [showPartyVerifyDialog, setShowPartyVerifyDialog] = useState(false);
+
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
   const [verifyPartyName, setVerifyPartyName] = useState("");
@@ -554,6 +570,13 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: partyNamesList = [] } = useQuery<string[]>({
+    queryKey: ["/api/admin/party-names"],
+    enabled: !!user && isAdmin,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   // Fetch product popularity counts for smart sorting in Add Items dialog
   const { data: popularityCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/products/popularity"],
@@ -607,6 +630,37 @@ export default function OrdersPage() {
       setOrderToDelete(null);
     },
   });
+
+  const advanceMutation = useMutation({
+    mutationFn: async ({ id, status, partyName }: { id: string; status: string; partyName?: string }) => {
+      const payload: Record<string, unknown> = { status };
+      if (partyName !== undefined) payload.partyName = partyName;
+      return apiRequest("PATCH", `/api/admin/orders/${id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      setAdvanceOrder(null);
+      setShowPartyVerifyDialog(false);
+      toast({ title: "Order advanced successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to advance order", description: error.message, variant: "destructive" });
+    },
+  });
+
+  function handleAdvanceClick(order: Order, e: React.MouseEvent) {
+    e.stopPropagation();
+    const nextStatus = getNextStatus(order.status as OrderStatus);
+    if (!nextStatus) return;
+    if (order.status === "Created") {
+      setAdvanceOrder(order);
+      setAdvancePartyName(order.partyName || "");
+      setShowPartyVerifyDialog(true);
+    } else {
+      advanceMutation.mutate({ id: order.id, status: nextStatus });
+    }
+  }
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ orderId, itemId, quantity, freeQuantity }: { orderId: string; itemId: string; quantity: number; freeQuantity: number }) => {
@@ -1558,6 +1612,11 @@ export default function OrdersPage() {
                                   </Button>
                                 )}
                                 {canDeleteOrder(order) && <Button size="icon" variant="ghost" onClick={(e) => handleDeleteClick(order, e)} title="Delete Order" className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
+                                {isAdmin && (
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Invoiced" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                    <ArrowRight className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </>
@@ -1647,6 +1706,11 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {isAdmin && (
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Dispatched" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                    <ArrowRight className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </>
@@ -1686,6 +1750,11 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {isAdmin && (
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Delivered" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                    <ArrowRight className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </>
@@ -1724,6 +1793,11 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {isAdmin && (
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to POD Received" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                    <ArrowRight className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </>
@@ -3484,6 +3558,82 @@ export default function OrdersPage() {
               <div className="flex justify-end pt-2">
                 <Button onClick={() => setImportSummary(null)} data-testid="button-close-summary">
                   Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Advance: Party Name Verification Dialog (Created → Invoiced) */}
+      <Dialog open={showPartyVerifyDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowPartyVerifyDialog(false);
+          setAdvanceOrder(null);
+          setAdvancePartyName("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verify Party Name</DialogTitle>
+            <DialogDescription>
+              Confirm the party name before moving this order to Invoiced status.
+            </DialogDescription>
+          </DialogHeader>
+          {advanceOrder && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
+                <div className="font-medium">{advanceOrder.brand} — Order #{advanceOrder.id.slice(-6)}</div>
+                <div className="text-muted-foreground">Total: {formatINR(advanceOrder.total)}</div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="advance-party-name">Party Name</Label>
+                <Input
+                  id="advance-party-name"
+                  list="advance-party-name-list"
+                  value={advancePartyName}
+                  onChange={(e) => setAdvancePartyName(e.target.value)}
+                  placeholder="Enter or select party name"
+                  data-testid="input-advance-party-name"
+                />
+                <datalist id="advance-party-name-list">
+                  {partyNamesList.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPartyVerifyDialog(false);
+                    setAdvanceOrder(null);
+                    setAdvancePartyName("");
+                  }}
+                  data-testid="button-advance-party-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!advanceOrder) return;
+                    advanceMutation.mutate({
+                      id: advanceOrder.id,
+                      status: "Invoiced",
+                      partyName: advancePartyName.trim() || advanceOrder.partyName || undefined,
+                    });
+                  }}
+                  disabled={advanceMutation.isPending || !advancePartyName.trim()}
+                  data-testid="button-advance-party-confirm"
+                >
+                  {advanceMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Advancing...
+                    </>
+                  ) : (
+                    "Confirm & Mark Invoiced"
+                  )}
                 </Button>
               </div>
             </div>
