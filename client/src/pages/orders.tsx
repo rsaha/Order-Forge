@@ -335,7 +335,8 @@ export default function OrdersPage() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportStatus, setExportStatus] = useState<string>("all");
-  const [exportBrand, setExportBrand] = useState<string>("all");
+  const [exportBrands, setExportBrands] = useState<string[]>([]);
+  const [exportType, setExportType] = useState<"summary" | "details">("details");
   const [isExporting, setIsExporting] = useState(false);
   const [orderForPendingCreation, setOrderForPendingCreation] = useState<Order | null>(null);
   
@@ -1126,8 +1127,8 @@ export default function OrdersPage() {
       if (exportStatus !== "all") {
         ordersToExport = ordersToExport.filter(o => o.status === exportStatus);
       }
-      if (exportBrand !== "all") {
-        ordersToExport = ordersToExport.filter(o => o.brand === exportBrand);
+      if (exportBrands.length > 0) {
+        ordersToExport = ordersToExport.filter(o => exportBrands.includes(o.brand || ""));
       }
       
       if (ordersToExport.length === 0) {
@@ -1136,28 +1137,18 @@ export default function OrdersPage() {
         return;
       }
 
-      // Fetch items for each order
-      const ordersWithItems = await Promise.all(
-        ordersToExport.map(async (order) => {
-          const endpoint = hasAdminAccess 
-            ? `/api/admin/orders/${order.id}` 
-            : `/api/orders/${order.id}`;
-          const res = await fetch(endpoint, { credentials: "include" });
-          if (res.ok) {
-            const data = await res.json();
-            return { order, items: data.items || [] };
-          }
-          return { order, items: [] };
-        })
-      );
+      const brandLabel = exportBrands.length === 0 ? "all" : exportBrands.join("+");
+      const filterParts = [exportStatus !== "all" ? exportStatus.toLowerCase() : "all", brandLabel, exportType];
+      const filename = `orders_${filterParts.join("_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
 
-      // Create worksheet data
-      const wsData: any[][] = [
-        ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
-      ];
+      const wb = XLSX.utils.book_new();
 
-      ordersWithItems.forEach(({ order, items }) => {
-        items.forEach((item: any, idx: number) => {
+      if (exportType === "summary") {
+        // Summary: one row per order, no product fetching
+        const wsData: any[][] = [
+          ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
+        ];
+        ordersToExport.forEach((order) => {
           wsData.push([
             order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
             order.id,
@@ -1165,40 +1156,6 @@ export default function OrdersPage() {
             order.brand || "",
             order.status,
             formatCreatedBy(order),
-            item.productName || "",
-            item.size || "",
-            item.quantity,
-            item.freeQuantity || 0,
-            Number(item.unitPrice) || 0,
-            (item.quantity * Number(item.unitPrice)) || 0,
-            idx === 0 ? Number(order.total) || 0 : "",
-            idx === 0 ? order.actualOrderValue ? Number(order.actualOrderValue) : "" : "",
-            idx === 0 ? order.cases || "" : "",
-            idx === 0 ? order.specialNotes || "" : "",
-            idx === 0 ? order.deliveryCompany || "" : "",
-            idx === 0 ? order.invoiceNumber || "" : "",
-            idx === 0 ? order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "" : "",
-            idx === 0 ? order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString() : "" : "",
-            idx === 0 ? order.dispatchBy || "" : "",
-            idx === 0 ? order.deliveryCost ? Number(order.deliveryCost) : "" : "",
-            idx === 0 ? order.podStatus === "Received" ? "Yes" : "No" : ""
-          ]);
-        });
-        // If no items, still add order row
-        if (items.length === 0) {
-          wsData.push([
-            order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
-            order.id,
-            order.partyName || "",
-            order.brand || "",
-            order.status,
-            formatCreatedBy(order),
-            "",
-            "",
-            0,
-            0,
-            0,
-            0,
             Number(order.total) || 0,
             order.actualOrderValue ? Number(order.actualOrderValue) : "",
             order.cases || "",
@@ -1211,20 +1168,89 @@ export default function OrdersPage() {
             order.deliveryCost ? Number(order.deliveryCost) : "",
             order.podStatus === "Received" ? "Yes" : "No"
           ]);
-        }
-      });
+        });
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Orders Summary");
+        XLSX.writeFile(wb, filename);
+        toast({ title: `Exported ${ordersToExport.length} orders (summary)` });
+      } else {
+        // Details: one row per product line item
+        const ordersWithItems = await Promise.all(
+          ordersToExport.map(async (order) => {
+            const endpoint = hasAdminAccess 
+              ? `/api/admin/orders/${order.id}` 
+              : `/api/orders/${order.id}`;
+            const res = await fetch(endpoint, { credentials: "include" });
+            if (res.ok) {
+              const data = await res.json();
+              return { order, items: data.items || [] };
+            }
+            return { order, items: [] };
+          })
+        );
 
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Orders");
-      
-      // Generate filename with filters
-      const filterParts = [exportStatus !== "all" ? exportStatus.toLowerCase() : "all"];
-      if (exportBrand !== "all") filterParts.push(exportBrand);
-      const filename = `orders_${filterParts.join("_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
-      
-      XLSX.writeFile(wb, filename);
-      toast({ title: `Exported ${ordersWithItems.length} orders` });
+        const wsData: any[][] = [
+          ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
+        ];
+
+        ordersWithItems.forEach(({ order, items }) => {
+          items.forEach((item: any, idx: number) => {
+            wsData.push([
+              order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
+              order.id,
+              order.partyName || "",
+              order.brand || "",
+              order.status,
+              formatCreatedBy(order),
+              item.productName || "",
+              item.size || "",
+              item.quantity,
+              item.freeQuantity || 0,
+              Number(item.unitPrice) || 0,
+              (item.quantity * Number(item.unitPrice)) || 0,
+              idx === 0 ? Number(order.total) || 0 : "",
+              idx === 0 ? order.actualOrderValue ? Number(order.actualOrderValue) : "" : "",
+              idx === 0 ? order.cases || "" : "",
+              idx === 0 ? order.specialNotes || "" : "",
+              idx === 0 ? order.deliveryCompany || "" : "",
+              idx === 0 ? order.invoiceNumber || "" : "",
+              idx === 0 ? order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "" : "",
+              idx === 0 ? order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString() : "" : "",
+              idx === 0 ? order.dispatchBy || "" : "",
+              idx === 0 ? order.deliveryCost ? Number(order.deliveryCost) : "" : "",
+              idx === 0 ? order.podStatus === "Received" ? "Yes" : "No" : ""
+            ]);
+          });
+          if (items.length === 0) {
+            wsData.push([
+              order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
+              order.id,
+              order.partyName || "",
+              order.brand || "",
+              order.status,
+              formatCreatedBy(order),
+              "", "", 0, 0, 0, 0,
+              Number(order.total) || 0,
+              order.actualOrderValue ? Number(order.actualOrderValue) : "",
+              order.cases || "",
+              order.specialNotes || "",
+              order.deliveryCompany || "",
+              order.invoiceNumber || "",
+              order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString() : "",
+              order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString() : "",
+              order.dispatchBy || "",
+              order.deliveryCost ? Number(order.deliveryCost) : "",
+              order.podStatus === "Received" ? "Yes" : "No"
+            ]);
+          }
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Orders Details");
+        XLSX.writeFile(wb, filename);
+        toast({ title: `Exported ${ordersWithItems.length} orders (details)` });
+      }
+
       setShowExportDialog(false);
     } catch (error) {
       toast({ title: "Export failed", description: String(error), variant: "destructive" });
@@ -3301,7 +3327,8 @@ export default function OrdersPage() {
         setShowExportDialog(open);
         if (!open) {
           setExportStatus("all");
-          setExportBrand("all");
+          setExportBrands([]);
+          setExportType("details");
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -3316,6 +3343,33 @@ export default function OrdersPage() {
           </DialogHeader>
           
           <div className="space-y-4">
+            {/* Export type toggle */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Export Type</label>
+              <div className="flex gap-2">
+                {(["details", "summary"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setExportType(type)}
+                    className={`flex-1 py-2 px-3 rounded-md border text-sm font-medium transition-colors ${
+                      exportType === type
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background border-border text-foreground hover:bg-muted"
+                    }`}
+                    data-testid={`button-export-type-${type}`}
+                  >
+                    {type === "details" ? "Details" : "Summary"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {exportType === "details"
+                  ? "One row per product line item with full order info."
+                  : "One row per order — no product breakdown."}
+              </p>
+            </div>
+
             <div>
               <label className="text-sm font-medium mb-2 block">Status</label>
               <Select value={exportStatus} onValueChange={setExportStatus}>
@@ -3338,32 +3392,46 @@ export default function OrdersPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Brand</label>
-              <Select value={exportBrand} onValueChange={setExportBrand}>
-                <SelectTrigger data-testid="select-export-brand">
-                  <SelectValue placeholder="Select brand" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Brands</SelectItem>
-                  {BRANDS.map((brand) => (
-                    <SelectItem key={brand} value={brand}>
+              <label className="text-sm font-medium mb-1 block">Brands</label>
+              <p className="text-xs text-muted-foreground mb-2">Leave all unchecked to include all brands.</p>
+              <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                {BRANDS.map((brand) => {
+                  const checked = exportBrands.includes(brand);
+                  return (
+                    <label
+                      key={brand}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer text-sm transition-colors ${
+                        checked
+                          ? "bg-primary/10 border-primary/40 text-primary font-medium"
+                          : "bg-background border-border hover:bg-muted"
+                      }`}
+                      data-testid={`label-export-brand-${brand}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={checked}
+                        onChange={() =>
+                          setExportBrands(prev =>
+                            checked ? prev.filter(b => b !== brand) : [...prev, brand]
+                          )
+                        }
+                      />
                       {brand}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-              <p>
-                {exportStatus === "all" && exportBrand === "all" 
-                  ? `Will export all ${allOrders.length} orders`
-                  : `Will export ${allOrders.filter(o => 
-                      (exportStatus === "all" || o.status === exportStatus) &&
-                      (exportBrand === "all" || o.brand === exportBrand)
-                    ).length} orders`
-                }
-              </p>
+              {(() => {
+                const count = allOrders.filter(o =>
+                  (exportStatus === "all" || o.status === exportStatus) &&
+                  (exportBrands.length === 0 || exportBrands.includes(o.brand || ""))
+                ).length;
+                return <p>Will export <strong>{count}</strong> order{count !== 1 ? "s" : ""}</p>;
+              })()}
             </div>
           </div>
 
