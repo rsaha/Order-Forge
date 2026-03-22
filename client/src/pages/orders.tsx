@@ -253,6 +253,8 @@ interface BulkOrderSummary {
 function getNextStatus(status: OrderStatus): OrderStatus | null {
   const transitions: Partial<Record<OrderStatus, OrderStatus>> = {
     Created: "Invoiced",
+    Backordered: "Invoiced",
+    Pending: "Invoiced",
     Invoiced: "Dispatched",
     Dispatched: "Delivered",
   };
@@ -782,7 +784,7 @@ export default function OrdersPage() {
     e.stopPropagation();
     const nextStatus = getNextStatus(order.status as OrderStatus);
     if (!nextStatus) return;
-    if (order.status === "Created") {
+    if (order.status === "Created" || order.status === "Backordered" || order.status === "Pending") {
       setAdvanceOrder(order);
       setAdvancePartyName(order.partyName || "");
       setAdvanceVerifyStatus("idle");
@@ -1896,7 +1898,7 @@ export default function OrdersPage() {
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
                                 {isAdmin && (
-                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Dispatched" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Invoiced" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
                                     <ArrowRight className="w-4 h-4" />
                                   </Button>
                                 )}
@@ -1940,7 +1942,7 @@ export default function OrdersPage() {
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
                                 {isAdmin && (
-                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Delivered" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Invoiced" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
                                     <ArrowRight className="w-4 h-4" />
                                   </Button>
                                 )}
