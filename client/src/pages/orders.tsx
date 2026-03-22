@@ -3741,7 +3741,7 @@ export default function OrdersPage() {
                                 ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
                                 : "bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200"
                             }`}>
-                              {isExact ? "Exact" : `${pct}%`}
+                              {isExact ? "Exact" : "Possible"}
                             </span>
                           </button>
                         );
