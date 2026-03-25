@@ -2668,7 +2668,6 @@ export default function OrdersPage() {
                             value={editFormData.deliveryCost}
                             onChange={(e) => setEditFormData({ ...editFormData, deliveryCost: e.target.value })}
                             placeholder="0.00"
-                            disabled={selectedOrder.status === "PODReceived"}
                             data-testid="input-delivery-cost"
                           />
                         </div>
@@ -2694,7 +2693,6 @@ export default function OrdersPage() {
                           type="date"
                           value={editFormData.actualDeliveryDate}
                           onChange={(e) => setEditFormData({ ...editFormData, actualDeliveryDate: e.target.value })}
-                          disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-actual-delivery"
                         />
                       </div>
