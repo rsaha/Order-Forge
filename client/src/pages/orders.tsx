@@ -1521,7 +1521,7 @@ export default function OrdersPage() {
                   data-testid="button-split-delivery-cost"
                 >
                   <Calculator className="w-4 h-4" />
-                  Split Cost
+                  Split Delivery Cost
                 </Button>
               )}
               <Button
