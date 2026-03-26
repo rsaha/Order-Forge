@@ -1782,12 +1782,17 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const { orderIds, transportCar, parking, food, loadingUnloading, truck } = req.body;
-      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      const { orderIds: rawOrderIds, transportCar, parking, food, loadingUnloading, truck } = req.body;
+      if (!Array.isArray(rawOrderIds) || rawOrderIds.length === 0) {
         return res.status(400).json({ message: "orderIds must be a non-empty array" });
       }
+      // Deduplicate order IDs to prevent skewed allocation
+      const orderIds: string[] = [...new Set(rawOrderIds as string[])];
 
       const totalCost = (Number(transportCar) || 0) + (Number(parking) || 0) + (Number(food) || 0) + (Number(loadingUnloading) || 0) + (Number(truck) || 0);
+      if (totalCost <= 0) {
+        return res.status(400).json({ message: "Total delivery cost must be greater than 0" });
+      }
 
       // Fetch all orders
       const fetchedOrders = await Promise.all(orderIds.map((id: string) => storage.getOrderById(id)));
