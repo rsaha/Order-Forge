@@ -1717,7 +1717,6 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Pending</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
@@ -1747,7 +1746,6 @@ export default function OrdersPage() {
                         <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Est. Delivery</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Delivery Co.</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
@@ -1919,7 +1917,6 @@ export default function OrdersPage() {
                             <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.deliveryCompany || "-"}</td>
                             <td className="p-2 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                               {pendingOrderLookup.has(order.id) ? (
                                 <Button
@@ -1991,7 +1988,6 @@ export default function OrdersPage() {
                             <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 hidden lg:table-cell text-xs whitespace-nowrap">{order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.deliveryCompany || "-"}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
