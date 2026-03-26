@@ -9,7 +9,7 @@ import multer from "multer";
 import { getUncachableResendClient } from "./resend";
 import memoize from "memoizee";
 import { db } from "./db";
-import { sql, inArray } from "drizzle-orm";
+import { sql, inArray, eq } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -1803,17 +1803,22 @@ export async function registerRoutes(
         return res.status(400).json({ message: "None of the selected orders have cases recorded. Please set case counts first." });
       }
 
-      // Calculate and apply per-order delivery costs
-      const results: { id: string; cases: number; deliveryCost: string }[] = [];
-      for (const order of validOrders) {
+      // Pre-compute per-order costs before opening transaction
+      const ordersWithCosts = validOrders.map(order => {
         const orderCases = order!.cases || 0;
         const allocatedCost = totalCases > 0 && orderCases > 0 ? (orderCases / totalCases) * totalCost : 0;
         const rounded = Math.round(allocatedCost * 100) / 100;
-        await storage.updateOrder(order!.id, { deliveryCost: String(rounded) });
-        results.push({ id: order!.id, cases: orderCases, deliveryCost: String(rounded) });
-      }
+        return { id: order!.id, cases: orderCases, deliveryCost: String(rounded) };
+      });
 
-      res.json({ success: true, totalCost, totalCases, results });
+      // Apply all updates atomically — rolls back everything if any update fails
+      await db.transaction(async (tx) => {
+        for (const { id, deliveryCost } of ordersWithCosts) {
+          await tx.update(orders).set({ deliveryCost }).where(eq(orders.id, id));
+        }
+      });
+
+      res.json({ success: true, totalCost, totalCases, results: ordersWithCosts });
     } catch (error) {
       console.error("Error splitting delivery cost:", error);
       res.status(500).json({ message: "Failed to split delivery cost" });
