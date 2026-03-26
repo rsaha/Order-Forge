@@ -2740,19 +2740,35 @@ export default function OrdersPage() {
                   </div>
 
                   {selectedOrder.status === "PODReceived" ? (
-                    <div className="flex justify-end gap-2 pt-4">
-                      <div className="flex-1 p-3 rounded-md bg-muted/50 border">
+                    <div className="space-y-3 pt-4">
+                      <div className="p-3 rounded-md bg-muted/50 border">
                         <p className="text-sm text-muted-foreground">
-                          This order has reached POD Received status. No further changes are allowed.
+                          Only Delivery Cost and Actual Delivery Date can be updated for POD Received orders.
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedOrder(null)}
-                        data-testid="button-close-order"
-                      >
-                        Close
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setSelectedOrder(null)}
+                          data-testid="button-cancel-edit"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSave}
+                          disabled={updateMutation.isPending}
+                          data-testid="button-save-order"
+                        >
+                          {updateMutation.isPending ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            "Save Changes"
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex justify-end gap-2 pt-4">
