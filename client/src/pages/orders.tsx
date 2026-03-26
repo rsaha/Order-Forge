@@ -382,6 +382,14 @@ export default function OrdersPage() {
   const [deliveredOrder, setDeliveredOrder] = useState<Order | null>(null);
   const [deliveredActualDate, setDeliveredActualDate] = useState("");
 
+  // Split Delivery Cost dialog state (admin only)
+  const [showSplitCostDialog, setShowSplitCostDialog] = useState(false);
+  const [splitStep, setSplitStep] = useState<1 | 2 | 3>(1);
+  const [splitDateFilter, setSplitDateFilter] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [splitCompanyFilter, setSplitCompanyFilter] = useState<string>("all");
+  const [splitSelectedIds, setSplitSelectedIds] = useState<Set<string>>(new Set());
+  const [splitCosts, setSplitCosts] = useState({ transportCar: "", parking: "", food: "", loadingUnloading: "", truck: "" });
+
   // Party verification state (admin only for Invoiced orders)
   const [showVerifyParty, setShowVerifyParty] = useState(false);
   const [verifyPartyName, setVerifyPartyName] = useState("");
@@ -948,6 +956,25 @@ export default function OrdersPage() {
     },
   });
 
+  const splitCostMutation = useMutation({
+    mutationFn: async (payload: { orderIds: string[]; transportCar: number; parking: number; food: number; loadingUnloading: number; truck: number }) => {
+      const res = await apiRequest("POST", "/api/admin/orders/split-delivery-cost", payload);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: `Delivery cost split across ${data.results.length} orders`, description: `Total: ${formatINR(data.totalCost)} across ${data.totalCases} cartons` });
+      setShowSplitCostDialog(false);
+      setSplitStep(1);
+      setSplitSelectedIds(new Set());
+      setSplitCosts({ transportCar: "", parking: "", food: "", loadingUnloading: "", truck: "" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to split delivery cost", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleVerifyParty = (updateOrder: boolean = false) => {
     if (!selectedOrder) return;
     verifyPartyMutation.mutate({
@@ -1483,6 +1510,17 @@ export default function OrdersPage() {
                 >
                   <Upload className="w-4 h-4" />
                   Import
+                </Button>
+              )}
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  onClick={() => { setSplitStep(1); setSplitSelectedIds(new Set()); setSplitCosts({ transportCar: "", parking: "", food: "", loadingUnloading: "", truck: "" }); setShowSplitCostDialog(true); }}
+                  className="gap-2"
+                  data-testid="button-split-delivery-cost"
+                >
+                  <Truck className="w-4 h-4" />
+                  Split Cost
                 </Button>
               )}
               <Button
@@ -4318,6 +4356,276 @@ export default function OrdersPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Split Delivery Cost Dialog */}
+      <Dialog open={showSplitCostDialog} onOpenChange={(open) => {
+        setShowSplitCostDialog(open);
+        if (!open) { setSplitStep(1); setSplitSelectedIds(new Set()); setSplitCosts({ transportCar: "", parking: "", food: "", loadingUnloading: "", truck: "" }); }
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="w-5 h-5" />
+              Split Delivery Cost
+            </DialogTitle>
+            <DialogDescription>
+              {splitStep === 1 && "Step 1 of 3 — Select the orders in this dispatch batch"}
+              {splitStep === 2 && "Step 2 of 3 — Enter the delivery cost components"}
+              {splitStep === 3 && "Step 3 of 3 — Preview allocation and confirm"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Step indicators */}
+          <div className="flex items-center gap-2 mb-2">
+            {([1, 2, 3] as const).map((s) => (
+              <div key={s} className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold border-2 ${splitStep === s ? "bg-primary text-primary-foreground border-primary" : splitStep > s ? "bg-primary/20 text-primary border-primary/40" : "border-muted-foreground/30 text-muted-foreground"}`}>
+                {s}
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+            {/* STEP 1: Select Orders */}
+            {splitStep === 1 && (() => {
+              const eligibleOrders = allOrders.filter(o =>
+                ["Dispatched", "Delivered", "PODReceived"].includes(o.status) &&
+                (splitDateFilter ? (o.dispatchDate ? new Date(o.dispatchDate).toISOString().split('T')[0] === splitDateFilter : false) : true) &&
+                (splitCompanyFilter !== "all" ? o.deliveryCompany === splitCompanyFilter : true)
+              );
+              const allChecked = eligibleOrders.length > 0 && eligibleOrders.every(o => splitSelectedIds.has(o.id));
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-medium mb-1 block">Dispatch Date</Label>
+                      <Input
+                        type="date"
+                        value={splitDateFilter}
+                        onChange={(e) => { setSplitDateFilter(e.target.value); setSplitSelectedIds(new Set()); }}
+                        data-testid="input-split-date"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium mb-1 block">Delivery Company</Label>
+                      <Select value={splitCompanyFilter} onValueChange={(v) => { setSplitCompanyFilter(v); setSplitSelectedIds(new Set()); }}>
+                        <SelectTrigger data-testid="select-split-company">
+                          <SelectValue placeholder="All companies" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Companies</SelectItem>
+                          {DELIVERY_COMPANIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {eligibleOrders.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No dispatched/delivered orders found for the selected date and company.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                        <span>{eligibleOrders.length} order{eligibleOrders.length !== 1 ? "s" : ""} found</span>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <Checkbox
+                            checked={allChecked}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSplitSelectedIds(new Set(eligibleOrders.map(o => o.id)));
+                              else setSplitSelectedIds(new Set());
+                            }}
+                          />
+                          <span>Select all</span>
+                        </label>
+                      </div>
+                      <ScrollArea className="h-64 border rounded-md">
+                        <div className="divide-y">
+                          {eligibleOrders.map(order => {
+                            const checked = splitSelectedIds.has(order.id);
+                            return (
+                              <label
+                                key={order.id}
+                                className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors ${checked ? "bg-primary/5" : ""}`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(c) => {
+                                    const next = new Set(splitSelectedIds);
+                                    if (c) next.add(order.id); else next.delete(order.id);
+                                    setSplitSelectedIds(next);
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{order.partyName || "Unknown"}</div>
+                                  <div className="text-xs text-muted-foreground">{order.brand} · #{order.invoiceNumber || order.id.slice(-6)}</div>
+                                </div>
+                                <div className="text-right text-sm shrink-0">
+                                  {order.cases != null ? (
+                                    <span className="font-medium">{order.cases} ctns</span>
+                                  ) : (
+                                    <span className="text-amber-600 dark:text-amber-400 text-xs font-medium">No cases</span>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                      {Array.from(splitSelectedIds).some(id => {
+                        const o = allOrders.find(x => x.id === id);
+                        return !o?.cases;
+                      }) && (
+                        <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
+                          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                          Some selected orders have no case count and will receive ₹0 allocation.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* STEP 2: Enter Costs */}
+            {splitStep === 2 && (() => {
+              const total = Object.values(splitCosts).reduce((s, v) => s + (Number(v) || 0), 0);
+              return (
+                <div className="space-y-3">
+                  {[
+                    { key: "transportCar", label: "Transport Car" },
+                    { key: "parking", label: "Parking" },
+                    { key: "food", label: "Food (occasional)" },
+                    { key: "loadingUnloading", label: "Loading / Unloading" },
+                    { key: "truck", label: "Truck" },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="grid grid-cols-2 items-center gap-3">
+                      <Label className="text-sm">{label}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={splitCosts[key as keyof typeof splitCosts]}
+                        onChange={(e) => setSplitCosts({ ...splitCosts, [key]: e.target.value })}
+                        placeholder="0"
+                        data-testid={`input-split-${key}`}
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between p-3 mt-2 rounded-md bg-muted border font-semibold">
+                    <span>Total Delivery Cost</span>
+                    <span>{formatINR(total)}</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* STEP 3: Preview */}
+            {splitStep === 3 && (() => {
+              const totalCost = Object.values(splitCosts).reduce((s, v) => s + (Number(v) || 0), 0);
+              const selectedOrders = allOrders.filter(o => splitSelectedIds.has(o.id));
+              const totalCases = selectedOrders.reduce((s, o) => s + (o.cases || 0), 0);
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                    <div className="p-2 rounded-md bg-muted">
+                      <div className="font-semibold text-base">{formatINR(totalCost)}</div>
+                      <div className="text-muted-foreground text-xs">Total Cost</div>
+                    </div>
+                    <div className="p-2 rounded-md bg-muted">
+                      <div className="font-semibold text-base">{totalCases}</div>
+                      <div className="text-muted-foreground text-xs">Total Cartons</div>
+                    </div>
+                    <div className="p-2 rounded-md bg-muted">
+                      <div className="font-semibold text-base">{totalCases > 0 ? formatINR(totalCost / totalCases) : "—"}</div>
+                      <div className="text-muted-foreground text-xs">Per Carton</div>
+                    </div>
+                  </div>
+
+                  <ScrollArea className="h-60 border rounded-md">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted/80">
+                        <tr>
+                          <th className="text-left p-2 font-medium text-xs">Party / Brand</th>
+                          <th className="text-right p-2 font-medium text-xs">Cases</th>
+                          <th className="text-right p-2 font-medium text-xs">Share %</th>
+                          <th className="text-right p-2 font-medium text-xs">Delivery Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {selectedOrders.map(order => {
+                          const cases = order.cases || 0;
+                          const share = totalCases > 0 ? (cases / totalCases) * 100 : 0;
+                          const cost = totalCases > 0 && cases > 0 ? (cases / totalCases) * totalCost : 0;
+                          return (
+                            <tr key={order.id} className={cases === 0 ? "opacity-50" : ""}>
+                              <td className="p-2">
+                                <div className="font-medium truncate max-w-[180px]">{order.partyName || "Unknown"}</div>
+                                <div className="text-xs text-muted-foreground">{order.brand}</div>
+                              </td>
+                              <td className="p-2 text-right">{cases > 0 ? cases : <span className="text-amber-600 dark:text-amber-400">0</span>}</td>
+                              <td className="p-2 text-right text-muted-foreground">{share.toFixed(1)}%</td>
+                              <td className="p-2 text-right font-medium">{formatINR(Math.round(cost * 100) / 100)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t font-semibold bg-muted/50">
+                        <tr>
+                          <td className="p-2">Total</td>
+                          <td className="p-2 text-right">{totalCases}</td>
+                          <td className="p-2 text-right">100%</td>
+                          <td className="p-2 text-right">{formatINR(totalCost)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </ScrollArea>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Footer buttons */}
+          <div className="flex justify-between gap-2 pt-4 border-t mt-2">
+            <Button variant="outline" onClick={() => { if (splitStep === 1) setShowSplitCostDialog(false); else setSplitStep((splitStep - 1) as 1 | 2 | 3); }} data-testid="button-split-back">
+              {splitStep === 1 ? "Cancel" : "Back"}
+            </Button>
+            {splitStep < 3 ? (
+              <Button
+                onClick={() => setSplitStep((splitStep + 1) as 2 | 3)}
+                disabled={splitStep === 1 && splitSelectedIds.size === 0}
+                data-testid="button-split-next"
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  const totalCost = Object.values(splitCosts).reduce((s, v) => s + (Number(v) || 0), 0);
+                  if (totalCost <= 0) { toast({ title: "Total cost must be greater than 0", variant: "destructive" }); return; }
+                  splitCostMutation.mutate({
+                    orderIds: Array.from(splitSelectedIds),
+                    transportCar: Number(splitCosts.transportCar) || 0,
+                    parking: Number(splitCosts.parking) || 0,
+                    food: Number(splitCosts.food) || 0,
+                    loadingUnloading: Number(splitCosts.loadingUnloading) || 0,
+                    truck: Number(splitCosts.truck) || 0,
+                  });
+                }}
+                disabled={splitCostMutation.isPending}
+                data-testid="button-split-confirm"
+              >
+                {splitCostMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  "Confirm & Apply"
+                )}
+              </Button>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

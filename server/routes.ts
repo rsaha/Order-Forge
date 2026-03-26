@@ -1773,6 +1773,53 @@ export async function registerRoutes(
     }
   });
 
+  // Split delivery cost across multiple orders proportionally by cases
+  app.post('/api/admin/orders/split-delivery-cost', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { orderIds, transportCar, parking, food, loadingUnloading, truck } = req.body;
+      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return res.status(400).json({ message: "orderIds must be a non-empty array" });
+      }
+
+      const totalCost = (Number(transportCar) || 0) + (Number(parking) || 0) + (Number(food) || 0) + (Number(loadingUnloading) || 0) + (Number(truck) || 0);
+
+      // Fetch all orders
+      const fetchedOrders = await Promise.all(orderIds.map((id: string) => storage.getOrderById(id)));
+      const missing = orderIds.filter((_: string, i: number) => !fetchedOrders[i]);
+      if (missing.length > 0) {
+        return res.status(404).json({ message: `Orders not found: ${missing.join(', ')}` });
+      }
+
+      const validOrders = fetchedOrders.filter(Boolean) as Awaited<ReturnType<typeof storage.getOrderById>>[];
+
+      const totalCases = validOrders.reduce((sum, o) => sum + (o!.cases || 0), 0);
+      if (totalCases === 0) {
+        return res.status(400).json({ message: "None of the selected orders have cases recorded. Please set case counts first." });
+      }
+
+      // Calculate and apply per-order delivery costs
+      const results: { id: string; cases: number; deliveryCost: string }[] = [];
+      for (const order of validOrders) {
+        const orderCases = order!.cases || 0;
+        const allocatedCost = totalCases > 0 && orderCases > 0 ? (orderCases / totalCases) * totalCost : 0;
+        const rounded = Math.round(allocatedCost * 100) / 100;
+        await storage.updateOrder(order!.id, { deliveryCost: String(rounded) });
+        results.push({ id: order!.id, cases: orderCases, deliveryCost: String(rounded) });
+      }
+
+      res.json({ success: true, totalCost, totalCases, results });
+    } catch (error) {
+      console.error("Error splitting delivery cost:", error);
+      res.status(500).json({ message: "Failed to split delivery cost" });
+    }
+  });
+
   // Update order (Admin and BrandAdmin with limited permissions)
   app.patch('/api/admin/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
