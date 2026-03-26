@@ -1726,12 +1726,12 @@ export default function OrdersPage() {
                     {!searchQuery.trim() && statusFilter === "Pending" && (
                       <tr>
                         <th className="text-left p-2 font-medium text-xs">Date</th>
-                        <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
-                        <th className="text-left p-2 font-medium hidden md:table-cell">Salesperson</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Parent Order</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
-                        <th className="text-right p-2 font-medium">Total</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
@@ -1960,12 +1960,12 @@ export default function OrdersPage() {
                         {!searchQuery.trim() && statusFilter === "Pending" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.parentOrderId ? `#${order.parentOrderId.slice(-6)}` : "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.specialNotes || ""}>{order.specialNotes || "-"}</div></td>
-                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
