@@ -71,6 +71,7 @@ import {
   ClipboardCheck,
   FileSpreadsheet,
   ArrowRight,
+  Calculator,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -1519,7 +1520,7 @@ export default function OrdersPage() {
                   className="gap-2"
                   data-testid="button-split-delivery-cost"
                 >
-                  <Truck className="w-4 h-4" />
+                  <Calculator className="w-4 h-4" />
                   Split Cost
                 </Button>
               )}

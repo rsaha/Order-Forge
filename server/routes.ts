@@ -1794,11 +1794,16 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Total delivery cost must be greater than 0" });
       }
 
-      // Fetch all orders
+      // Fetch all orders and validate they exist + have eligible status
+      const ELIGIBLE_STATUSES = ["Dispatched", "Delivered", "PODReceived"];
       const fetchedOrders = await Promise.all(orderIds.map((id: string) => storage.getOrderById(id)));
       const missing = orderIds.filter((_: string, i: number) => !fetchedOrders[i]);
       if (missing.length > 0) {
         return res.status(404).json({ message: `Orders not found: ${missing.join(', ')}` });
+      }
+      const ineligible = fetchedOrders.filter(o => o && !ELIGIBLE_STATUSES.includes(o.status));
+      if (ineligible.length > 0) {
+        return res.status(400).json({ message: `Orders must be Dispatched, Delivered, or POD Received. Ineligible: ${ineligible.map(o => o!.id).join(', ')}` });
       }
 
       const validOrders = fetchedOrders.filter(Boolean) as Awaited<ReturnType<typeof storage.getOrderById>>[];
