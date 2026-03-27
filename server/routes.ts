@@ -1588,12 +1588,22 @@ export async function registerRoutes(
         return res.status(400).json({ message: "fromDate and toDate are required" });
       }
 
-      const currentFrom = new Date(fromDate as string);
-      const currentTo = new Date(toDate as string);
-      const periodMs = currentTo.getTime() - currentFrom.getTime();
+      // Parse dates at midnight UTC for consistent day-level arithmetic
+      const currentFrom = new Date(fromDate as string + 'T00:00:00.000Z');
+      const currentTo = new Date(toDate as string + 'T23:59:59.999Z');
 
-      const prevTo = new Date(currentFrom.getTime() - 1); // day before current start
-      const prevFrom = new Date(prevTo.getTime() - periodMs);
+      // Count inclusive days in current window
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+      const currentFromDay = new Date(fromDate as string + 'T00:00:00.000Z');
+      const currentToDay = new Date(toDate as string + 'T00:00:00.000Z');
+      const periodDays = Math.round((currentToDay.getTime() - currentFromDay.getTime()) / MS_PER_DAY) + 1;
+
+      // Previous window: same number of days ending the day before the current window starts
+      const prevToDate = new Date(currentFromDay.getTime() - MS_PER_DAY); // day before current from
+      const prevFromDate = new Date(prevToDate.getTime() - (periodDays - 1) * MS_PER_DAY);
+
+      const prevFrom = new Date(prevFromDate.toISOString().split('T')[0] + 'T00:00:00.000Z');
+      const prevTo = new Date(prevToDate.toISOString().split('T')[0] + 'T23:59:59.999Z');
 
       const baseFilters: any = {};
       if (brand && brand !== 'all') baseFilters.brand = brand as string;
@@ -1601,7 +1611,13 @@ export async function registerRoutes(
       if (createdBy && createdBy !== 'all') baseFilters.createdBy = createdBy as string;
       if (user?.role === 'BrandAdmin' && !user.isAdmin) {
         const userBrands = await storage.getUserBrandAccess(userId);
-        if (!baseFilters.brand && userBrands.length > 0) baseFilters.brand = userBrands[0];
+        if (brand && brand !== 'all') {
+          if (!userBrands.includes(brand as string)) {
+            return res.status(403).json({ message: "Access denied to this brand" });
+          }
+        } else {
+          if (userBrands.length > 0) baseFilters.brand = userBrands[0];
+        }
       }
 
       const [currentData, prevData] = await Promise.all([
@@ -1609,7 +1625,7 @@ export async function registerRoutes(
         getCachedAnalytics({ ...baseFilters, fromDate: prevFrom, toDate: prevTo }),
       ]);
 
-      // Extract just the KPI totals needed for comparison
+      // Extract KPI totals for comparison
       const summarize = (data: any) => ({
         invoicedCount: data.invoiced?.count || 0,
         invoicedValue: data.invoiced?.value || 0,
@@ -1624,8 +1640,8 @@ export async function registerRoutes(
         current: summarize(currentData),
         previous: summarize(prevData),
         previousPeriod: {
-          fromDate: prevFrom.toISOString().split('T')[0],
-          toDate: prevTo.toISOString().split('T')[0],
+          fromDate: prevFromDate.toISOString().split('T')[0],
+          toDate: prevToDate.toISOString().split('T')[0],
         },
       });
     } catch (error) {

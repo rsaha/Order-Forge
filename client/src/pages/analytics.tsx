@@ -910,11 +910,19 @@ export default function AnalyticsPage() {
                     <BarChart3 className="w-5 h-5 text-blue-600" />
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Total Orders</span>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.invoicedCount, comparisonData.previous.invoicedCount)} />
+                  )}
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-total-orders">
                   {(analytics?.created.count || 0) + (analytics?.approved?.count || 0) + (analytics?.invoiced?.count || 0) + (analytics?.dispatched.count || 0) + (analytics?.delivered.count || 0) + (analytics?.cancelled.count || 0)}
                 </p>
                 <p className="text-sm text-muted-foreground">orders in selected period</p>
+                {comparisonData && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {comparisonData.current.invoicedCount} invoiced vs {comparisonData.previous.invoicedCount} prior
+                  </p>
+                )}
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -972,6 +980,9 @@ export default function AnalyticsPage() {
                     <Target className="w-5 h-5 text-green-600" />
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">On-Time Delivery</span>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.deliveredCount, comparisonData.previous.deliveredCount)} />
+                  )}
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-ontime-percentage">
                   {analytics?.onTimeDelivery.percentage || 0}%
@@ -979,8 +990,21 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-muted-foreground" data-testid="text-ontime-ratio">
                   {analytics?.onTimeDelivery.onTimeCount || 0} / {analytics?.onTimeDelivery.deliveredCount || 0} orders
                 </p>
+                {comparisonData && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {comparisonData.current.deliveredCount} delivered vs {comparisonData.previous.deliveredCount} prior
+                  </p>
+                )}
               </Card>
             </div>
+
+            {/* Period comparison label */}
+            {comparisonData && (
+              <p className="text-xs text-muted-foreground -mt-2">
+                Trend arrows compare current period vs{" "}
+                {format(parseISO(comparisonData.previousPeriod.fromDate), 'dd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'dd MMM yyyy')}
+              </p>
+            )}
 
             {/* Order Flow Funnel - moved to top */}
             <section className="pt-2">
@@ -1331,7 +1355,7 @@ export default function AnalyticsPage() {
                     <p className="text-xs text-muted-foreground mb-4">Total transport costs over time (excludes Hand Delivery and zero cost)</p>
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={transportCostChartData}>
+                        <BarChart data={transportCostChartData}>
                           <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                           <XAxis dataKey="date" tick={{ fontSize: 12 }} tickMargin={8} />
                           <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatINR(v)} />
@@ -1343,15 +1367,8 @@ export default function AnalyticsPage() {
                               borderRadius: '6px'
                             }}
                           />
-                          <Area
-                            type="monotone"
-                            dataKey="cost"
-                            stroke="#f97316"
-                            fill="#f97316"
-                            fillOpacity={0.3}
-                            strokeWidth={2}
-                          />
-                        </AreaChart>
+                          <Bar dataKey="cost" fill="#f97316" radius={[3, 3, 0, 0]} />
+                        </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </Card>

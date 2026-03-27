@@ -1259,6 +1259,7 @@ export class DatabaseStorage implements IStorage {
       invoiceDate: orders.invoiceDate,
       dispatchDate: orders.dispatchDate,
       deliveryCost: orders.deliveryCost,
+      dispatchBy: orders.dispatchBy,
       createdAt: orders.createdAt,
       userId: orders.userId,
       creatorFirstName: users.firstName,
