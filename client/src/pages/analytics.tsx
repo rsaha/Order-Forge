@@ -622,6 +622,8 @@ export default function AnalyticsPage() {
     if (lower.includes('universal')) return 'Universal';
     if (lower.includes('new ambika')) return 'NEW AMBIKA';
     if (lower.includes('ntc')) return 'NTC';
+    // BL Courier: docket numbers like "BL 123456" or "BL123456" should all map to BL Courier
+    if (lower.includes('bl courier') || /^bl[\s\-]?\d+/i.test(normalized)) return 'BL Courier';
     return normalized.toUpperCase();
   }, []);
 
@@ -691,7 +693,8 @@ export default function AnalyticsPage() {
       }
     });
 
-    const summaryData = Object.entries(totals)
+    const OTHERS_THRESHOLD = 10000;
+    const allRows = Object.entries(totals)
       .map(([dispatcher, data]) => ({
         dispatchBy: dispatcher,
         totalCost: data.cost,
@@ -700,6 +703,23 @@ export default function AnalyticsPage() {
         costPercentage: data.orderValue > 0 ? (data.cost / data.orderValue) * 100 : 0,
       }))
       .sort((a, b) => b.totalCost - a.totalCost);
+
+    // Combine transporters below threshold into a single "Others" row
+    const mainRows = allRows.filter(r => r.totalCost >= OTHERS_THRESHOLD);
+    const otherRows = allRows.filter(r => r.totalCost < OTHERS_THRESHOLD);
+    const summaryData = [...mainRows];
+    if (otherRows.length > 0) {
+      const othersCost = otherRows.reduce((s, r) => s + r.totalCost, 0);
+      const othersOrderValue = otherRows.reduce((s, r) => s + r.orderValue, 0);
+      const othersCount = otherRows.reduce((s, r) => s + r.orderCount, 0);
+      summaryData.push({
+        dispatchBy: 'Others',
+        totalCost: othersCost,
+        orderCount: othersCount,
+        orderValue: othersOrderValue,
+        costPercentage: othersOrderValue > 0 ? (othersCost / othersOrderValue) * 100 : 0,
+      });
+    }
 
     const grandTotal = summaryData.reduce((sum, row) => sum + row.totalCost, 0);
     const totalOrders = summaryData.reduce((sum, row) => sum + row.orderCount, 0);
@@ -1385,8 +1405,8 @@ export default function AnalyticsPage() {
                         </thead>
                         <tbody>
                           {deliveryCostSummary.summaryData.map((row, idx) => (
-                            <tr key={idx} className="border-b last:border-0">
-                              <td className="py-2 px-3 font-medium">{row.dispatchBy}</td>
+                            <tr key={idx} className={`border-b last:border-0 ${row.dispatchBy === 'Others' ? 'text-muted-foreground' : ''}`}>
+                              <td className={`py-2 px-3 font-medium ${row.dispatchBy === 'Others' ? 'italic' : ''}`}>{row.dispatchBy}</td>
                               <td className="py-2 px-3 text-right">{formatINRFull(row.totalCost)}</td>
                               <td className="py-2 px-3 text-right">{formatINRFull(row.orderValue)}</td>
                               <td className="py-2 px-3 text-right">{row.costPercentage.toFixed(1)}%</td>
