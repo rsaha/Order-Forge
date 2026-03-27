@@ -711,38 +711,6 @@ export default function AnalyticsPage() {
     };
   }, [ordersData, normalizeDispatcher]);
 
-  // Daily transport cost - sum of all transport costs per day
-  const dailyTransportCost = useMemo(() => {
-    const validStatuses = ["Dispatched", "Delivered", "PODReceived"];
-    const excludedDispatchers = ["hand delivery", "by hand"];
-    const zeroCostDispatchers = ["apurba", "apurbo", "baban"];
-    
-    const dailyTotals: Record<string, number> = {};
-    
-    ordersData.forEach(order => {
-      if (!validStatuses.includes(order.status)) return;
-      if (order.brand?.toLowerCase() === 'biostige') return;
-      if (!order.deliveryCost || parseFloat(order.deliveryCost) === 0) return;
-      if (!order.dispatchBy) return;
-      const dispatcherLower = order.dispatchBy.toLowerCase().trim();
-      if (excludedDispatchers.some(ex => dispatcherLower.includes(ex))) return;
-      if (zeroCostDispatchers.some(name => dispatcherLower.includes(name))) return;
-      
-      // Use dispatch date if available, otherwise invoice date
-      const dateField = order.dispatchDate || order.invoiceDate || order.createdAt;
-      if (!dateField) return;
-      
-      const dateStr = format(new Date(dateField), 'yyyy-MM-dd');
-      if (!dailyTotals[dateStr]) dailyTotals[dateStr] = 0;
-      dailyTotals[dateStr] += parseFloat(order.deliveryCost || '0');
-    });
-    
-    // Convert to sorted array
-    return Object.entries(dailyTotals)
-      .map(([date, cost]) => ({ date, cost }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [ordersData]);
-
   // Order Status Over Time - aggregate by createdAt date
   const orderStatusByDay = useMemo(() => {
     const statusesToShow = ["Created", "Approved", "Backordered", "Invoiced", "Pending", "Dispatched", "Delivered"] as const;
