@@ -515,12 +515,43 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
-  // Filter orders by search query across all statuses, or by current status tab
+  // Separate query for search — fetches ALL orders without date filtering so
+  // older invoices (e.g. G2964) are found regardless of the current date range.
+  const isSearchActive = searchQuery.trim().length > 0;
+  const { data: allOrdersForSearch = [] } = useQuery<Order[]>({
+    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", deliveryCompanyFilter, brandFilter, "all", "search"],
+    enabled: isSearchActive,
+    queryFn: async () => {
+      if (hasAdminAccess) {
+        const params = new URLSearchParams();
+        if (deliveryCompanyFilter !== "all") params.append("deliveryCompany", deliveryCompanyFilter);
+        if (brandFilter !== "all") params.append("brand", brandFilter);
+        const queryString = params.toString();
+        const url = queryString ? `/api/admin/orders?${queryString}` : "/api/admin/orders";
+        const res = await fetch(url, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch orders");
+        const data: Order[] = await res.json();
+        return data.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      } else {
+        const res = await fetch("/api/orders", { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch orders");
+        const data: Order[] = await res.json();
+        let sorted = data.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        if (deliveryCompanyFilter !== "all") sorted = sorted.filter(o => o.deliveryCompany === deliveryCompanyFilter);
+        if (brandFilter !== "all") sorted = sorted.filter(o => o.brand === brandFilter);
+        return sorted;
+      }
+    },
+    staleTime: 60000,
+  });
+
+  // Filter orders by search query across all statuses (using full dataset), or by current status tab
   // PODReceived orders are only visible to Admin users
   const orders = useMemo(() => {
-    if (searchQuery.trim()) {
+    if (isSearchActive) {
       const query = searchQuery.toLowerCase().trim();
-      return allOrders.filter(o => {
+      const pool = allOrdersForSearch.length > 0 ? allOrdersForSearch : allOrders;
+      return pool.filter(o => {
         // Hide PODReceived orders from non-admin users in search results
         if (o.status === "PODReceived" && !isAdmin) return false;
         const partyMatch = o.partyName?.toLowerCase().includes(query);
@@ -532,7 +563,7 @@ export default function OrdersPage() {
       });
     }
     return allOrders.filter(o => o.status === statusFilter);
-  }, [allOrders, searchQuery, statusFilter, isAdmin]);
+  }, [allOrders, allOrdersForSearch, isSearchActive, searchQuery, statusFilter, isAdmin]);
   
   // Count orders by status for tab badges
   const statusCounts: Record<OrderStatus, number> = {
