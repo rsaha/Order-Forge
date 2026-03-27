@@ -713,8 +713,8 @@ export default function AnalyticsPage() {
       .sort((a, b) => b.totalCost - a.totalCost);
 
     // Combine transporters below threshold into a single "Others" row
-    const mainRows = allRows.filter(r => r.totalCost >= OTHERS_THRESHOLD);
-    const otherRows = allRows.filter(r => r.totalCost < OTHERS_THRESHOLD);
+    const mainRows = allRows.filter(r => r.orderValue >= OTHERS_THRESHOLD);
+    const otherRows = allRows.filter(r => r.orderValue < OTHERS_THRESHOLD);
     const summaryData = [...mainRows];
     if (otherRows.length > 0) {
       const othersCost = otherRows.reduce((s, r) => s + r.totalCost, 0);
