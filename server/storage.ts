@@ -1519,9 +1519,8 @@ export class DatabaseStorage implements IStorage {
       if (excludedDispatcherPatterns.some(p => dispLower.includes(p))) continue;
       if (zeroCostPatterns.some(p => dispLower.includes(p))) continue;
 
-      const dateField = order.dispatchDate || order.invoiceDate || order.createdAt;
-      if (!dateField) continue;
-      const bucketKey = getBucketKey(new Date(dateField));
+      if (!order.dispatchDate) continue;
+      const bucketKey = getBucketKey(new Date(order.dispatchDate));
       transportBuckets.set(bucketKey, (transportBuckets.get(bucketKey) || 0) + cost);
     }
 

@@ -154,6 +154,13 @@ function computeDelta(current: number, previous: number): number | null {
 
 function DeltaBadge({ delta, positiveIsGood = true }: { delta: number | null; positiveIsGood?: boolean }) {
   if (delta === null) return null;
+  if (delta === 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full ml-2 bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+        0%
+      </span>
+    );
+  }
   const isPositive = delta > 0;
   const isGood = positiveIsGood ? isPositive : !isPositive;
   const Icon = isPositive ? TrendingUp : TrendingDown;
