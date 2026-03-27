@@ -1640,6 +1640,7 @@ export async function registerRoutes(
       ]);
 
       // Extract KPI totals for comparison
+      const CFA_BRANDS = ['biostige', 'ayouthveda'];
       const summarize = (data: any) => {
         // Sum brand series buckets into per-brand totals
         const brandTotals: Record<string, number> = {};
@@ -1649,7 +1650,21 @@ export async function registerRoutes(
             brandTotals[key] = (brandTotals[key] || 0) + (val as number);
           }
         }
+        const totalOrders =
+          (data.created?.count || 0) +
+          (data.approved?.count || 0) +
+          (data.invoiced?.count || 0) +
+          (data.dispatched?.count || 0) +
+          (data.delivered?.count || 0) +
+          (data.backordered?.count || 0) +
+          (data.pending?.count || 0) +
+          (data.cancelled?.count || 0);
+        const invoicedValueExclCFA = Object.entries(brandTotals)
+          .filter(([brand]) => !CFA_BRANDS.includes(brand.toLowerCase()))
+          .reduce((s, [, v]) => s + (v as number), 0);
         return {
+          totalOrders,
+          invoicedValueExclCFA,
           invoicedCount: data.invoiced?.count || 0,
           invoicedValue: data.invoiced?.value || 0,
           dispatchedCount: data.dispatched?.count || 0,
@@ -1657,6 +1672,7 @@ export async function registerRoutes(
           deliveredCount: data.delivered?.count || 0,
           deliveredValue: data.delivered?.value || 0,
           transportCost: (data.transportCostSeries || []).reduce((s: number, b: any) => s + b.cost, 0),
+          onTimeDeliveryRate: data.onTimeDelivery?.percentage || 0,
           brandTotals,
         };
       };

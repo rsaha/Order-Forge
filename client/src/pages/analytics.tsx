@@ -914,10 +914,20 @@ export default function AnalyticsPage() {
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Total Orders</span>
                 </div>
-                <p className="text-3xl font-bold mb-1" data-testid="text-total-orders">
-                  {(analytics?.created.count || 0) + (analytics?.approved?.count || 0) + (analytics?.invoiced?.count || 0) + (analytics?.dispatched.count || 0) + (analytics?.delivered.count || 0) + (analytics?.cancelled.count || 0)}
+                <div className="flex items-baseline gap-2 mb-1">
+                  <p className="text-3xl font-bold" data-testid="text-total-orders">
+                    {(analytics?.created.count || 0) + (analytics?.approved?.count || 0) + (analytics?.invoiced?.count || 0) + (analytics?.dispatched.count || 0) + (analytics?.delivered.count || 0) + (analytics?.cancelled.count || 0)}
+                  </p>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.totalOrders, comparisonData.previous.totalOrders)} />
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  orders in selected period
+                  {comparisonData && (
+                    <span className="block text-xs mt-0.5">vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'd MMM')}</span>
+                  )}
                 </p>
-                <p className="text-sm text-muted-foreground">orders in selected period</p>
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -926,13 +936,18 @@ export default function AnalyticsPage() {
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Value Invoiced</span>
                 </div>
-                <p className="text-3xl font-bold mb-1" data-testid="text-value-invoiced">
-                  {formatINR(invoicedExcludingBiostige.value)}
-                </p>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <p className="text-3xl font-bold" data-testid="text-value-invoiced">
+                    {formatINR(invoicedExcludingBiostige.value)}
+                  </p>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.invoicedValueExclCFA, comparisonData.previous.invoicedValueExclCFA)} />
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  {invoicedExcludingBiostige.count} invoiced orders
-                  {invoicedExcludingBiostige.biostigeExcludedCount > 0 && (
-                    <span className="text-xs ml-1">({invoicedExcludingBiostige.biostigeExcludedCount} Biostige excluded)</span>
+                  excl. CFA orders (Biostige, Ayouthveda)
+                  {comparisonData && (
+                    <span className="block text-xs mt-0.5">vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'd MMM')}</span>
                   )}
                 </p>
               </Card>
@@ -943,14 +958,22 @@ export default function AnalyticsPage() {
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Transport Cost</span>
                 </div>
-                <p className="text-3xl font-bold mb-1" data-testid="text-transport-cost">
-                  {formatINR(deliveryCostSummary.grandTotal)}
-                </p>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <p className="text-3xl font-bold" data-testid="text-transport-cost">
+                    {formatINR(deliveryCostSummary.grandTotal)}
+                  </p>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.transportCost, comparisonData.previous.transportCost)} positiveIsGood={false} />
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground" data-testid="text-transport-percentage">
                   {deliveryCostSummary.totalDeliveredValue > 0 
                     ? ((deliveryCostSummary.grandTotal / deliveryCostSummary.totalDeliveredValue) * 100).toFixed(1)
                     : 0
                   }% of delivered value (excl. Biostige)
+                  {comparisonData && (
+                    <span className="block text-xs mt-0.5">vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'd MMM')}</span>
+                  )}
                 </p>
               </Card>
               <Card className="p-4">
@@ -960,68 +983,22 @@ export default function AnalyticsPage() {
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">On-Time Delivery</span>
                 </div>
-                <p className="text-3xl font-bold mb-1" data-testid="text-ontime-percentage">
-                  {analytics?.onTimeDelivery.percentage || 0}%
-                </p>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <p className="text-3xl font-bold" data-testid="text-ontime-percentage">
+                    {analytics?.onTimeDelivery.percentage || 0}%
+                  </p>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.onTimeDeliveryRate, comparisonData.previous.onTimeDeliveryRate)} />
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground" data-testid="text-ontime-ratio">
                   {analytics?.onTimeDelivery.onTimeCount || 0} / {analytics?.onTimeDelivery.deliveredCount || 0} orders
+                  {comparisonData && (
+                    <span className="block text-xs mt-0.5">vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'd MMM')}</span>
+                  )}
                 </p>
               </Card>
             </div>
-
-            {/* Period-over-period comparison strip */}
-            {comparisonData && (
-              <Card className="p-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Period Comparison vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'dd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'dd MMM yyyy')}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Invoiced Orders</p>
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold">{comparisonData.current.invoicedCount}</span>
-                        <DeltaBadge delta={computeDelta(comparisonData.current.invoicedCount, comparisonData.previous.invoicedCount)} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{formatINR(comparisonData.current.invoicedValue)}
-                        <DeltaBadge delta={computeDelta(comparisonData.current.invoicedValue, comparisonData.previous.invoicedValue)} />
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Dispatched Orders</p>
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold">{comparisonData.current.dispatchedCount}</span>
-                        <DeltaBadge delta={computeDelta(comparisonData.current.dispatchedCount, comparisonData.previous.dispatchedCount)} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{formatINR(comparisonData.current.dispatchedValue)}
-                        <DeltaBadge delta={computeDelta(comparisonData.current.dispatchedValue, comparisonData.previous.dispatchedValue)} />
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Delivered Orders</p>
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold">{comparisonData.current.deliveredCount}</span>
-                        <DeltaBadge delta={computeDelta(comparisonData.current.deliveredCount, comparisonData.previous.deliveredCount)} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{formatINR(comparisonData.current.deliveredValue)}
-                        <DeltaBadge delta={computeDelta(comparisonData.current.deliveredValue, comparisonData.previous.deliveredValue)} />
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Transport Cost</p>
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold">{formatINR(comparisonData.current.transportCost)}</span>
-                        <DeltaBadge delta={computeDelta(comparisonData.current.transportCost, comparisonData.previous.transportCost)} positiveIsGood={false} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">prev: {formatINR(comparisonData.previous.transportCost)}</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            )}
 
             {/* Order Flow Funnel - moved to top */}
             <section className="pt-2">
