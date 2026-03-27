@@ -1508,9 +1508,11 @@ export class DatabaseStorage implements IStorage {
     const excludedDispatcherPatterns = ['hand delivery', 'by hand'];
     const zeroCostPatterns = ['apurba', 'apurbo', 'baban'];
 
+    // Use delivered-only statuses to match the frontend Transport Cost KPI card definition
+    const deliveredOnlyStatuses = ['Delivered', 'PODReceived'];
     for (const order of allOrders) {
       const status = order.status || 'Created';
-      if (!dispatchedStatuses.includes(status)) continue;
+      if (!deliveredOnlyStatuses.includes(status)) continue;
       if ((order.brand || '').toLowerCase() === 'biostige') continue;
       const cost = Number(order.deliveryCost || 0);
       if (cost <= 0) continue;
