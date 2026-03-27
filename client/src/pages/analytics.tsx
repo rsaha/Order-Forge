@@ -922,9 +922,6 @@ export default function AnalyticsPage() {
                     <CheckCircle className="w-5 h-5 text-teal-600" />
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Value Invoiced</span>
-                  {comparisonData && (
-                    <DeltaBadge delta={computeDelta(comparisonData.current.invoicedValue, comparisonData.previous.invoicedValue)} />
-                  )}
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-value-invoiced">
                   {formatINR(invoicedExcludingBiostige.value)}
@@ -935,11 +932,6 @@ export default function AnalyticsPage() {
                     <span className="text-xs ml-1">({invoicedExcludingBiostige.biostigeExcludedCount} Biostige excluded)</span>
                   )}
                 </p>
-                {comparisonData && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    vs {formatINR(comparisonData.previous.invoicedValue)} prior period
-                  </p>
-                )}
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
