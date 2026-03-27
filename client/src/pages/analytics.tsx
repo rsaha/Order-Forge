@@ -25,6 +25,7 @@ import {
   Table2,
   LineChartIcon,
   TrendingUp,
+  TrendingDown,
   AlertTriangle,
   ArrowRight,
   FileText,
@@ -69,6 +70,27 @@ interface CreatorTimeBucket {
   [creatorName: string]: string | number;
 }
 
+interface BrandTimeBucket {
+  date: string;
+  [brandName: string]: string | number;
+}
+
+interface ComparisonKPIs {
+  invoicedCount: number;
+  invoicedValue: number;
+  dispatchedCount: number;
+  dispatchedValue: number;
+  deliveredCount: number;
+  deliveredValue: number;
+  transportCost: number;
+}
+
+interface ComparisonData {
+  current: ComparisonKPIs;
+  previous: ComparisonKPIs;
+  previousPeriod: { fromDate: string; toDate: string };
+}
+
 interface OrderAnalytics {
   created: StatusMetric;
   approved: StatusMetric;
@@ -84,6 +106,9 @@ interface OrderAnalytics {
   timeSeries: TimeBucketMetric[];
   creatorSeries: CreatorTimeBucket[];
   creatorNames: string[];
+  brandSeries: BrandTimeBucket[];
+  brandNames: string[];
+  transportCostSeries: { date: string; cost: number }[];
   bucketType: 'daily' | 'weekly' | 'monthly';
 }
 
@@ -115,6 +140,34 @@ const STAGE_COLORS = {
   dispatched: "#f97316",
   delivered: "#14b8a6",
 };
+
+const BRAND_COLORS = [
+  "#3b82f6", "#22c55e", "#f97316", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#eab308", "#ef4444",
+  "#06b6d4", "#a78bfa", "#84cc16", "#f43f5e",
+];
+
+function computeDelta(current: number, previous: number): number | null {
+  if (previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+function DeltaBadge({ delta, positiveIsGood = true }: { delta: number | null; positiveIsGood?: boolean }) {
+  if (delta === null) return null;
+  const isPositive = delta > 0;
+  const isGood = positiveIsGood ? isPositive : !isPositive;
+  const Icon = isPositive ? TrendingUp : TrendingDown;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full ml-2 ${
+      isGood
+        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+    }`}>
+      <Icon className="w-3 h-3" />
+      {Math.abs(delta)}%
+    </span>
+  );
+}
 
 function formatDuration(hours: number): string {
   if (hours < 1) return "< 1 hour";
@@ -309,6 +362,41 @@ export default function AnalyticsPage() {
     refetchOnWindowFocus: false,
   });
 
+  // Compute current period dates for comparison query
+  const currentPeriodDates = useMemo((): { fromDate: string; toDate: string } | null => {
+    if (dateRange === "all") return null;
+    if (dateRange === "7days") return getDateRange(7);
+    if (dateRange === "30days") return getDateRange(30);
+    if (dateRange === "90days") return getDateRange(90);
+    if (dateRange === "thisMonth") return getThisMonthRange();
+    if (dateRange === "lastMonth") return getLastMonthRange();
+    return null;
+  }, [dateRange]);
+
+  // Build comparison query params
+  const comparisonQueryParams = useMemo(() => {
+    if (!currentPeriodDates) return null;
+    const p = new URLSearchParams();
+    p.append("fromDate", currentPeriodDates.fromDate);
+    p.append("toDate", currentPeriodDates.toDate);
+    if (brandFilter !== "all") p.append("brand", brandFilter);
+    if (deliveryCompanyFilter !== "all") p.append("deliveryCompany", deliveryCompanyFilter);
+    if (creatorFilter !== "all") p.append("createdBy", creatorFilter);
+    return p.toString();
+  }, [currentPeriodDates, brandFilter, deliveryCompanyFilter, creatorFilter]);
+
+  const { data: comparisonData } = useQuery<ComparisonData>({
+    queryKey: ["/api/analytics/comparison", dateRange, brandFilter, deliveryCompanyFilter, creatorFilter],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/comparison?${comparisonQueryParams}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch comparison");
+      return res.json();
+    },
+    enabled: canViewAnalytics && !!comparisonQueryParams,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   // Format chart date helper - must be before early returns
   const formatChartDate = useCallback((dateStr: string, bucketType?: string) => {
     try {
@@ -498,6 +586,24 @@ export default function AnalyticsPage() {
       OnTimeRate: bucket.deliveredCount > 0 ? Math.round((bucket.onTimeCount / bucket.deliveredCount) * 100) : null,
     }));
   }, [analytics?.timeSeries, analytics?.bucketType, formatChartDate]);
+
+  // Brand sales trend chart data
+  const brandChartData = useMemo(() => {
+    if (!analytics?.brandSeries || analytics.brandSeries.length === 0) return [];
+    return analytics.brandSeries.map(bucket => ({
+      ...bucket,
+      date: formatChartDate(bucket.date, analytics.bucketType),
+    }));
+  }, [analytics?.brandSeries, analytics?.bucketType, formatChartDate]);
+
+  // Transport cost trend chart data (from analytics backend series)
+  const transportCostChartData = useMemo(() => {
+    if (!analytics?.transportCostSeries || analytics.transportCostSeries.length === 0) return [];
+    return analytics.transportCostSeries.map(b => ({
+      date: formatChartDate(b.date, analytics.bucketType),
+      cost: b.cost,
+    }));
+  }, [analytics?.transportCostSeries, analytics?.bucketType, formatChartDate]);
 
   // Normalize dispatcher names - combine variations
   const normalizeDispatcher = useCallback((dispatcher: string): string => {
@@ -816,6 +922,9 @@ export default function AnalyticsPage() {
                     <CheckCircle className="w-5 h-5 text-teal-600" />
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Value Invoiced</span>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.invoicedValue, comparisonData.previous.invoicedValue)} />
+                  )}
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-value-invoiced">
                   {formatINR(invoicedExcludingBiostige.value)}
@@ -826,6 +935,11 @@ export default function AnalyticsPage() {
                     <span className="text-xs ml-1">({invoicedExcludingBiostige.biostigeExcludedCount} Biostige excluded)</span>
                   )}
                 </p>
+                {comparisonData && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    vs {formatINR(comparisonData.previous.invoicedValue)} prior period
+                  </p>
+                )}
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -833,6 +947,9 @@ export default function AnalyticsPage() {
                     <Truck className="w-5 h-5 text-orange-600" />
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Transport Cost</span>
+                  {comparisonData && (
+                    <DeltaBadge delta={computeDelta(comparisonData.current.transportCost, comparisonData.previous.transportCost)} positiveIsGood={false} />
+                  )}
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-transport-cost">
                   {formatINR(deliveryCostSummary.grandTotal)}
@@ -843,6 +960,11 @@ export default function AnalyticsPage() {
                     : 0
                   }% of delivered value (excl. Biostige)
                 </p>
+                {comparisonData && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    vs {formatINR(comparisonData.previous.transportCost)} prior period
+                  </p>
+                )}
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -1166,38 +1288,66 @@ export default function AnalyticsPage() {
                   </Card>
                 )}
 
-                {dailyTransportCost.length > 0 && (
+                {brandChartData.length > 0 && (analytics?.brandNames?.length || 0) > 0 && (
                   <Card className="p-4">
-                    <h2 className="text-lg font-semibold mb-4">Daily Transport Cost</h2>
-                    <p className="text-xs text-muted-foreground mb-2">Sum of all transport costs per day (excludes Hand Delivery and zero cost)</p>
+                    <h2 className="text-lg font-semibold mb-1">Brand Sales Trend</h2>
+                    <p className="text-xs text-muted-foreground mb-4">Invoiced value per brand over time (excludes Biostige)</p>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={brandChartData}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis dataKey="date" tick={{ fontSize: 11 }} tickMargin={8} />
+                          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatINR(v)} width={80} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [formatINRFull(value), name]}
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                            }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          {(analytics?.brandNames || []).map((brand, idx) => (
+                            <Line
+                              key={brand}
+                              type="monotone"
+                              dataKey={brand}
+                              stroke={BRAND_COLORS[idx % BRAND_COLORS.length]}
+                              strokeWidth={2}
+                              dot={false}
+                              activeDot={{ r: 4 }}
+                            />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                )}
+
+                {transportCostChartData.length > 0 && (
+                  <Card className="p-4">
+                    <h2 className="text-lg font-semibold mb-1">Transport Cost Trend</h2>
+                    <p className="text-xs text-muted-foreground mb-4">Total transport costs over time (excludes Hand Delivery and zero cost)</p>
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={dailyTransportCost}>
+                        <AreaChart data={transportCostChartData}>
                           <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 12 }}
-                            tickMargin={8}
-                            tickFormatter={(v) => format(parseISO(v), 'MMM d')}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 12 }} 
-                            tickFormatter={(v) => formatINR(v)}
-                          />
-                          <Tooltip 
+                          <XAxis dataKey="date" tick={{ fontSize: 12 }} tickMargin={8} />
+                          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatINR(v)} />
+                          <Tooltip
                             formatter={(value: number) => [formatINRFull(value), "Transport Cost"]}
-                            labelFormatter={(label) => format(parseISO(label), 'MMM d, yyyy')}
-                            contentStyle={{ 
-                              backgroundColor: 'hsl(var(--card))', 
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
                               border: '1px solid hsl(var(--border))',
                               borderRadius: '6px'
                             }}
                           />
-                          <Area 
-                            type="monotone" 
-                            dataKey="cost" 
-                            stroke="#f97316" 
-                            fill="#f97316" 
+                          <Area
+                            type="monotone"
+                            dataKey="cost"
+                            stroke="#f97316"
+                            fill="#f97316"
                             fillOpacity={0.3}
                             strokeWidth={2}
                           />

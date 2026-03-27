@@ -148,6 +148,11 @@ export interface CreatorTimeBucket {
   [creatorName: string]: string | number; // date is string, counts are numbers
 }
 
+export interface BrandTimeBucket {
+  date: string;
+  [brandName: string]: string | number; // date is string, values are numbers
+}
+
 export interface OrderAnalytics {
   // Overall KPIs
   created: StatusMetric;
@@ -167,6 +172,11 @@ export interface OrderAnalytics {
   // Orders by creator over time
   creatorSeries: CreatorTimeBucket[];
   creatorNames: string[];
+  // Brand-wise invoiced value over time
+  brandSeries: BrandTimeBucket[];
+  brandNames: string[];
+  // Transport cost over time (by dispatch date)
+  transportCostSeries: { date: string; cost: number }[];
   // Bucket type used
   bucketType: 'daily' | 'weekly' | 'monthly';
 }
@@ -1240,6 +1250,7 @@ export class DatabaseStorage implements IStorage {
     // Get all orders with date info and user info for time-series
     const selectFields = {
       status: orders.status,
+      brand: orders.brand,
       actualOrderValue: orders.actualOrderValue,
       total: orders.total,
       deliveredOnTime: orders.deliveredOnTime,
@@ -1247,6 +1258,7 @@ export class DatabaseStorage implements IStorage {
       actualDeliveryDate: orders.actualDeliveryDate,
       invoiceDate: orders.invoiceDate,
       dispatchDate: orders.dispatchDate,
+      deliveryCost: orders.deliveryCost,
       createdAt: orders.createdAt,
       userId: orders.userId,
       creatorFirstName: users.firstName,
@@ -1456,7 +1468,66 @@ export class DatabaseStorage implements IStorage {
         }
         return entry;
       });
-    
+
+    // Build brand series — invoiced value per brand per time bucket (keyed by invoice date)
+    const brandBuckets = new Map<string, Map<string, number>>(); // date -> (brand -> invoicedValue)
+    const brandNamesSet = new Set<string>();
+    const excludedBrandsForBrand = ['Biostige'];
+
+    for (const order of allOrders) {
+      const status = order.status || 'Created';
+      const value = Number(order.actualOrderValue || order.total || 0);
+      const brand = order.brand || 'Unknown';
+      if (excludedBrandsForBrand.includes(brand)) continue;
+      if (!invoicedStatuses.includes(status)) continue;
+      if (!order.invoiceDate) continue;
+
+      const invDate = new Date(order.invoiceDate);
+      const bucketKey = getBucketKey(invDate);
+      brandNamesSet.add(brand);
+
+      if (!brandBuckets.has(bucketKey)) brandBuckets.set(bucketKey, new Map());
+      const bkt = brandBuckets.get(bucketKey)!;
+      bkt.set(brand, (bkt.get(brand) || 0) + value);
+    }
+
+    const sortedBrandNames = Array.from(brandNamesSet).sort();
+    const brandSeries: BrandTimeBucket[] = Array.from(brandBuckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, brands]) => {
+        const entry: BrandTimeBucket = { date };
+        for (const name of sortedBrandNames) {
+          entry[name] = brands.get(name) || 0;
+        }
+        return entry;
+      });
+
+    // Build transport cost series — total delivery cost per time bucket (keyed by dispatch date)
+    const transportBuckets = new Map<string, number>();
+    const excludedDispatcherPatterns = ['hand delivery', 'by hand'];
+    const zeroCostPatterns = ['apurba', 'apurbo', 'baban'];
+
+    for (const order of allOrders) {
+      const status = order.status || 'Created';
+      if (!dispatchedStatuses.includes(status)) continue;
+      if ((order.brand || '').toLowerCase() === 'biostige') continue;
+      const cost = Number(order.deliveryCost || 0);
+      if (cost <= 0) continue;
+      if (!order.dispatchBy) continue;
+      const dispLower = order.dispatchBy.toLowerCase().trim();
+      if (excludedDispatcherPatterns.some(p => dispLower.includes(p))) continue;
+      if (zeroCostPatterns.some(p => dispLower.includes(p))) continue;
+
+      const dateField = order.dispatchDate || order.invoiceDate || order.createdAt;
+      if (!dateField) continue;
+      const bucketKey = getBucketKey(new Date(dateField));
+      transportBuckets.set(bucketKey, (transportBuckets.get(bucketKey) || 0) + cost);
+    }
+
+    const transportCostSeries = Array.from(transportBuckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, cost]) => ({ date, cost }));
+
     return {
       created,
       approved,
@@ -1472,6 +1543,9 @@ export class DatabaseStorage implements IStorage {
       timeSeries: sortedTimeSeries,
       creatorSeries,
       creatorNames: sortedCreatorNames,
+      brandSeries,
+      brandNames: sortedBrandNames,
+      transportCostSeries,
       bucketType,
     };
   }
