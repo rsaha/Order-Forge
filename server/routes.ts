@@ -1640,19 +1640,38 @@ export async function registerRoutes(
       ]);
 
       // Extract KPI totals for comparison
-      const summarize = (data: any) => ({
-        invoicedCount: data.invoiced?.count || 0,
-        invoicedValue: data.invoiced?.value || 0,
-        dispatchedCount: data.dispatched?.count || 0,
-        dispatchedValue: data.dispatched?.value || 0,
-        deliveredCount: data.delivered?.count || 0,
-        deliveredValue: data.delivered?.value || 0,
-        transportCost: (data.transportCostSeries || []).reduce((s: number, b: any) => s + b.cost, 0),
-      });
+      const summarize = (data: any) => {
+        // Sum brand series buckets into per-brand totals
+        const brandTotals: Record<string, number> = {};
+        for (const bucket of (data.brandSeries || [])) {
+          for (const [key, val] of Object.entries(bucket)) {
+            if (key === 'date') continue;
+            brandTotals[key] = (brandTotals[key] || 0) + (val as number);
+          }
+        }
+        return {
+          invoicedCount: data.invoiced?.count || 0,
+          invoicedValue: data.invoiced?.value || 0,
+          dispatchedCount: data.dispatched?.count || 0,
+          dispatchedValue: data.dispatched?.value || 0,
+          deliveredCount: data.delivered?.count || 0,
+          deliveredValue: data.delivered?.value || 0,
+          transportCost: (data.transportCostSeries || []).reduce((s: number, b: any) => s + b.cost, 0),
+          brandTotals,
+        };
+      };
+
+      const currentSummary = summarize(currentData);
+      const prevSummary = summarize(prevData);
+      // Collect all brand names that appear in either period
+      const allBrandNames = Array.from(
+        new Set([...Object.keys(currentSummary.brandTotals), ...Object.keys(prevSummary.brandTotals)])
+      ).sort();
 
       res.json({
-        current: summarize(currentData),
-        previous: summarize(prevData),
+        current: currentSummary,
+        previous: prevSummary,
+        brandNames: allBrandNames,
         previousPeriod: {
           fromDate: prevFromDate.toISOString().split('T')[0],
           toDate: prevToDate.toISOString().split('T')[0],

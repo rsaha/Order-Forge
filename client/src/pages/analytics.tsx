@@ -47,6 +47,7 @@ import {
   Area,
   BarChart,
   Bar,
+  Cell,
 } from "recharts";
 import { format, parseISO, differenceInHours, differenceInDays, differenceInMinutes } from "date-fns";
 
@@ -594,23 +595,30 @@ export default function AnalyticsPage() {
     }));
   }, [analytics?.timeSeries, analytics?.bucketType, formatChartDate]);
 
-  // Brand sales trend chart data
-  const brandChartData = useMemo(() => {
-    if (!analytics?.brandSeries || analytics.brandSeries.length === 0) return [];
-    return analytics.brandSeries.map(bucket => ({
-      ...bucket,
-      date: formatChartDate(bucket.date, analytics.bucketType),
-    }));
-  }, [analytics?.brandSeries, analytics?.bucketType, formatChartDate]);
+  // Brand Sales comparison chart: current vs previous period per brand
+  const brandComparisonData = useMemo(() => {
+    if (!comparisonData?.brandNames) return [];
+    return (comparisonData.brandNames as string[])
+      .map((brand: string) => ({
+        brand,
+        current: (comparisonData.current as any).brandTotals?.[brand] || 0,
+        previous: (comparisonData.previous as any).brandTotals?.[brand] || 0,
+      }))
+      .filter(d => d.current > 0 || d.previous > 0)
+      .sort((a, b) => b.current - a.current);
+  }, [comparisonData]);
 
-  // Transport cost trend chart data (from analytics backend series)
-  const transportCostChartData = useMemo(() => {
-    if (!analytics?.transportCostSeries || analytics.transportCostSeries.length === 0) return [];
-    return analytics.transportCostSeries.map(b => ({
-      date: formatChartDate(b.date, analytics.bucketType),
-      cost: b.cost,
-    }));
-  }, [analytics?.transportCostSeries, analytics?.bucketType, formatChartDate]);
+  // Transport cost comparison: current vs previous period
+  const transportComparisonData = useMemo(() => {
+    if (!comparisonData) return [];
+    const prevLabel = comparisonData.previousPeriod
+      ? `${format(new Date(comparisonData.previousPeriod.fromDate), 'd MMM')}–${format(new Date(comparisonData.previousPeriod.toDate), 'd MMM')}`
+      : 'Prior';
+    return [
+      { period: 'Current', cost: comparisonData.current.transportCost },
+      { period: prevLabel, cost: comparisonData.previous.transportCost },
+    ];
+  }, [comparisonData]);
 
   // Normalize dispatcher names - combine variations
   const normalizeDispatcher = useCallback((dispatcher: string): string => {
@@ -1321,18 +1329,20 @@ export default function AnalyticsPage() {
                   </Card>
                 )}
 
-                {brandChartData.length > 0 && (analytics?.brandNames?.length || 0) > 0 && (
+                {brandComparisonData.length > 0 && (
                   <Card className="p-4">
-                    <h2 className="text-lg font-semibold mb-1">Brand Sales Trend</h2>
-                    <p className="text-xs text-muted-foreground mb-4">Invoiced value per brand over time (excludes Biostige)</p>
+                    <h2 className="text-lg font-semibold mb-1">Brand Sales Comparison</h2>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Invoiced value per brand — current period vs prior {comparisonData?.previousPeriod ? `(${format(new Date(comparisonData.previousPeriod.fromDate), 'd MMM')}–${format(new Date(comparisonData.previousPeriod.toDate), 'd MMM yyyy')})` : 'period'} (excludes Biostige)
+                    </p>
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={brandChartData}>
+                        <BarChart data={brandComparisonData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                          <XAxis dataKey="date" tick={{ fontSize: 11 }} tickMargin={8} />
+                          <XAxis dataKey="brand" tick={{ fontSize: 11 }} tickMargin={6} />
                           <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatINR(v)} width={80} />
                           <Tooltip
-                            formatter={(value: number, name: string) => [formatINRFull(value), name]}
+                            formatter={(value: number, name: string) => [formatINRFull(value), name === 'current' ? 'Current Period' : 'Prior Period']}
                             contentStyle={{
                               backgroundColor: 'hsl(var(--card))',
                               border: '1px solid hsl(var(--border))',
@@ -1340,34 +1350,28 @@ export default function AnalyticsPage() {
                               fontSize: '12px',
                             }}
                           />
-                          <Legend wrapperStyle={{ fontSize: '12px' }} />
-                          {(analytics?.brandNames || []).map((brand, idx) => (
-                            <Line
-                              key={brand}
-                              type="monotone"
-                              dataKey={brand}
-                              stroke={BRAND_COLORS[idx % BRAND_COLORS.length]}
-                              strokeWidth={2}
-                              dot={false}
-                              activeDot={{ r: 4 }}
-                            />
-                          ))}
-                        </LineChart>
+                          <Legend
+                            formatter={(value) => value === 'current' ? 'Current Period' : 'Prior Period'}
+                            wrapperStyle={{ fontSize: '12px' }}
+                          />
+                          <Bar dataKey="current" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="previous" fill="#94a3b8" radius={[3, 3, 0, 0]} />
+                        </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </Card>
                 )}
 
-                {transportCostChartData.length > 0 && (
+                {transportComparisonData.length > 0 && (
                   <Card className="p-4">
-                    <h2 className="text-lg font-semibold mb-1">Transport Cost Trend</h2>
-                    <p className="text-xs text-muted-foreground mb-4">Total transport costs over time (excludes Hand Delivery and zero cost)</p>
-                    <div className="h-64">
+                    <h2 className="text-lg font-semibold mb-1">Transport Cost Comparison</h2>
+                    <p className="text-xs text-muted-foreground mb-4">Current period vs prior period (excludes Biostige, Hand Delivery, and zero-cost dispatchers)</p>
+                    <div className="h-52">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={transportCostChartData}>
+                        <BarChart data={transportComparisonData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                          <XAxis dataKey="date" tick={{ fontSize: 12 }} tickMargin={8} />
-                          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatINR(v)} />
+                          <XAxis dataKey="period" tick={{ fontSize: 12 }} tickMargin={8} />
+                          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatINR(v)} width={80} />
                           <Tooltip
                             formatter={(value: number) => [formatINRFull(value), "Transport Cost"]}
                             contentStyle={{
@@ -1376,7 +1380,11 @@ export default function AnalyticsPage() {
                               borderRadius: '6px'
                             }}
                           />
-                          <Bar dataKey="cost" fill="#f97316" radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="cost" radius={[3, 3, 0, 0]}>
+                            {transportComparisonData.map((entry, idx) => (
+                              <Cell key={idx} fill={idx === 0 ? '#f97316' : '#94a3b8'} />
+                            ))}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
