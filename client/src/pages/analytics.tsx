@@ -939,9 +939,6 @@ export default function AnalyticsPage() {
                     <Truck className="w-5 h-5 text-orange-600" />
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">Transport Cost</span>
-                  {comparisonData && (
-                    <DeltaBadge delta={computeDelta(comparisonData.current.transportCost, comparisonData.previous.transportCost)} positiveIsGood={false} />
-                  )}
                 </div>
                 <p className="text-3xl font-bold mb-1" data-testid="text-transport-cost">
                   {formatINR(deliveryCostSummary.grandTotal)}
@@ -952,11 +949,6 @@ export default function AnalyticsPage() {
                     : 0
                   }% of delivered value (excl. Biostige)
                 </p>
-                {comparisonData && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    vs {formatINR(comparisonData.previous.transportCost)} prior period
-                  </p>
-                )}
               </Card>
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">

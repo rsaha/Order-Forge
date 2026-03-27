@@ -1588,6 +1588,20 @@ export async function registerRoutes(
         return res.status(400).json({ message: "fromDate and toDate are required" });
       }
 
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(fromDate as string) || !dateRegex.test(toDate as string)) {
+        return res.status(400).json({ message: "fromDate and toDate must be in YYYY-MM-DD format" });
+      }
+      const fromParsed = new Date(fromDate as string + 'T00:00:00.000Z');
+      const toParsed = new Date(toDate as string + 'T00:00:00.000Z');
+      if (isNaN(fromParsed.getTime()) || isNaN(toParsed.getTime())) {
+        return res.status(400).json({ message: "Invalid fromDate or toDate" });
+      }
+      if (fromParsed > toParsed) {
+        return res.status(400).json({ message: "fromDate must not be after toDate" });
+      }
+
       // Parse dates at midnight UTC for consistent day-level arithmetic
       const currentFrom = new Date(fromDate as string + 'T00:00:00.000Z');
       const currentTo = new Date(toDate as string + 'T23:59:59.999Z');
