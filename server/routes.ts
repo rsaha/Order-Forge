@@ -5497,6 +5497,12 @@ export async function registerRoutes(
       }
 
       const { count: updatedCount, updatedProducts } = await storage.updateProductsStock(updates);
+      await storage.saveStockImport(brand, {
+        updatedCount,
+        unmatchedCount: unmatched.length,
+        updatedProducts: updatedProducts.map(p => ({ id: p.id, sku: p.sku, name: p.name, size: p.size, stock: p.stock })),
+        unmatched,
+      });
       res.json({
         message: `Updated stock for ${updatedCount} products`,
         updatedCount,
@@ -5507,6 +5513,167 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error uploading stock:", error);
       res.status(500).json({ message: "Failed to process stock upload" });
+    }
+  });
+
+  // Helper: parse a stock Excel file and return rows + product matches for a brand
+  function parseStockExcelForBrand(buffer: Buffer, brandProducts: Array<{ id: string; name: string; sku: string; size: string | null; stock: number | null }>) {
+    const XLSX_local = XLSX;
+    const workbook = XLSX_local.read(buffer, { type: "buffer" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawRows = XLSX_local.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
+
+    if (rawRows.length === 0) throw new Error("File is empty or unreadable");
+
+    function normalizeHeader(s: string): string {
+      return String(s).toLowerCase().replace(/[\s/\-_]/g, '');
+    }
+    let headerRowIdx = -1;
+    let nameColIdx = -1;
+    let stockColIdx = -1;
+    for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
+      const row = rawRows[i] as any[];
+      for (let j = 0; j < row.length; j++) {
+        const cell = normalizeHeader(row[j]);
+        if (cell === 'nametodisplay' || cell === 'productname' || cell === 'name') { nameColIdx = j; headerRowIdx = i; }
+        if (cell === 'stock' || cell === 'currentstock' || cell === 'qty' || cell === 'quantity') stockColIdx = j;
+      }
+      if (nameColIdx !== -1 && stockColIdx !== -1) break;
+    }
+    if (headerRowIdx === -1 || nameColIdx === -1 || stockColIdx === -1) {
+      throw new Error("Could not find required columns (NameToDisplay / Stock) in the file");
+    }
+
+    const nameStockMap = new Map<string, number>();
+    const rawNameMap = new Map<string, string>();
+    for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
+      const row = rawRows[i] as any[];
+      const displayName = String(row[nameColIdx] || '').trim();
+      const stockVal = Number(row[stockColIdx]) || 0;
+      if (!displayName || displayName.toLowerCase().startsWith('grand total') || displayName.toLowerCase().startsWith('total')) continue;
+      const norm = displayName.toLowerCase().replace(/\s+/g, ' ');
+      nameStockMap.set(norm, (nameStockMap.get(norm) || 0) + stockVal);
+      if (!rawNameMap.has(norm)) rawNameMap.set(norm, displayName);
+    }
+
+    const productNameIndex = new Map<string, typeof brandProducts[0]>();
+    for (const p of brandProducts) {
+      const norm = p.name.toLowerCase().replace(/\s+/g, ' ');
+      productNameIndex.set(norm, p);
+    }
+
+    const rows: Array<{ displayName: string; stock: number; matchedProductId: string | null; matchedProductName: string | null; confidence: 'exact' | 'partial' | 'none' }> = [];
+    for (const [normName, stockNum] of nameStockMap.entries()) {
+      const displayName = rawNameMap.get(normName) || normName;
+      const exact = productNameIndex.get(normName);
+      if (exact) {
+        rows.push({ displayName, stock: stockNum, matchedProductId: exact.id, matchedProductName: exact.name, confidence: 'exact' });
+      } else {
+        let found: typeof brandProducts[0] | undefined;
+        for (const [pNorm, pDef] of productNameIndex.entries()) {
+          if (pNorm.includes(normName) || normName.includes(pNorm)) { found = pDef; break; }
+        }
+        if (found) {
+          rows.push({ displayName, stock: stockNum, matchedProductId: found.id, matchedProductName: found.name, confidence: 'partial' });
+        } else {
+          rows.push({ displayName, stock: stockNum, matchedProductId: null, matchedProductName: null, confidence: 'none' });
+        }
+      }
+    }
+    return rows;
+  }
+
+  // POST /api/stock/preview/:brand — parse Excel, return match preview (no DB changes)
+  app.post('/api/stock/preview/:brand', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const brand = decodeURIComponent(req.params.brand);
+      const brandProducts = await storage.getProductsForForecast(brand);
+      const rows = parseStockExcelForBrand(req.file.buffer, brandProducts);
+      const products = brandProducts.map(p => ({ id: p.id, name: p.name, sku: p.sku, size: p.size }));
+      res.json({ brand, rows, products });
+    } catch (error: any) {
+      console.error("Error previewing stock:", error);
+      res.status(500).json({ message: error.message || "Failed to preview stock file" });
+    }
+  });
+
+  // POST /api/stock/confirm/:brand — commit preview matches, save import history
+  app.post('/api/stock/confirm/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+      const { updates: confirmations, unmatched } = req.body as {
+        updates: Array<{ productId: string; stock: number }>;
+        unmatched: Array<{ name: string; stock: number }>;
+      };
+      if (!Array.isArray(confirmations)) return res.status(400).json({ message: "updates must be an array" });
+      const { count: updatedCount, updatedProducts } = await storage.updateProductsStock(confirmations);
+      const unmatchedSafe = Array.isArray(unmatched) ? unmatched : [];
+      await storage.saveStockImport(brand, {
+        updatedCount,
+        unmatchedCount: unmatchedSafe.length,
+        updatedProducts: updatedProducts.map(p => ({ id: p.id, sku: p.sku, name: p.name, size: p.size, stock: p.stock })),
+        unmatched: unmatchedSafe,
+      });
+      res.json({ message: `Updated stock for ${updatedCount} products`, updatedCount, unmatchedCount: unmatchedSafe.length, unmatched: unmatchedSafe });
+    } catch (error) {
+      console.error("Error confirming stock:", error);
+      res.status(500).json({ message: "Failed to confirm stock import" });
+    }
+  });
+
+  // POST /api/stock/sales/:brand/snapshot — save current sales analysis as snapshot
+  app.post('/api/stock/sales/:brand/snapshot', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+      const { results } = req.body as { results: unknown[] };
+      if (!Array.isArray(results)) return res.status(400).json({ message: "results must be an array" });
+      const snapshot = await storage.saveSalesSnapshot(brand, results);
+      res.json({ id: snapshot.id, snapshotDate: snapshot.snapshotDate });
+    } catch (error) {
+      console.error("Error saving snapshot:", error);
+      res.status(500).json({ message: "Failed to save snapshot" });
+    }
+  });
+
+  // GET /api/stock/snapshots/:brand — list past sales snapshots
+  app.get('/api/stock/snapshots/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+      const limit = Math.min(Number(req.query.limit) || 10, 50);
+      const snapshots = await storage.getSalesSnapshots(brand, limit);
+      res.json({ brand, snapshots });
+    } catch (error) {
+      console.error("Error fetching snapshots:", error);
+      res.status(500).json({ message: "Failed to fetch snapshots" });
+    }
+  });
+
+  // GET /api/stock/imports/:brand — list past stock import history
+  app.get('/api/stock/imports/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+      const limit = Math.min(Number(req.query.limit) || 10, 50);
+      const imports = await storage.getStockImports(brand, limit);
+      res.json({ brand, imports });
+    } catch (error) {
+      console.error("Error fetching import history:", error);
+      res.status(500).json({ message: "Failed to fetch import history" });
     }
   });
 

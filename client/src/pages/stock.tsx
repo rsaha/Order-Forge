@@ -36,9 +36,14 @@ import {
   ChevronDown,
   ChevronRight,
   BarChart2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Save,
+  History,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { BrandRecord } from "@shared/schema";
 import * as XLSX from "xlsx";
 
@@ -86,12 +91,50 @@ interface ForecastResult {
   results: ForecastRow[];
 }
 
-interface UploadResult {
+interface PreviewRow {
+  displayName: string;
+  stock: number;
+  matchedProductId: string | null;
+  matchedProductName: string | null;
+  confidence: "exact" | "partial" | "none";
+}
+
+interface ProductOption {
+  id: string;
+  name: string;
+  sku: string;
+  size: string | null;
+}
+
+interface PreviewData {
+  brand: string;
+  rows: PreviewRow[];
+  products: ProductOption[];
+}
+
+interface ConfirmResult {
   updatedCount: number;
   unmatchedCount: number;
   unmatched: Array<{ name: string; stock: number }>;
-  updatedProducts: Array<{ id: string; sku: string; name: string; size: string; stock: number }>;
 }
+
+interface SnapshotEntry {
+  id: number;
+  brand: string;
+  snapshotDate: string;
+  createdAt: string | null;
+}
+
+interface ImportEntry {
+  id: number;
+  brand: string;
+  importedAt: string;
+  updatedCount: number | null;
+  unmatchedCount: number | null;
+}
+
+type SortCol = "name" | "stock" | "totalSold90";
+type SortDir = "asc" | "desc";
 
 const STATUS_CONFIG = {
   "Reorder Needed": {
@@ -127,10 +170,31 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function fmt(n: number | null, decimals = 1): string {
+function ConfidenceBadge({ confidence }: { confidence: "exact" | "partial" | "none" }) {
+  if (confidence === "exact") return <span className="text-xs text-green-600 font-medium">Exact</span>;
+  if (confidence === "partial") return <span className="text-xs text-amber-600 font-medium">Partial</span>;
+  return <span className="text-xs text-red-500 font-medium">None</span>;
+}
+
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
+  if (sortCol !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+  return sortDir === "asc" ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />;
+}
+
+function fmtInt(n: number | null): string {
+  if (n === null || n === undefined) return "—";
+  return Math.round(n).toString();
+}
+
+function fmtDec(n: number | null, decimals = 1): string {
   if (n === null || n === undefined) return "—";
   if (n === 0) return "0";
   return n.toFixed(decimals).replace(/\.0+$/, "");
+}
+
+function fmt(dt: string | null): string {
+  if (!dt) return "Never";
+  return new Date(dt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
 
 export default function StockPage() {
@@ -141,19 +205,25 @@ export default function StockPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("");
   const [settings, setSettings] = useState<ForecastSettings>({ brand: "", leadTimeDays: 2, nonMovingDays: 60, slowMovingDays: 90 });
   const [forecastDays, setForecastDays] = useState<number>(30);
-  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [statusFilter, setStatusFilter] = useState<string>("Reorder Needed");
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
-  const [showUnmatched, setShowUnmatched] = useState(false);
   const [salesFilter, setSalesFilter] = useState<"all" | "moving">("moving");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [salesSort, setSalesSort] = useState<{ col: SortCol; dir: SortDir }>({ col: "totalSold90", dir: "desc" });
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [showImports, setShowImports] = useState(false);
 
+  // Preview flow state
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [editedRows, setEditedRows] = useState<Array<{ displayName: string; stock: number; matchedProductId: string | null }>>([]);
+  const [confirmResult, setConfirmResult] = useState<ConfirmResult | null>(null);
+  const [showUnmatched, setShowUnmatched] = useState(false);
+  const [previewSearch, setPreviewSearch] = useState<string[]>([]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isAdmin = user?.isAdmin || false;
 
   useEffect(() => {
-    if (!authLoading && !isAdmin) {
-      navigate("/");
-    }
+    if (!authLoading && !isAdmin) navigate("/");
   }, [authLoading, isAdmin, navigate]);
 
   const { data: brands = [] } = useQuery<BrandRecord[]>({
@@ -173,9 +243,7 @@ export default function StockPage() {
   });
 
   useEffect(() => {
-    if (brandSettings) {
-      setSettings(brandSettings);
-    }
+    if (brandSettings) setSettings(brandSettings);
   }, [brandSettings]);
 
   const { data: salesData, isLoading: salesLoading } = useQuery<SalesResult>({
@@ -189,45 +257,100 @@ export default function StockPage() {
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: snapshotsData } = useQuery<{ snapshots: SnapshotEntry[] }>({
+    queryKey: ["/api/stock/snapshots", selectedBrand],
+    queryFn: async () => {
+      const res = await fetch(`/api/stock/snapshots/${encodeURIComponent(selectedBrand)}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!selectedBrand && showSnapshots,
+    staleTime: 30 * 1000,
+  });
+
+  const { data: importsData } = useQuery<{ imports: ImportEntry[] }>({
+    queryKey: ["/api/stock/imports", selectedBrand],
+    queryFn: async () => {
+      const res = await fetch(`/api/stock/imports/${encodeURIComponent(selectedBrand)}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!selectedBrand && showImports,
+    staleTime: 30 * 1000,
+  });
+
   const saveSettingsMutation = useMutation({
     mutationFn: async (data: { leadTimeDays: number; nonMovingDays: number; slowMovingDays: number }) => {
       const res = await apiRequest("PUT", `/api/stock/settings/${encodeURIComponent(selectedBrand)}`, data);
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Settings saved", description: "Brand forecast settings updated." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
-    },
+    onSuccess: () => toast({ title: "Settings saved" }),
+    onError: () => toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" }),
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File): Promise<UploadResult> => {
+  const saveSnapshotMutation = useMutation({
+    mutationFn: async () => {
+      if (!salesData) throw new Error("No sales data");
+      const res = await apiRequest("POST", `/api/stock/sales/${encodeURIComponent(selectedBrand)}/snapshot`, { results: salesData.results });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Snapshot saved", description: "Sales analysis saved to history." });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock/snapshots", selectedBrand] });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to save snapshot.", variant: "destructive" }),
+  });
+
+  // Step 1: parse file → preview
+  const previewMutation = useMutation({
+    mutationFn: async (file: File): Promise<PreviewData> => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`/api/stock/upload/${encodeURIComponent(selectedBrand)}`, {
+      const res = await fetch(`/api/stock/preview/${encodeURIComponent(selectedBrand)}`, {
         method: "POST",
         body: formData,
         credentials: "include",
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Upload failed" }));
-        throw new Error(err.message || "Upload failed");
+        const err = await res.json().catch(() => ({ message: "Preview failed" }));
+        throw new Error(err.message || "Preview failed");
       }
       return res.json();
     },
     onSuccess: (data) => {
-      setUploadResult(data);
+      setPreviewData(data);
+      setEditedRows(data.rows.map(r => ({ displayName: r.displayName, stock: r.stock, matchedProductId: r.matchedProductId })));
+      setPreviewSearch(data.rows.map(() => ""));
+      setConfirmResult(null);
+      setShowUnmatched(false);
+    },
+    onError: (err: Error) => toast({ title: "Preview failed", description: err.message, variant: "destructive" }),
+  });
+
+  // Step 2: confirm the edits
+  const confirmMutation = useMutation({
+    mutationFn: async (): Promise<ConfirmResult> => {
+      const updates = editedRows
+        .filter(r => r.matchedProductId)
+        .map(r => ({ productId: r.matchedProductId!, stock: r.stock }));
+      const unmatched = editedRows
+        .filter(r => !r.matchedProductId)
+        .map(r => ({ name: r.displayName, stock: r.stock }));
+      const res = await apiRequest("POST", `/api/stock/confirm/${encodeURIComponent(selectedBrand)}`, { updates, unmatched });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setConfirmResult(data);
+      setPreviewData(null);
       setForecastResult(null);
       toast({
         title: "Stock updated",
-        description: `${data.updatedCount} products updated. ${data.unmatchedCount > 0 ? `${data.unmatchedCount} rows unmatched.` : ""}`,
+        description: `${data.updatedCount} products updated.${data.unmatchedCount > 0 ? ` ${data.unmatchedCount} skipped.` : ""}`,
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock/imports", selectedBrand] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock/sales", selectedBrand] });
     },
-    onError: (err: Error) => {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
-    },
+    onError: (err: Error) => toast({ title: "Confirm failed", description: err.message, variant: "destructive" }),
   });
 
   const forecastMutation = useMutation({
@@ -237,32 +360,37 @@ export default function StockPage() {
     },
     onSuccess: (data) => {
       setForecastResult(data);
-      setStatusFilter("All");
+      setStatusFilter("Reorder Needed");
       toast({ title: "Forecast complete", description: `${data.results.length} products analysed.` });
     },
-    onError: (err: Error) => {
-      toast({ title: "Forecast failed", description: err.message, variant: "destructive" });
-    },
+    onError: (err: Error) => toast({ title: "Forecast failed", description: err.message, variant: "destructive" }),
   });
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
+    if (file) previewMutation.mutate(file);
     e.target.value = "";
-  }, [uploadMutation]);
+  }, [previewMutation]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file) uploadMutation.mutate(file);
-  }, [uploadMutation]);
+    if (file) previewMutation.mutate(file);
+  }, [previewMutation]);
 
   const handleBrandChange = (brand: string) => {
     setSelectedBrand(brand);
     setForecastResult(null);
-    setUploadResult(null);
+    setPreviewData(null);
+    setConfirmResult(null);
     setShowUnmatched(false);
+    setShowSnapshots(false);
+    setShowImports(false);
     setSettings({ brand, leadTimeDays: 2, nonMovingDays: 60, slowMovingDays: 90 });
+  };
+
+  const toggleSalesSort = (col: SortCol) => {
+    setSalesSort(prev => prev.col === col ? { col, dir: prev.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" });
   };
 
   const exportForecastToExcel = () => {
@@ -311,6 +439,17 @@ export default function StockPage() {
     XLSX.writeFile(wb, `sales_${salesData.brand}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  const filteredSales = (salesData?.results ?? []).filter(r =>
+    salesFilter === "all" ? true : r.totalSold90 > 0
+  );
+
+  const sortedSales = [...filteredSales].sort((a, b) => {
+    const dir = salesSort.dir === "asc" ? 1 : -1;
+    if (salesSort.col === "name") return dir * a.name.localeCompare(b.name);
+    if (salesSort.col === "stock") return dir * (a.currentStock - b.currentStock);
+    return dir * (a.totalSold90 - b.totalSold90);
+  });
+
   const filteredForecast = forecastResult?.results.filter(r =>
     statusFilter === "All" ? true : r.status === statusFilter
   ) ?? [];
@@ -321,10 +460,6 @@ export default function StockPage() {
   }, {} as Record<string, number>) ?? {};
 
   const STATUS_TABS = ["All", "Reorder Needed", "Extra Stock", "Non-Moving", "OK"];
-
-  const filteredSales = salesData?.results.filter(r =>
-    salesFilter === "all" ? true : r.totalSold90 > 0
-  ) ?? [];
 
   if (authLoading || !isAdmin) {
     return (
@@ -443,7 +578,7 @@ export default function StockPage() {
                 </div>
                 <h2 className="font-semibold">Step 2 — Sales Analysis (last 90 days)</h2>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex rounded-md border overflow-hidden text-xs">
                   <button
                     className={`px-3 py-1.5 transition-colors ${salesFilter === "moving" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
@@ -460,6 +595,18 @@ export default function StockPage() {
                     All products
                   </button>
                 </div>
+                {salesData && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => saveSnapshotMutation.mutate()}
+                    disabled={saveSnapshotMutation.isPending}
+                    data-testid="button-save-snapshot"
+                  >
+                    {saveSnapshotMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                    Save Snapshot
+                  </Button>
+                )}
                 {salesData && (
                   <Button variant="outline" size="sm" onClick={exportSalesToExcel} data-testid="button-export-sales">
                     <Download className="w-4 h-4 mr-1" />
@@ -479,47 +626,70 @@ export default function StockPage() {
                 <div className="flex gap-4 text-sm text-muted-foreground mb-3">
                   <span>{salesData.results.length} products total</span>
                   <span>{salesData.results.filter(r => r.totalSold90 > 0).length} with sales in 90d</span>
-                  <span>{salesData.results.reduce((s, r) => s + r.totalSold90, 0)} units sold</span>
+                  <span>{fmtInt(salesData.results.reduce((s, r) => s + r.totalSold90, 0))} units sold</span>
                 </div>
                 <div className="overflow-auto rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead className="py-2.5 whitespace-nowrap">SKU</TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap">Name</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap">
+                          <button
+                            className="flex items-center hover:text-foreground"
+                            onClick={() => toggleSalesSort("name")}
+                            data-testid="sort-sales-name"
+                          >
+                            Name
+                            <SortIcon col="name" sortCol={salesSort.col} sortDir={salesSort.dir} />
+                          </button>
+                        </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap">Size</TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right">Stock</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">
+                          <button
+                            className="flex items-center justify-end w-full hover:text-foreground"
+                            onClick={() => toggleSalesSort("stock")}
+                            data-testid="sort-sales-stock"
+                          >
+                            Stock
+                            <SortIcon col="stock" sortCol={salesSort.col} sortDir={salesSort.dir} />
+                          </button>
+                        </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right" title="Sales in 3 consecutive 30-day buckets (oldest → newest)">M1 / M2 / M3</TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right">Total 90d</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">
+                          <button
+                            className="flex items-center justify-end w-full hover:text-foreground"
+                            onClick={() => toggleSalesSort("totalSold90")}
+                            data-testid="sort-sales-total"
+                          >
+                            Total 90d
+                            <SortIcon col="totalSold90" sortCol={salesSort.col} sortDir={salesSort.dir} />
+                          </button>
+                        </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right">Avg Daily</TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right">Smoothed</TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right">Last Sale</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredSales.length === 0 ? (
+                      {sortedSales.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                             No products found.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredSales.map(row => (
+                        sortedSales.map(row => (
                           <TableRow key={row.productId} data-testid={`row-sales-${row.productId}`}>
                             <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
                             <TableCell className="py-2 max-w-[200px] truncate" title={row.name}>{row.name}</TableCell>
                             <TableCell className="py-2">{row.size || "—"}</TableCell>
-                            <TableCell className="py-2 text-right font-medium">{row.currentStock}</TableCell>
+                            <TableCell className="py-2 text-right font-medium">{fmtInt(row.currentStock)}</TableCell>
                             <TableCell className="py-2 text-right text-sm text-muted-foreground">
-                              {row.bucket1Sales} / {row.bucket2Sales} / {row.bucket3Sales}
+                              {fmtInt(row.bucket1Sales)} / {fmtInt(row.bucket2Sales)} / {fmtInt(row.bucket3Sales)}
                             </TableCell>
-                            <TableCell className="py-2 text-right font-medium">{row.totalSold90}</TableCell>
-                            <TableCell className="py-2 text-right">{fmt(row.avgDailyDemand, 2)}</TableCell>
-                            <TableCell className="py-2 text-right">{fmt(row.smoothedDailyDemand, 2)}</TableCell>
+                            <TableCell className="py-2 text-right font-medium">{fmtInt(row.totalSold90)}</TableCell>
+                            <TableCell className="py-2 text-right">{fmtDec(row.avgDailyDemand, 1)}</TableCell>
                             <TableCell className="py-2 text-right text-xs text-muted-foreground">
-                              {row.lastSaleDate
-                                ? new Date(row.lastSaleDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-                                : "Never"}
+                              {fmt(row.lastSaleDate)}
                             </TableCell>
                           </TableRow>
                         ))
@@ -529,6 +699,45 @@ export default function StockPage() {
                 </div>
               </>
             ) : null}
+
+            {/* Snapshot history */}
+            {salesData && (
+              <div className="mt-3">
+                <button
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowSnapshots(v => !v)}
+                  data-testid="toggle-snapshots"
+                >
+                  {showSnapshots ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  <History className="w-3 h-3" />
+                  Snapshot history
+                </button>
+                {showSnapshots && (
+                  <div className="mt-2 border rounded text-xs overflow-auto max-h-40">
+                    {snapshotsData?.snapshots.length === 0 ? (
+                      <p className="text-muted-foreground p-3">No snapshots saved yet.</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="py-2">Date</TableHead>
+                            <TableHead className="py-2 text-right">ID</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(snapshotsData?.snapshots ?? []).map(s => (
+                            <TableRow key={s.id}>
+                              <TableCell className="py-1">{new Date(s.snapshotDate).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</TableCell>
+                              <TableCell className="py-1 text-right text-muted-foreground">#{s.id}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         )}
 
@@ -543,63 +752,167 @@ export default function StockPage() {
             </div>
 
             <p className="text-sm text-muted-foreground mb-3">
-              Upload a <strong>Stock Detail (Summary)</strong> Excel export. The file should have a <strong>NameToDisplay</strong> column and a <strong>Stock</strong> column.
-              Products are matched to <strong>{selectedBrand}</strong> by name (case-insensitive). Duplicate entries for the same product are summed.
+              Upload a <strong>Stock Detail (Summary)</strong> Excel export with <strong>NameToDisplay</strong> and <strong>Stock</strong> columns.
+              Products are matched to <strong>{selectedBrand}</strong> by name. Review and correct matches before confirming.
             </p>
 
-            <div
-              className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-8 text-center cursor-pointer hover:border-primary/40 transition-colors"
-              onClick={() => fileInputRef.current?.click()}
-              onDrop={handleDrop}
-              onDragOver={e => e.preventDefault()}
-              data-testid="dropzone-stock"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleFileChange}
-                data-testid="input-stock-file"
-              />
-              {uploadMutation.isPending ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Processing…</p>
+            {!previewData ? (
+              <div
+                className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-8 text-center cursor-pointer hover:border-primary/40 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                onDrop={handleDrop}
+                onDragOver={e => e.preventDefault()}
+                data-testid="dropzone-stock"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  data-testid="input-stock-file"
+                />
+                {previewMutation.isPending ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Parsing file…</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="w-8 h-8 text-muted-foreground" />
+                    <p className="text-sm font-medium">Drop your Stock Detail Excel here or click to browse</p>
+                    <p className="text-xs text-muted-foreground">.xlsx or .xls · NameToDisplay + Stock columns</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Preview table */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{previewData.rows.length}</span> rows from file ·
+                    <span className="text-green-600 ml-1">{editedRows.filter(r => r.matchedProductId).length} matched</span> ·
+                    <span className="text-red-500 ml-1">{editedRows.filter(r => !r.matchedProductId).length} unmatched</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setPreviewData(null); setEditedRows([]); }}
+                      data-testid="button-cancel-preview"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => confirmMutation.mutate()}
+                      disabled={confirmMutation.isPending || editedRows.filter(r => r.matchedProductId).length === 0}
+                      data-testid="button-confirm-import"
+                    >
+                      {confirmMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                      Confirm Import ({editedRows.filter(r => r.matchedProductId).length} products)
+                    </Button>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <Upload className="w-8 h-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">Drop your Stock Detail Excel here or click to browse</p>
-                  <p className="text-xs text-muted-foreground">.xlsx or .xls · NameToDisplay + Stock columns</p>
-                </div>
-              )}
-            </div>
 
-            {uploadResult && (
+                <div className="overflow-auto rounded-lg border max-h-[500px]">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background">
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="py-2.5 whitespace-nowrap">File Name</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Stock</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap">Match</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap">Matched Product</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap">Confidence</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {editedRows.map((row, i) => {
+                        const search = previewSearch[i] || "";
+                        const filteredProducts = previewData.products.filter(p =>
+                          !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase())
+                        );
+                        const originalRow = previewData.rows[i];
+                        const confidence = editedRows[i].matchedProductId === originalRow.matchedProductId
+                          ? originalRow.confidence
+                          : "exact"; // user-overridden = treat as confirmed
+                        return (
+                          <TableRow key={i} data-testid={`row-preview-${i}`}
+                            className={!row.matchedProductId ? "bg-red-50/50 dark:bg-red-950/10" : ""}
+                          >
+                            <TableCell className="py-2 max-w-[180px] text-sm" title={row.displayName}>{row.displayName}</TableCell>
+                            <TableCell className="py-2 text-right font-medium">{row.stock}</TableCell>
+                            <TableCell className="py-2">
+                              <div className="flex flex-col gap-1">
+                                <Input
+                                  placeholder="Search product…"
+                                  value={search}
+                                  onChange={e => setPreviewSearch(prev => {
+                                    const next = [...prev];
+                                    next[i] = e.target.value;
+                                    return next;
+                                  })}
+                                  className="h-7 text-xs w-40"
+                                  data-testid={`input-preview-search-${i}`}
+                                />
+                                <select
+                                  className="h-7 text-xs rounded border border-input bg-background px-2 w-40"
+                                  value={row.matchedProductId || ""}
+                                  onChange={e => setEditedRows(prev => {
+                                    const next = [...prev];
+                                    next[i] = { ...next[i], matchedProductId: e.target.value || null };
+                                    return next;
+                                  })}
+                                  data-testid={`select-preview-product-${i}`}
+                                >
+                                  <option value="">Skip (unmatched)</option>
+                                  {filteredProducts.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}{p.size ? ` — ${p.size}` : ""}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2 text-xs text-muted-foreground max-w-[160px] truncate">
+                              {row.matchedProductId
+                                ? previewData.products.find(p => p.id === row.matchedProductId)?.name || "—"
+                                : <span className="text-red-500">Skipped</span>}
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <ConfidenceBadge confidence={editedRows[i].matchedProductId !== originalRow.matchedProductId ? "exact" : confidence} />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {confirmResult && (
               <div className="mt-4 space-y-2">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900">
                   <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                      {uploadResult.updatedCount} products updated
+                      {confirmResult.updatedCount} products updated
                     </p>
-                    {uploadResult.unmatchedCount > 0 && (
+                    {confirmResult.unmatchedCount > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {uploadResult.unmatchedCount} names could not be matched to a product.
+                        {confirmResult.unmatchedCount} rows were skipped (unmatched).
                       </p>
                     )}
                   </div>
                 </div>
 
-                {uploadResult.unmatchedCount > 0 && (
+                {confirmResult.unmatchedCount > 0 && (
                   <div>
                     <button
                       className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setShowUnmatched(v => !v)}
                     >
                       {showUnmatched ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                      {showUnmatched ? "Hide" : "Show"} unmatched ({uploadResult.unmatchedCount})
+                      {showUnmatched ? "Hide" : "Show"} skipped ({confirmResult.unmatchedCount})
                     </button>
                     {showUnmatched && (
                       <div className="mt-2 border rounded text-xs overflow-auto max-h-48">
@@ -611,7 +924,7 @@ export default function StockPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {uploadResult.unmatched.map((row, i) => (
+                            {confirmResult.unmatched.map((row, i) => (
                               <TableRow key={i}>
                                 <TableCell className="py-1">{row.name}</TableCell>
                                 <TableCell className="py-1 text-right">{row.stock}</TableCell>
@@ -625,6 +938,45 @@ export default function StockPage() {
                 )}
               </div>
             )}
+
+            {/* Upload history */}
+            <div className="mt-4">
+              <button
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowImports(v => !v)}
+                data-testid="toggle-import-history"
+              >
+                {showImports ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                <History className="w-3 h-3" />
+                Import history
+              </button>
+              {showImports && (
+                <div className="mt-2 border rounded text-xs overflow-auto max-h-40">
+                  {importsData?.imports.length === 0 ? (
+                    <p className="text-muted-foreground p-3">No imports yet.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="py-2">Date</TableHead>
+                          <TableHead className="py-2 text-right">Updated</TableHead>
+                          <TableHead className="py-2 text-right">Skipped</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(importsData?.imports ?? []).map(imp => (
+                          <TableRow key={imp.id}>
+                            <TableCell className="py-1">{new Date(imp.importedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</TableCell>
+                            <TableCell className="py-1 text-right text-green-600">{imp.updatedCount ?? 0}</TableCell>
+                            <TableCell className="py-1 text-right text-red-500">{imp.unmatchedCount ?? 0}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              )}
+            </div>
           </Card>
         )}
 
@@ -663,7 +1015,7 @@ export default function StockPage() {
                   <><RefreshCw className="w-4 h-4 mr-2" />Run Forecast</>
                 )}
               </Button>
-              {!uploadResult && (
+              {!confirmResult && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   Tip: upload current stock (Step 3) before running for accurate reorder signals.
                 </p>
@@ -726,7 +1078,6 @@ export default function StockPage() {
                     <TableHead className="whitespace-nowrap py-2.5 text-right">Stock</TableHead>
                     <TableHead className="whitespace-nowrap py-2.5 text-right" title="Sales in months 1/2/3 of the 90-day window">M1 / M2 / M3</TableHead>
                     <TableHead className="whitespace-nowrap py-2.5 text-right">Avg Daily</TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right">Smoothed</TableHead>
                     <TableHead className="whitespace-nowrap py-2.5 text-right" title={`Forecasted demand for next ${forecastResult.forecastDays} days`}>
                       Forecast ({forecastResult.forecastDays}d)
                     </TableHead>
@@ -741,7 +1092,7 @@ export default function StockPage() {
                 <TableBody>
                   {filteredForecast.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         No products in this category.
                       </TableCell>
                     </TableRow>
@@ -751,25 +1102,22 @@ export default function StockPage() {
                         <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
                         <TableCell className="py-2 max-w-[180px] truncate" title={row.name}>{row.name}</TableCell>
                         <TableCell className="py-2">{row.size || "—"}</TableCell>
-                        <TableCell className="py-2 text-right font-medium">{row.currentStock}</TableCell>
+                        <TableCell className="py-2 text-right font-medium">{fmtInt(row.currentStock)}</TableCell>
                         <TableCell className="py-2 text-right text-sm text-muted-foreground">
-                          {row.bucket1Sales} / {row.bucket2Sales} / {row.bucket3Sales}
+                          {fmtInt(row.bucket1Sales)} / {fmtInt(row.bucket2Sales)} / {fmtInt(row.bucket3Sales)}
                         </TableCell>
-                        <TableCell className="py-2 text-right">{fmt(row.avgDailyDemand, 2)}</TableCell>
-                        <TableCell className="py-2 text-right">{fmt(row.smoothedDailyDemand, 2)}</TableCell>
-                        <TableCell className="py-2 text-right font-medium">{row.forecastedDemand}</TableCell>
+                        <TableCell className="py-2 text-right">{fmtDec(row.avgDailyDemand, 1)}</TableCell>
+                        <TableCell className="py-2 text-right font-medium">{fmtInt(row.forecastedDemand)}</TableCell>
                         <TableCell className="py-2 text-right">
                           <span className={row.status === "Reorder Needed" ? "text-red-600 font-semibold" : ""}>
-                            {row.rop}
+                            {fmtInt(row.rop)}
                           </span>
                         </TableCell>
                         <TableCell className="py-2 text-right">
-                          {row.coverageDays === null ? "∞" : `${row.coverageDays}d`}
+                          {row.coverageDays === null ? "∞" : `${fmtInt(row.coverageDays)}d`}
                         </TableCell>
                         <TableCell className="py-2 text-right text-xs text-muted-foreground">
-                          {row.lastSaleDate
-                            ? new Date(row.lastSaleDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-                            : "Never"}
+                          {fmt(row.lastSaleDate)}
                         </TableCell>
                         <TableCell className="py-2">
                           <StatusBadge status={row.status} />

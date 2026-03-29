@@ -10,6 +10,7 @@ import {
   numeric,
   text,
   boolean,
+  serial,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -242,6 +243,26 @@ export const brandForecastSettings = pgTable("brand_forecast_settings", {
   updatedBy: varchar("updated_by").references(() => users.id),
 });
 
+// Brand sales snapshots — periodic saves of the 90-day sales analysis per brand
+export const brandSalesSnapshots = pgTable("brand_sales_snapshots", {
+  id: serial("id").primaryKey(),
+  brand: varchar("brand").notNull(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  results: jsonb("results").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Brand stock imports — history of each stock import for a brand
+export const brandStockImports = pgTable("brand_stock_imports", {
+  id: serial("id").primaryKey(),
+  brand: varchar("brand").notNull(),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+  updatedCount: integer("updated_count").default(0),
+  unmatchedCount: integer("unmatched_count").default(0),
+  updatedProducts: jsonb("updated_products"),
+  unmatched: jsonb("unmatched"),
+});
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
@@ -324,3 +345,5 @@ export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type BrandForecastSettings = typeof brandForecastSettings.$inferSelect;
 export type InsertBrandForecastSettings = z.infer<typeof insertBrandForecastSettingsSchema>;
+export type BrandSalesSnapshot = typeof brandSalesSnapshots.$inferSelect;
+export type BrandStockImport = typeof brandStockImports.$inferSelect;

@@ -9,6 +9,8 @@ import {
   brands,
   announcements,
   brandForecastSettings,
+  brandSalesSnapshots,
+  brandStockImports,
   type User,
   type UpsertUser,
   type Product,
@@ -138,6 +140,14 @@ export interface IStorage {
   getProductsForForecast(brand: string): Promise<Product[]>;
   getSoldQuantitiesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Array<{ productId: string; quantity: number; lastSaleDate: Date }>>;
   getLastSaleDatesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Map<string, Date>>;
+
+  // Sales snapshot operations
+  saveSalesSnapshot(brand: string, results: unknown[]): Promise<{ id: number; snapshotDate: Date }>;
+  getSalesSnapshots(brand: string, limit?: number): Promise<Array<{ id: number; brand: string; snapshotDate: Date; createdAt: Date | null }>>;
+
+  // Stock import history operations
+  saveStockImport(brand: string, data: { updatedCount: number; unmatchedCount: number; updatedProducts: unknown[]; unmatched: unknown[] }): Promise<{ id: number; importedAt: Date }>;
+  getStockImports(brand: string, limit?: number): Promise<Array<{ id: number; brand: string; importedAt: Date; updatedCount: number | null; unmatchedCount: number | null }>>;
 }
 
 export interface StatusMetric {
@@ -2065,6 +2075,48 @@ export class DatabaseStorage implements IStorage {
       result.set(r.productId, new Date(r.lastSaleDate));
     }
     return result;
+  }
+
+  async saveSalesSnapshot(brand: string, results: unknown[]): Promise<{ id: number; snapshotDate: Date }> {
+    const [row] = await db
+      .insert(brandSalesSnapshots)
+      .values({ brand, results: results as any })
+      .returning({ id: brandSalesSnapshots.id, snapshotDate: brandSalesSnapshots.snapshotDate });
+    return { id: row.id, snapshotDate: row.snapshotDate! };
+  }
+
+  async getSalesSnapshots(brand: string, limit = 10): Promise<Array<{ id: number; brand: string; snapshotDate: Date; createdAt: Date | null }>> {
+    const rows = await db
+      .select({ id: brandSalesSnapshots.id, brand: brandSalesSnapshots.brand, snapshotDate: brandSalesSnapshots.snapshotDate, createdAt: brandSalesSnapshots.createdAt })
+      .from(brandSalesSnapshots)
+      .where(eq(brandSalesSnapshots.brand, brand))
+      .orderBy(sql`${brandSalesSnapshots.snapshotDate} DESC`)
+      .limit(limit);
+    return rows.map(r => ({ ...r, snapshotDate: new Date(r.snapshotDate), createdAt: r.createdAt ? new Date(r.createdAt) : null }));
+  }
+
+  async saveStockImport(brand: string, data: { updatedCount: number; unmatchedCount: number; updatedProducts: unknown[]; unmatched: unknown[] }): Promise<{ id: number; importedAt: Date }> {
+    const [row] = await db
+      .insert(brandStockImports)
+      .values({
+        brand,
+        updatedCount: data.updatedCount,
+        unmatchedCount: data.unmatchedCount,
+        updatedProducts: data.updatedProducts as any,
+        unmatched: data.unmatched as any,
+      })
+      .returning({ id: brandStockImports.id, importedAt: brandStockImports.importedAt });
+    return { id: row.id, importedAt: row.importedAt! };
+  }
+
+  async getStockImports(brand: string, limit = 10): Promise<Array<{ id: number; brand: string; importedAt: Date; updatedCount: number | null; unmatchedCount: number | null }>> {
+    const rows = await db
+      .select({ id: brandStockImports.id, brand: brandStockImports.brand, importedAt: brandStockImports.importedAt, updatedCount: brandStockImports.updatedCount, unmatchedCount: brandStockImports.unmatchedCount })
+      .from(brandStockImports)
+      .where(eq(brandStockImports.brand, brand))
+      .orderBy(sql`${brandStockImports.importedAt} DESC`)
+      .limit(limit);
+    return rows.map(r => ({ ...r, importedAt: new Date(r.importedAt) }));
   }
 }
 
