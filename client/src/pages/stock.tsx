@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Package,
+  Boxes,
   Upload,
   Settings,
   TrendingUp,
@@ -35,6 +35,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  BarChart2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -48,7 +49,7 @@ interface ForecastSettings {
   slowMovingDays: number;
 }
 
-interface ForecastRow {
+interface SalesRow {
   productId: string;
   sku: string;
   name: string;
@@ -60,10 +61,19 @@ interface ForecastRow {
   totalSold90: number;
   avgDailyDemand: number;
   smoothedDailyDemand: number;
+  lastSaleDate: string | null;
+}
+
+interface SalesResult {
+  brand: string;
+  bucketDays: number;
+  results: SalesRow[];
+}
+
+interface ForecastRow extends SalesRow {
   forecastedDemand: number;
   rop: number;
   coverageDays: number | null;
-  lastSaleDate: string | null;
   status: "Non-Moving" | "Extra Stock" | "Reorder Needed" | "OK";
 }
 
@@ -74,6 +84,13 @@ interface ForecastResult {
   nonMovingDays: number;
   slowMovingDays: number;
   results: ForecastRow[];
+}
+
+interface UploadResult {
+  updatedCount: number;
+  unmatchedCount: number;
+  unmatched: Array<{ name: string; stock: number }>;
+  updatedProducts: Array<{ id: string; sku: string; name: string; size: string; stock: number }>;
 }
 
 const STATUS_CONFIG = {
@@ -126,8 +143,9 @@ export default function StockPage() {
   const [forecastDays, setForecastDays] = useState<number>(30);
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
-  const [uploadResult, setUploadResult] = useState<{ updatedCount: number; unmatchedCount: number; unmatched: Array<{ sku: string; size: string; stock: number }> } | null>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [showUnmatched, setShowUnmatched] = useState(false);
+  const [salesFilter, setSalesFilter] = useState<"all" | "moving">("moving");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = user?.isAdmin || false;
@@ -143,7 +161,6 @@ export default function StockPage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Load brand settings when brand changes
   const { data: brandSettings, isLoading: settingsLoading } = useQuery<ForecastSettings>({
     queryKey: ["/api/stock/settings", selectedBrand],
     queryFn: async () => {
@@ -155,12 +172,22 @@ export default function StockPage() {
     staleTime: 0,
   });
 
-  // Sync settings from fetched data (in effect to avoid render-phase state update)
   useEffect(() => {
     if (brandSettings) {
       setSettings(brandSettings);
     }
   }, [brandSettings]);
+
+  const { data: salesData, isLoading: salesLoading } = useQuery<SalesResult>({
+    queryKey: ["/api/stock/sales", selectedBrand],
+    queryFn: async () => {
+      const res = await fetch(`/api/stock/sales/${encodeURIComponent(selectedBrand)}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load sales data");
+      return res.json();
+    },
+    enabled: !!selectedBrand,
+    staleTime: 2 * 60 * 1000,
+  });
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (data: { leadTimeDays: number; nonMovingDays: number; slowMovingDays: number }) => {
@@ -176,7 +203,7 @@ export default function StockPage() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (file: File): Promise<UploadResult> => {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch(`/api/stock/upload/${encodeURIComponent(selectedBrand)}`, {
@@ -185,14 +212,18 @@ export default function StockPage() {
         credentials: "include",
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = await res.json().catch(() => ({ message: "Upload failed" }));
         throw new Error(err.message || "Upload failed");
       }
       return res.json();
     },
     onSuccess: (data) => {
       setUploadResult(data);
-      toast({ title: "Stock uploaded", description: data.message });
+      setForecastResult(null);
+      toast({
+        title: "Stock updated",
+        description: `${data.updatedCount} products updated. ${data.unmatchedCount > 0 ? `${data.unmatchedCount} rows unmatched.` : ""}`,
+      });
     },
     onError: (err: Error) => {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
@@ -209,27 +240,21 @@ export default function StockPage() {
       setStatusFilter("All");
       toast({ title: "Forecast complete", description: `${data.results.length} products analysed.` });
     },
-    onError: () => {
-      toast({ title: "Forecast failed", description: "Unable to run forecast.", variant: "destructive" });
+    onError: (err: Error) => {
+      toast({ title: "Forecast failed", description: err.message, variant: "destructive" });
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadResult(null);
-      uploadMutation.mutate(file);
-    }
+    if (file) uploadMutation.mutate(file);
     e.target.value = "";
-  };
+  }, [uploadMutation]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      setUploadResult(null);
-      uploadMutation.mutate(file);
-    }
+    const file = e.dataTransfer.files[0];
+    if (file) uploadMutation.mutate(file);
   }, [uploadMutation]);
 
   const handleBrandChange = (brand: string) => {
@@ -240,32 +265,53 @@ export default function StockPage() {
     setSettings({ brand, leadTimeDays: 2, nonMovingDays: 60, slowMovingDays: 90 });
   };
 
-  const exportToExcel = () => {
+  const exportForecastToExcel = () => {
     if (!forecastResult) return;
     const rows = forecastResult.results.map(r => ({
       SKU: r.sku,
       Name: r.name,
       Size: r.size,
       "Current Stock": r.currentStock,
-      "Sales (Month 1)": r.bucket1Sales,
-      "Sales (Month 2)": r.bucket2Sales,
-      "Sales (Month 3)": r.bucket3Sales,
+      "Sales (M1)": r.bucket1Sales,
+      "Sales (M2)": r.bucket2Sales,
+      "Sales (M3)": r.bucket3Sales,
       "Total Sold (90d)": r.totalSold90,
       "Avg Daily Demand": r.avgDailyDemand,
-      "Smoothed Daily Demand": r.smoothedDailyDemand,
+      "Smoothed Daily": r.smoothedDailyDemand,
       [`Forecast (${forecastResult.forecastDays}d)`]: r.forecastedDemand,
-      "Reorder Point (ROP)": r.rop,
+      "ROP": r.rop,
       "Coverage (days)": r.coverageDays ?? "∞",
-      "Last Sale Date": r.lastSaleDate ? new Date(r.lastSaleDate).toLocaleDateString() : "Never",
+      "Last Sale": r.lastSaleDate ? new Date(r.lastSaleDate).toLocaleDateString("en-IN") : "Never",
       Status: r.status,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Forecast");
-    XLSX.writeFile(wb, `stock_forecast_${forecastResult.brand}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb, `forecast_${forecastResult.brand}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  const filteredResults = forecastResult?.results.filter(r =>
+  const exportSalesToExcel = () => {
+    if (!salesData) return;
+    const rows = salesData.results.map(r => ({
+      SKU: r.sku,
+      Name: r.name,
+      Size: r.size,
+      "Current Stock": r.currentStock,
+      "Sales (M1)": r.bucket1Sales,
+      "Sales (M2)": r.bucket2Sales,
+      "Sales (M3)": r.bucket3Sales,
+      "Total Sold (90d)": r.totalSold90,
+      "Avg Daily Demand": r.avgDailyDemand,
+      "Smoothed Daily": r.smoothedDailyDemand,
+      "Last Sale": r.lastSaleDate ? new Date(r.lastSaleDate).toLocaleDateString("en-IN") : "Never",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sales");
+    XLSX.writeFile(wb, `sales_${salesData.brand}_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  const filteredForecast = forecastResult?.results.filter(r =>
     statusFilter === "All" ? true : r.status === statusFilter
   ) ?? [];
 
@@ -275,6 +321,10 @@ export default function StockPage() {
   }, {} as Record<string, number>) ?? {};
 
   const STATUS_TABS = ["All", "Reorder Needed", "Extra Stock", "Non-Moving", "OK"];
+
+  const filteredSales = salesData?.results.filter(r =>
+    salesFilter === "all" ? true : r.totalSold90 > 0
+  ) ?? [];
 
   if (authLoading || !isAdmin) {
     return (
@@ -286,10 +336,9 @@ export default function StockPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-40 bg-background border-b px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Package className="w-5 h-5 text-primary" />
+          <Boxes className="w-5 h-5 text-primary" />
           <h1 className="font-semibold text-lg">Stock Forecast</h1>
         </div>
         <nav className="flex gap-1">
@@ -299,7 +348,8 @@ export default function StockPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Step 1: Brand Selection + Settings */}
+
+        {/* Step 1: Brand & Settings */}
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-4">
             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
@@ -348,7 +398,7 @@ export default function StockPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-sm mb-1.5 block">Extra Stock (days coverage)</Label>
+                  <Label className="text-sm mb-1.5 block">Extra Stock threshold (days)</Label>
                   <Input
                     type="number"
                     min={1}
@@ -363,7 +413,7 @@ export default function StockPage() {
           </div>
 
           {selectedBrand && (
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex items-center gap-3 flex-wrap">
               <Button
                 size="sm"
                 onClick={() => saveSettingsMutation.mutate({ leadTimeDays: settings.leadTimeDays, nonMovingDays: settings.nonMovingDays, slowMovingDays: settings.slowMovingDays })}
@@ -375,27 +425,126 @@ export default function StockPage() {
               </Button>
               {settingsLoading && <span className="text-xs text-muted-foreground">Loading settings…</span>}
               <p className="text-xs text-muted-foreground">
-                Non-Moving: no sales in last {settings.nonMovingDays} days.
-                Extra Stock: coverage &gt; {settings.slowMovingDays} days.
-                ROP = Demand × {settings.leadTimeDays} day(s) lead time.
+                Non-moving: no sales in last {settings.nonMovingDays}d ·
+                Extra stock: coverage &gt; {settings.slowMovingDays}d ·
+                ROP = demand × {settings.leadTimeDays}d lead time
               </p>
             </div>
           )}
         </Card>
 
-        {/* Step 2: Stock Upload */}
+        {/* Step 2: Sales Analysis (auto-loads) */}
+        {selectedBrand && (
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
+                  <BarChart2 className="w-4 h-4 text-indigo-600" />
+                </div>
+                <h2 className="font-semibold">Step 2 — Sales Analysis (last 90 days)</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-md border overflow-hidden text-xs">
+                  <button
+                    className={`px-3 py-1.5 transition-colors ${salesFilter === "moving" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                    onClick={() => setSalesFilter("moving")}
+                    data-testid="tab-sales-moving"
+                  >
+                    With sales
+                  </button>
+                  <button
+                    className={`px-3 py-1.5 transition-colors ${salesFilter === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                    onClick={() => setSalesFilter("all")}
+                    data-testid="tab-sales-all"
+                  >
+                    All products
+                  </button>
+                </div>
+                {salesData && (
+                  <Button variant="outline" size="sm" onClick={exportSalesToExcel} data-testid="button-export-sales">
+                    <Download className="w-4 h-4 mr-1" />
+                    Export
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {salesLoading ? (
+              <div className="flex items-center gap-2 py-6 text-muted-foreground text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading sales data…
+              </div>
+            ) : salesData ? (
+              <>
+                <div className="flex gap-4 text-sm text-muted-foreground mb-3">
+                  <span>{salesData.results.length} products total</span>
+                  <span>{salesData.results.filter(r => r.totalSold90 > 0).length} with sales in 90d</span>
+                  <span>{salesData.results.reduce((s, r) => s + r.totalSold90, 0)} units sold</span>
+                </div>
+                <div className="overflow-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="py-2.5 whitespace-nowrap">SKU</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap">Name</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap">Size</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Stock</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right" title="Sales in 3 consecutive 30-day buckets (oldest → newest)">M1 / M2 / M3</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Total 90d</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Avg Daily</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Smoothed</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Last Sale</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredSales.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                            No products found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredSales.map(row => (
+                          <TableRow key={row.productId} data-testid={`row-sales-${row.productId}`}>
+                            <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
+                            <TableCell className="py-2 max-w-[200px] truncate" title={row.name}>{row.name}</TableCell>
+                            <TableCell className="py-2">{row.size || "—"}</TableCell>
+                            <TableCell className="py-2 text-right font-medium">{row.currentStock}</TableCell>
+                            <TableCell className="py-2 text-right text-sm text-muted-foreground">
+                              {row.bucket1Sales} / {row.bucket2Sales} / {row.bucket3Sales}
+                            </TableCell>
+                            <TableCell className="py-2 text-right font-medium">{row.totalSold90}</TableCell>
+                            <TableCell className="py-2 text-right">{fmt(row.avgDailyDemand, 2)}</TableCell>
+                            <TableCell className="py-2 text-right">{fmt(row.smoothedDailyDemand, 2)}</TableCell>
+                            <TableCell className="py-2 text-right text-xs text-muted-foreground">
+                              {row.lastSaleDate
+                                ? new Date(row.lastSaleDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+                                : "Never"}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            ) : null}
+          </Card>
+        )}
+
+        {/* Step 3: Stock Upload */}
         {selectedBrand && (
           <Card className="p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/30">
                 <Upload className="w-4 h-4 text-teal-600" />
               </div>
-              <h2 className="font-semibold">Step 2 — Upload Current Stock</h2>
+              <h2 className="font-semibold">Step 3 — Upload Current Stock</h2>
             </div>
 
             <p className="text-sm text-muted-foreground mb-3">
-              Upload an Excel file with columns: <strong>SKU</strong>, <strong>Size</strong>, <strong>Stock</strong> (or "Current Stock").
-              Products are matched to <strong>{selectedBrand}</strong> by SKU + Size (case-insensitive).
+              Upload a <strong>Stock Detail (Summary)</strong> Excel export. The file should have a <strong>NameToDisplay</strong> column and a <strong>Stock</strong> column.
+              Products are matched to <strong>{selectedBrand}</strong> by name (case-insensitive). Duplicate entries for the same product are summed.
             </p>
 
             <div
@@ -408,7 +557,7 @@ export default function StockPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.xls"
                 className="hidden"
                 onChange={handleFileChange}
                 data-testid="input-stock-file"
@@ -421,8 +570,8 @@ export default function StockPage() {
               ) : (
                 <div className="flex flex-col items-center gap-2">
                   <Upload className="w-8 h-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">Drop your Excel file here or click to browse</p>
-                  <p className="text-xs text-muted-foreground">.xlsx or .xls</p>
+                  <p className="text-sm font-medium">Drop your Stock Detail Excel here or click to browse</p>
+                  <p className="text-xs text-muted-foreground">.xlsx or .xls · NameToDisplay + Stock columns</p>
                 </div>
               )}
             </div>
@@ -437,7 +586,7 @@ export default function StockPage() {
                     </p>
                     {uploadResult.unmatchedCount > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {uploadResult.unmatchedCount} rows could not be matched to a product.
+                        {uploadResult.unmatchedCount} names could not be matched to a product.
                       </p>
                     )}
                   </div>
@@ -450,24 +599,22 @@ export default function StockPage() {
                       onClick={() => setShowUnmatched(v => !v)}
                     >
                       {showUnmatched ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                      {showUnmatched ? "Hide" : "Show"} unmatched rows ({uploadResult.unmatchedCount})
+                      {showUnmatched ? "Hide" : "Show"} unmatched ({uploadResult.unmatchedCount})
                     </button>
                     {showUnmatched && (
                       <div className="mt-2 border rounded text-xs overflow-auto max-h-48">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="py-2">SKU</TableHead>
-                              <TableHead className="py-2">Size</TableHead>
-                              <TableHead className="py-2">Stock</TableHead>
+                              <TableHead className="py-2">Name (from file)</TableHead>
+                              <TableHead className="py-2 text-right">Stock</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {uploadResult.unmatched.map((row, i) => (
                               <TableRow key={i}>
-                                <TableCell className="py-1">{row.sku}</TableCell>
-                                <TableCell className="py-1">{row.size || "—"}</TableCell>
-                                <TableCell className="py-1">{row.stock}</TableCell>
+                                <TableCell className="py-1">{row.name}</TableCell>
+                                <TableCell className="py-1 text-right">{row.stock}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -481,17 +628,17 @@ export default function StockPage() {
           </Card>
         )}
 
-        {/* Step 3: Forecast */}
+        {/* Step 4: Run Forecast */}
         {selectedBrand && (
           <Card className="p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950/30">
                 <TrendingUp className="w-4 h-4 text-orange-600" />
               </div>
-              <h2 className="font-semibold">Step 3 — Run Demand Forecast</h2>
+              <h2 className="font-semibold">Step 4 — Run Demand Forecast</h2>
             </div>
 
-            <div className="flex items-end gap-4">
+            <div className="flex items-end gap-4 flex-wrap">
               <div>
                 <Label className="text-sm mb-1.5 block">Forecast Horizon</Label>
                 <Select value={String(forecastDays)} onValueChange={v => setForecastDays(parseInt(v))}>
@@ -516,32 +663,36 @@ export default function StockPage() {
                   <><RefreshCw className="w-4 h-4 mr-2" />Run Forecast</>
                 )}
               </Button>
+              {!uploadResult && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Tip: upload current stock (Step 3) before running for accurate reorder signals.
+                </p>
+              )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Uses last 90 days of Invoiced/Dispatched/Delivered/PODReceived orders with 3-month moving average and exponential smoothing (α = 0.3).
+              Uses last 90 days of Invoiced/Dispatched/Delivered orders · 3-month moving average + exponential smoothing (α = 0.3).
             </p>
           </Card>
         )}
 
-        {/* Step 4: Results */}
+        {/* Forecast Results */}
         {forecastResult && (
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
-                  <Package className="w-4 h-4 text-purple-600" />
+                  <Boxes className="w-4 h-4 text-purple-600" />
                 </div>
                 <h2 className="font-semibold">
-                  Forecast Results — {forecastResult.brand} ({forecastResult.forecastDays}-day horizon)
+                  Forecast — {forecastResult.brand} ({forecastResult.forecastDays}-day horizon)
                 </h2>
               </div>
-              <Button variant="outline" size="sm" onClick={exportToExcel} data-testid="button-export">
+              <Button variant="outline" size="sm" onClick={exportForecastToExcel} data-testid="button-export-forecast">
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
             </div>
 
-            {/* Summary counts */}
             <div className="flex flex-wrap gap-2 mb-4">
               {STATUS_TABS.map(tab => {
                 const count = tab === "All" ? forecastResult.results.length : (statusCounts[tab] || 0);
@@ -565,7 +716,6 @@ export default function StockPage() {
               })}
             </div>
 
-            {/* Results Table */}
             <div className="overflow-auto rounded-lg border">
               <Table>
                 <TableHeader>
@@ -589,14 +739,14 @@ export default function StockPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredResults.length === 0 ? (
+                  {filteredForecast.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                         No products in this category.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredResults.map(row => (
+                    filteredForecast.map(row => (
                       <TableRow key={row.productId} data-testid={`row-product-${row.productId}`}>
                         <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
                         <TableCell className="py-2 max-w-[180px] truncate" title={row.name}>{row.name}</TableCell>
@@ -609,7 +759,7 @@ export default function StockPage() {
                         <TableCell className="py-2 text-right">{fmt(row.smoothedDailyDemand, 2)}</TableCell>
                         <TableCell className="py-2 text-right font-medium">{row.forecastedDemand}</TableCell>
                         <TableCell className="py-2 text-right">
-                          <span className={row.currentStock < row.rop && row.status === "Reorder Needed" ? "text-red-600 font-semibold" : ""}>
+                          <span className={row.status === "Reorder Needed" ? "text-red-600 font-semibold" : ""}>
                             {row.rop}
                           </span>
                         </TableCell>
@@ -632,7 +782,7 @@ export default function StockPage() {
             </div>
 
             <p className="mt-3 text-xs text-muted-foreground">
-              Settings used: Lead time {forecastResult.leadTimeDays}d · Non-moving threshold {forecastResult.nonMovingDays}d · Extra stock threshold {forecastResult.slowMovingDays}d coverage
+              Settings: Lead time {forecastResult.leadTimeDays}d · Non-moving {forecastResult.nonMovingDays}d · Extra stock {forecastResult.slowMovingDays}d coverage
             </p>
           </Card>
         )}

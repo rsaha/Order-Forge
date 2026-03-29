@@ -5341,7 +5341,73 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/stock/upload/:brand — upload stock Excel, update products.stock
+  // GET /api/stock/sales/:brand — get sales analysis (avg demand per product, no stock needed)
+  app.get('/api/stock/sales/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+
+      const now = new Date();
+      const MS_DAY = 24 * 60 * 60 * 1000;
+      const windowStart = new Date(now.getTime() - 90 * MS_DAY);
+      const bucket1Start = windowStart;
+      const bucket1End = new Date(windowStart.getTime() + 30 * MS_DAY - 1);
+      const bucket2Start = new Date(windowStart.getTime() + 30 * MS_DAY);
+      const bucket2End = new Date(windowStart.getTime() + 60 * MS_DAY - 1);
+      const bucket3Start = new Date(windowStart.getTime() + 60 * MS_DAY);
+
+      const [allProducts, b1Sales, b2Sales, b3Sales] = await Promise.all([
+        storage.getProductsForForecast(brand),
+        storage.getSoldQuantitiesByProduct(brand, bucket1Start, bucket1End),
+        storage.getSoldQuantitiesByProduct(brand, bucket2Start, bucket2End),
+        storage.getSoldQuantitiesByProduct(brand, bucket3Start, now),
+      ]);
+
+      const b1Map = new Map(b1Sales.map(s => [s.productId, s]));
+      const b2Map = new Map(b2Sales.map(s => [s.productId, s]));
+      const b3Map = new Map(b3Sales.map(s => [s.productId, s]));
+      const ALPHA = 0.3;
+
+      const results = allProducts.map(product => {
+        const b1 = b1Map.get(product.id)?.quantity || 0;
+        const b2 = b2Map.get(product.id)?.quantity || 0;
+        const b3 = b3Map.get(product.id)?.quantity || 0;
+        const totalSold90 = b1 + b2 + b3;
+        const movingAvgMonthly = (b1 + b2 + b3) / 3;
+        const movingAvgDailyRate = movingAvgMonthly / 30;
+        const b3DailyRate = b3 / 30;
+        const smoothedDailyDemand = ALPHA * b3DailyRate + (1 - ALPHA) * movingAvgDailyRate;
+        const lastSaleEntry = b3Map.get(product.id) || b2Map.get(product.id) || b1Map.get(product.id);
+
+        return {
+          productId: product.id,
+          sku: product.sku,
+          name: product.name,
+          size: product.size || '',
+          currentStock: product.stock || 0,
+          bucket1Sales: b1,
+          bucket2Sales: b2,
+          bucket3Sales: b3,
+          totalSold90,
+          avgDailyDemand: parseFloat(movingAvgDailyRate.toFixed(3)),
+          smoothedDailyDemand: parseFloat(smoothedDailyDemand.toFixed(3)),
+          lastSaleDate: lastSaleEntry?.lastSaleDate?.toISOString() || null,
+        };
+      });
+
+      // Sort by totalSold90 desc, then by name
+      results.sort((a, b) => b.totalSold90 - a.totalSold90 || a.name.localeCompare(b.name));
+
+      res.json({ brand, bucketDays: 30, results });
+    } catch (error) {
+      console.error("Error fetching stock sales:", error);
+      res.status(500).json({ message: "Failed to fetch sales data" });
+    }
+  });
+
+  // POST /api/stock/upload/:brand — upload stock Excel (NameToDisplay format), update products.stock
   app.post('/api/stock/upload/:brand', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -5352,49 +5418,80 @@ export async function registerRoutes(
       const brand = decodeURIComponent(req.params.brand);
       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
 
-      if (rows.length === 0) return res.status(400).json({ message: "File is empty or unreadable" });
+      // Parse as raw rows (with header: 1) to find the header row dynamically
+      const rawRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
 
-      // Normalize header names
-      function getField(row: Record<string, any>, ...keys: string[]): string {
-        for (const k of keys) {
-          const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/\s+/g, '') === k.toLowerCase().replace(/\s+/g, ''));
-          if (found !== undefined && row[found] !== undefined && row[found] !== "") return String(row[found]).trim();
+      if (rawRows.length === 0) return res.status(400).json({ message: "File is empty or unreadable" });
+
+      // Find the header row — look for a row that contains "NameToDisplay" or common stock column headers
+      function normalizeHeader(s: string): string {
+        return String(s).toLowerCase().replace(/[\s/\-_]/g, '');
+      }
+      let headerRowIdx = -1;
+      let nameColIdx = -1;
+      let stockColIdx = -1;
+      for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
+        const row = rawRows[i] as any[];
+        for (let j = 0; j < row.length; j++) {
+          const cell = normalizeHeader(row[j]);
+          if (cell === 'nametodisplay' || cell === 'productname' || cell === 'name') {
+            nameColIdx = j;
+            headerRowIdx = i;
+          }
+          if (cell === 'stock' || cell === 'currentstock' || cell === 'qty' || cell === 'quantity') {
+            stockColIdx = j;
+          }
         }
-        return "";
+        if (nameColIdx !== -1 && stockColIdx !== -1) break;
+      }
+
+      if (headerRowIdx === -1 || nameColIdx === -1 || stockColIdx === -1) {
+        return res.status(400).json({ message: "Could not find required columns (NameToDisplay / Stock) in the file" });
+      }
+
+      // Aggregate stock by normalized name (sum duplicates)
+      const nameStockMap = new Map<string, number>(); // normalized name -> total stock
+      const rawNameMap = new Map<string, string>();   // normalized name -> original display name
+      for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
+        const row = rawRows[i] as any[];
+        const displayName = String(row[nameColIdx] || '').trim();
+        const stockVal = Number(row[stockColIdx]) || 0;
+        if (!displayName || displayName.toLowerCase().startsWith('grand total') || displayName.toLowerCase().startsWith('total')) continue;
+        const norm = displayName.toLowerCase().replace(/\s+/g, ' ');
+        nameStockMap.set(norm, (nameStockMap.get(norm) || 0) + stockVal);
+        if (!rawNameMap.has(norm)) rawNameMap.set(norm, displayName);
       }
 
       const brandProducts = await storage.getProductsForForecast(brand);
-      // Index by sku+size for fast lookup (case-insensitive)
-      const productIndex = new Map<string, string>(); // key: `${sku}__${size}` -> productId
+
+      // Build name index for products (normalize: lowercase, collapse whitespace)
+      const productNameIndex = new Map<string, string>(); // normalized name -> productId
       for (const p of brandProducts) {
-        const key = `${(p.sku || '').toLowerCase()}__${(p.size || '').toLowerCase()}`;
-        productIndex.set(key, p.id);
+        const norm = p.name.toLowerCase().replace(/\s+/g, ' ');
+        productNameIndex.set(norm, p.id);
       }
 
       const updates: Array<{ productId: string; stock: number }> = [];
-      const unmatched: Array<{ sku: string; size: string; stock: number }> = [];
+      const unmatched: Array<{ name: string; stock: number }> = [];
 
-      for (const row of rows) {
-        const sku = getField(row, 'sku', 'SKU', 'productsku', 'ProductSKU', 'Product SKU ID');
-        const size = getField(row, 'size', 'Size', 'SIZE');
-        const stockRaw = getField(row, 'stock', 'Stock', 'CurrentStock', 'Current Stock', 'qty', 'Qty', 'Quantity', 'quantity');
-        const stockNum = parseInt(stockRaw) || 0;
-        if (!sku) continue;
-
-        const key = `${sku.toLowerCase()}__${size.toLowerCase()}`;
-        const productId = productIndex.get(key);
+      for (const [normName, stockNum] of nameStockMap.entries()) {
+        const productId = productNameIndex.get(normName);
         if (productId) {
           updates.push({ productId, stock: stockNum });
         } else {
-          // Try SKU-only match when size is empty or not found
-          const skuOnlyKey = `${sku.toLowerCase()}__`;
-          const skuOnlyId = productIndex.get(skuOnlyKey);
-          if (skuOnlyId) {
-            updates.push({ productId: skuOnlyId, stock: stockNum });
+          // Try partial match: product name contains display name or vice versa
+          let found: string | undefined;
+          for (const [pNorm, pId] of productNameIndex.entries()) {
+            if (pNorm.includes(normName) || normName.includes(pNorm)) {
+              found = pId;
+              break;
+            }
+          }
+          if (found) {
+            updates.push({ productId: found, stock: stockNum });
           } else {
-            unmatched.push({ sku, size, stock: stockNum });
+            unmatched.push({ name: rawNameMap.get(normName) || normName, stock: stockNum });
           }
         }
       }
