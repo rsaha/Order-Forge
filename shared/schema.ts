@@ -232,6 +232,16 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   }),
 }));
 
+// Brand forecast settings table - per-brand configuration for demand forecasting
+export const brandForecastSettings = pgTable("brand_forecast_settings", {
+  brand: varchar("brand").primaryKey(),
+  leadTimeDays: integer("lead_time_days").notNull().default(2),
+  nonMovingDays: integer("non_moving_days").notNull().default(60),
+  slowMovingDays: integer("slow_moving_days").notNull().default(90),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });
@@ -240,6 +250,7 @@ export const insertUserPartyAccessSchema = createInsertSchema(userPartyAccess).o
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
+export const insertBrandForecastSettingsSchema = createInsertSchema(brandForecastSettings).omit({ updatedAt: true });
 
 // Update schema for orders (all fields optional except id)
 export const updateOrderSchema = z.object({
@@ -311,3 +322,5 @@ export type BrandRecord = typeof brands.$inferSelect;
 export type InsertBrand = z.infer<typeof insertBrandSchema>;
 export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+export type BrandForecastSettings = typeof brandForecastSettings.$inferSelect;
+export type InsertBrandForecastSettings = z.infer<typeof insertBrandForecastSettingsSchema>;

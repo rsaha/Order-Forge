@@ -8,6 +8,7 @@ import {
   orderItems,
   brands,
   announcements,
+  brandForecastSettings,
   type User,
   type UpsertUser,
   type Product,
@@ -28,6 +29,7 @@ import {
   type InsertBrand,
   type Announcement,
   type InsertAnnouncement,
+  type BrandForecastSettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
@@ -126,6 +128,15 @@ export interface IStorage {
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
   updateAnnouncement(id: string, updates: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
   deleteAnnouncement(id: string): Promise<boolean>;
+
+  // Brand forecast settings operations
+  getBrandForecastSettings(brand: string): Promise<BrandForecastSettings | undefined>;
+  upsertBrandForecastSettings(brand: string, settings: { leadTimeDays: number; nonMovingDays: number; slowMovingDays: number }, updatedBy?: string): Promise<BrandForecastSettings>;
+
+  // Stock operations
+  updateProductsStock(updates: Array<{ productId: string; stock: number }>): Promise<number>;
+  getProductsForForecast(brand: string): Promise<Product[]>;
+  getSoldQuantitiesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Array<{ productId: string; quantity: number; lastSaleDate: Date }>>;
 }
 
 export interface StatusMetric {
@@ -1927,6 +1938,93 @@ export class DatabaseStorage implements IStorage {
   async deleteAnnouncement(id: string): Promise<boolean> {
     const result = await db.delete(announcements).where(eq(announcements.id, id)).returning();
     return result.length > 0;
+  }
+
+  // Brand forecast settings operations
+  async getBrandForecastSettings(brand: string): Promise<BrandForecastSettings | undefined> {
+    const [result] = await db
+      .select()
+      .from(brandForecastSettings)
+      .where(eq(brandForecastSettings.brand, brand));
+    return result;
+  }
+
+  async upsertBrandForecastSettings(
+    brand: string,
+    settings: { leadTimeDays: number; nonMovingDays: number; slowMovingDays: number },
+    updatedBy?: string,
+  ): Promise<BrandForecastSettings> {
+    const [result] = await db
+      .insert(brandForecastSettings)
+      .values({
+        brand,
+        leadTimeDays: settings.leadTimeDays,
+        nonMovingDays: settings.nonMovingDays,
+        slowMovingDays: settings.slowMovingDays,
+        updatedAt: new Date(),
+        updatedBy: updatedBy || null,
+      })
+      .onConflictDoUpdate({
+        target: brandForecastSettings.brand,
+        set: {
+          leadTimeDays: settings.leadTimeDays,
+          nonMovingDays: settings.nonMovingDays,
+          slowMovingDays: settings.slowMovingDays,
+          updatedAt: new Date(),
+          updatedBy: updatedBy || null,
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  // Stock operations
+  async updateProductsStock(updates: Array<{ productId: string; stock: number }>): Promise<number> {
+    if (updates.length === 0) return 0;
+    let updated = 0;
+    for (const { productId, stock } of updates) {
+      const result = await db
+        .update(products)
+        .set({ stock })
+        .where(eq(products.id, productId))
+        .returning({ id: products.id });
+      if (result.length > 0) updated++;
+    }
+    return updated;
+  }
+
+  async getProductsForForecast(brand: string): Promise<Product[]> {
+    return db.select().from(products).where(eq(products.brand, brand));
+  }
+
+  async getSoldQuantitiesByProduct(
+    brand: string,
+    fromDate: Date,
+    toDate: Date,
+  ): Promise<Array<{ productId: string; quantity: number; lastSaleDate: Date }>> {
+    const SOLD_STATUSES = ['Invoiced', 'Dispatched', 'Delivered', 'PODReceived'];
+    const rows = await db
+      .select({
+        productId: orderItems.productId,
+        quantity: sql<number>`SUM(${orderItems.quantity})`,
+        lastSaleDate: sql<Date>`MAX(COALESCE(${orders.invoiceDate}, ${orders.createdAt}))`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(
+        and(
+          eq(orders.brand, brand),
+          inArray(orders.status, SOLD_STATUSES),
+          gte(sql`COALESCE(${orders.invoiceDate}, ${orders.createdAt})`, fromDate),
+          lte(sql`COALESCE(${orders.invoiceDate}, ${orders.createdAt})`, toDate),
+        ),
+      )
+      .groupBy(orderItems.productId);
+    return rows.map(r => ({
+      productId: r.productId,
+      quantity: Number(r.quantity),
+      lastSaleDate: new Date(r.lastSaleDate),
+    }));
   }
 }
 

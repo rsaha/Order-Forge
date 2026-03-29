@@ -5299,5 +5299,234 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================================
+  // Stock Demand Forecast Routes
+  // ============================================================
+
+  // GET /api/stock/settings/:brand — get brand forecast settings
+  app.get('/api/stock/settings/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+      const settings = await storage.getBrandForecastSettings(brand);
+      // Return defaults if not found
+      res.json(settings || { brand, leadTimeDays: 2, nonMovingDays: 60, slowMovingDays: 90 });
+    } catch (error) {
+      console.error("Error fetching brand forecast settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  // PUT /api/stock/settings/:brand — upsert brand forecast settings
+  app.put('/api/stock/settings/:brand', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const brand = decodeURIComponent(req.params.brand);
+      const schema = z.object({
+        leadTimeDays: z.number().int().min(0).max(365),
+        nonMovingDays: z.number().int().min(1).max(365),
+        slowMovingDays: z.number().int().min(1).max(3650),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid settings", errors: parsed.error.errors });
+      const result = await storage.upsertBrandForecastSettings(brand, parsed.data, userId);
+      res.json(result);
+    } catch (error) {
+      console.error("Error saving brand forecast settings:", error);
+      res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // POST /api/stock/upload/:brand — upload stock Excel, update products.stock
+  app.post('/api/stock/upload/:brand', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+      const brand = decodeURIComponent(req.params.brand);
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
+
+      if (rows.length === 0) return res.status(400).json({ message: "File is empty or unreadable" });
+
+      // Normalize header names
+      function getField(row: Record<string, any>, ...keys: string[]): string {
+        for (const k of keys) {
+          const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/\s+/g, '') === k.toLowerCase().replace(/\s+/g, ''));
+          if (found !== undefined && row[found] !== undefined && row[found] !== "") return String(row[found]).trim();
+        }
+        return "";
+      }
+
+      const brandProducts = await storage.getProductsForForecast(brand);
+      // Index by sku+size for fast lookup (case-insensitive)
+      const productIndex = new Map<string, string>(); // key: `${sku}__${size}` -> productId
+      for (const p of brandProducts) {
+        const key = `${(p.sku || '').toLowerCase()}__${(p.size || '').toLowerCase()}`;
+        productIndex.set(key, p.id);
+      }
+
+      const updates: Array<{ productId: string; stock: number }> = [];
+      const unmatched: Array<{ sku: string; size: string; stock: number }> = [];
+
+      for (const row of rows) {
+        const sku = getField(row, 'sku', 'SKU', 'productsku', 'ProductSKU', 'Product SKU ID');
+        const size = getField(row, 'size', 'Size', 'SIZE');
+        const stockRaw = getField(row, 'stock', 'Stock', 'CurrentStock', 'Current Stock', 'qty', 'Qty', 'Quantity', 'quantity');
+        const stockNum = parseInt(stockRaw) || 0;
+        if (!sku) continue;
+
+        const key = `${sku.toLowerCase()}__${size.toLowerCase()}`;
+        const productId = productIndex.get(key);
+        if (productId) {
+          updates.push({ productId, stock: stockNum });
+        } else {
+          // Try SKU-only match when size is empty or not found
+          const skuOnlyKey = `${sku.toLowerCase()}__`;
+          const skuOnlyId = productIndex.get(skuOnlyKey);
+          if (skuOnlyId) {
+            updates.push({ productId: skuOnlyId, stock: stockNum });
+          } else {
+            unmatched.push({ sku, size, stock: stockNum });
+          }
+        }
+      }
+
+      const updatedCount = await storage.updateProductsStock(updates);
+      res.json({
+        message: `Updated stock for ${updatedCount} products`,
+        updatedCount,
+        unmatchedCount: unmatched.length,
+        unmatched,
+      });
+    } catch (error) {
+      console.error("Error uploading stock:", error);
+      res.status(500).json({ message: "Failed to process stock upload" });
+    }
+  });
+
+  // POST /api/stock/forecast — run demand forecast for a brand
+  app.post('/api/stock/forecast', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const schema = z.object({
+        brand: z.string().min(1),
+        forecastDays: z.number().int().min(1).max(365),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
+
+      const { brand, forecastDays } = parsed.data;
+
+      // Get brand settings (defaults if not configured)
+      const settings = await storage.getBrandForecastSettings(brand);
+      const leadTimeDays = settings?.leadTimeDays ?? 2;
+      const nonMovingDays = settings?.nonMovingDays ?? 60;
+      const slowMovingDays = settings?.slowMovingDays ?? 90;
+
+      // 90-day window ending today
+      const now = new Date();
+      const MS_DAY = 24 * 60 * 60 * 1000;
+      const windowStart = new Date(now.getTime() - 90 * MS_DAY);
+
+      // Three 30-day buckets (oldest to newest)
+      const bucket1Start = windowStart;
+      const bucket1End = new Date(windowStart.getTime() + 30 * MS_DAY - 1);
+      const bucket2Start = new Date(windowStart.getTime() + 30 * MS_DAY);
+      const bucket2End = new Date(windowStart.getTime() + 60 * MS_DAY - 1);
+      const bucket3Start = new Date(windowStart.getTime() + 60 * MS_DAY);
+      const bucket3End = now;
+
+      const [allProducts, b1Sales, b2Sales, b3Sales] = await Promise.all([
+        storage.getProductsForForecast(brand),
+        storage.getSoldQuantitiesByProduct(brand, bucket1Start, bucket1End),
+        storage.getSoldQuantitiesByProduct(brand, bucket2Start, bucket2End),
+        storage.getSoldQuantitiesByProduct(brand, bucket3Start, bucket3End),
+      ]);
+
+      // Also get last-90-day sales for non-moving check
+      const allSales90 = await storage.getSoldQuantitiesByProduct(brand, windowStart, now);
+
+      // Build lookups
+      const b1Map = new Map(b1Sales.map(s => [s.productId, s]));
+      const b2Map = new Map(b2Sales.map(s => [s.productId, s]));
+      const b3Map = new Map(b3Sales.map(s => [s.productId, s]));
+      const all90Map = new Map(allSales90.map(s => [s.productId, s]));
+
+      const ALPHA = 0.3;
+      const nonMovingCutoff = new Date(now.getTime() - nonMovingDays * MS_DAY);
+
+      const results = allProducts.map(product => {
+        const b1 = b1Map.get(product.id)?.quantity || 0;
+        const b2 = b2Map.get(product.id)?.quantity || 0;
+        const b3 = b3Map.get(product.id)?.quantity || 0;
+        const totalSold90 = (b1Map.get(product.id)?.quantity || 0) + (b2Map.get(product.id)?.quantity || 0) + (b3Map.get(product.id)?.quantity || 0);
+
+        // 3-month moving average (in units per 30 days)
+        const movingAvgMonthly = (b1 + b2 + b3) / 3;
+        // Daily rates
+        const b3DailyRate = b3 / 30;
+        const movingAvgDailyRate = movingAvgMonthly / 30;
+        // Exponential smoothing: weight recent bucket more
+        const smoothedDailyDemand = ALPHA * b3DailyRate + (1 - ALPHA) * movingAvgDailyRate;
+
+        const forecastedDemand = Math.ceil(smoothedDailyDemand * forecastDays);
+        const rop = Math.ceil(smoothedDailyDemand * leadTimeDays);
+        const currentStock = product.stock || 0;
+        const coverageDays = smoothedDailyDemand > 0 ? Math.round(currentStock / smoothedDailyDemand) : null;
+
+        // Last sale date from all 90-day window
+        const lastSaleEntry = all90Map.get(product.id);
+        const lastSaleDate = lastSaleEntry?.lastSaleDate || null;
+
+        // Determine status
+        const isNonMoving = !lastSaleDate || lastSaleDate < nonMovingCutoff;
+        const isExtraStock = !isNonMoving && coverageDays !== null && coverageDays > slowMovingDays;
+        const isReorderNeeded = !isNonMoving && !isExtraStock && currentStock < rop;
+        const status: string = isNonMoving ? 'Non-Moving' :
+          isExtraStock ? 'Extra Stock' :
+          isReorderNeeded ? 'Reorder Needed' : 'OK';
+
+        return {
+          productId: product.id,
+          sku: product.sku,
+          name: product.name,
+          size: product.size || '',
+          currentStock,
+          bucket1Sales: b1,
+          bucket2Sales: b2,
+          bucket3Sales: b3,
+          totalSold90,
+          avgDailyDemand: parseFloat(movingAvgDailyRate.toFixed(3)),
+          smoothedDailyDemand: parseFloat(smoothedDailyDemand.toFixed(3)),
+          forecastedDemand,
+          rop,
+          coverageDays,
+          lastSaleDate: lastSaleDate?.toISOString() || null,
+          status,
+        };
+      });
+
+      // Sort: Reorder Needed first, then Extra Stock, Non-Moving, OK
+      const statusOrder: Record<string, number> = { 'Reorder Needed': 0, 'Extra Stock': 1, 'Non-Moving': 2, 'OK': 3 };
+      results.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
+
+      res.json({ brand, forecastDays, leadTimeDays, nonMovingDays, slowMovingDays, results });
+    } catch (error) {
+      console.error("Error running stock forecast:", error);
+      res.status(500).json({ message: "Failed to run forecast" });
+    }
+  });
+
   return httpServer;
 }
