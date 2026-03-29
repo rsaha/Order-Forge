@@ -836,7 +836,10 @@ export default function StockPage() {
                       {editedRows.map((row, i) => {
                         const search = previewSearch[i] || "";
                         const filteredProducts = previewData.products.filter(p =>
-                          !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase())
+                          !search
+                          || p.id === row.matchedProductId
+                          || p.name.toLowerCase().includes(search.toLowerCase())
+                          || (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()))
                         );
                         const originalRow = previewData.rows[i];
                         const confidence = editedRows[i].matchedProductId === originalRow.matchedProductId

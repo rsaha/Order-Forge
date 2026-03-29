@@ -5551,6 +5551,7 @@ export async function registerRoutes(
       const displayName = String(row[nameColIdx] || '').trim();
       const stockVal = Number(row[stockColIdx]) || 0;
       if (!displayName || displayName.toLowerCase().startsWith('grand total') || displayName.toLowerCase().startsWith('total')) continue;
+      if (stockVal === 0) continue;
       const norm = displayName.toLowerCase().replace(/\s+/g, ' ');
       nameStockMap.set(norm, (nameStockMap.get(norm) || 0) + stockVal);
       if (!rawNameMap.has(norm)) rawNameMap.set(norm, displayName);
