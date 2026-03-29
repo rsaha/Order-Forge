@@ -134,6 +134,7 @@ interface ImportEntry {
 }
 
 type SortCol = "name" | "stock" | "totalSold90";
+type ForecastSortCol = "name" | "stock" | "totalSold90" | "forecastedDemand" | "rop" | "coverageDays";
 type SortDir = "asc" | "desc";
 
 const STATUS_CONFIG = {
@@ -209,6 +210,7 @@ export default function StockPage() {
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
   const [salesFilter, setSalesFilter] = useState<"all" | "moving">("moving");
   const [salesSort, setSalesSort] = useState<{ col: SortCol; dir: SortDir }>({ col: "totalSold90", dir: "desc" });
+  const [forecastSort, setForecastSort] = useState<{ col: ForecastSortCol; dir: SortDir }>({ col: "rop", dir: "desc" });
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [showImports, setShowImports] = useState(false);
 
@@ -393,6 +395,10 @@ export default function StockPage() {
     setSalesSort(prev => prev.col === col ? { col, dir: prev.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" });
   };
 
+  const toggleForecastSort = (col: ForecastSortCol) => {
+    setForecastSort(prev => prev.col === col ? { col, dir: prev.dir === "asc" ? "desc" : "asc" } : { col, dir: "desc" });
+  };
+
   const exportForecastToExcel = () => {
     if (!forecastResult) return;
     const rows = forecastResult.results.map(r => ({
@@ -453,6 +459,17 @@ export default function StockPage() {
   const filteredForecast = forecastResult?.results.filter(r =>
     statusFilter === "All" ? true : r.status === statusFilter
   ) ?? [];
+
+  const sortedForecast = [...filteredForecast].sort((a, b) => {
+    const dir = forecastSort.dir === "asc" ? 1 : -1;
+    if (forecastSort.col === "name") return dir * a.name.localeCompare(b.name);
+    if (forecastSort.col === "stock") return dir * (a.currentStock - b.currentStock);
+    if (forecastSort.col === "totalSold90") return dir * (a.totalSold90 - b.totalSold90);
+    if (forecastSort.col === "forecastedDemand") return dir * (a.forecastedDemand - b.forecastedDemand);
+    if (forecastSort.col === "rop") return dir * (a.rop - b.rop);
+    if (forecastSort.col === "coverageDays") return dir * ((a.coverageDays ?? 99999) - (b.coverageDays ?? 99999));
+    return 0;
+  });
 
   const statusCounts = forecastResult?.results.reduce((acc, r) => {
     acc[r.status] = (acc[r.status] || 0) + 1;
@@ -644,16 +661,6 @@ export default function StockPage() {
                           </button>
                         </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap">Size</TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right">
-                          <button
-                            className="flex items-center justify-end w-full hover:text-foreground"
-                            onClick={() => toggleSalesSort("stock")}
-                            data-testid="sort-sales-stock"
-                          >
-                            Stock
-                            <SortIcon col="stock" sortCol={salesSort.col} sortDir={salesSort.dir} />
-                          </button>
-                        </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right" title="Sales in 3 consecutive 30-day buckets (oldest → newest)">M1 / M2 / M3</TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right">
                           <button
@@ -665,14 +672,14 @@ export default function StockPage() {
                             <SortIcon col="totalSold90" sortCol={salesSort.col} sortDir={salesSort.dir} />
                           </button>
                         </TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right">Avg Daily</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right">Avg / Week</TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right">Last Sale</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedSales.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                             No products found.
                           </TableCell>
                         </TableRow>
@@ -682,12 +689,11 @@ export default function StockPage() {
                             <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
                             <TableCell className="py-2 max-w-[200px] truncate" title={row.name}>{row.name}</TableCell>
                             <TableCell className="py-2">{row.size || "—"}</TableCell>
-                            <TableCell className="py-2 text-right font-medium">{fmtInt(row.currentStock)}</TableCell>
                             <TableCell className="py-2 text-right text-sm text-muted-foreground">
                               {fmtInt(row.bucket1Sales)} / {fmtInt(row.bucket2Sales)} / {fmtInt(row.bucket3Sales)}
                             </TableCell>
                             <TableCell className="py-2 text-right font-medium">{fmtInt(row.totalSold90)}</TableCell>
-                            <TableCell className="py-2 text-right">{fmtDec(row.avgDailyDemand, 1)}</TableCell>
+                            <TableCell className="py-2 text-right">{fmtInt(row.avgDailyDemand * 7)}</TableCell>
                             <TableCell className="py-2 text-right text-xs text-muted-foreground">
                               {fmt(row.lastSaleDate)}
                             </TableCell>
@@ -1073,31 +1079,51 @@ export default function StockPage() {
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead className="whitespace-nowrap py-2.5">SKU</TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5">Name</TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5">
+                      <button className="flex items-center hover:text-foreground" onClick={() => toggleForecastSort("name")} data-testid="sort-forecast-name">
+                        Name<SortIcon col="name" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                      </button>
+                    </TableHead>
                     <TableHead className="whitespace-nowrap py-2.5">Size</TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right">Stock</TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right" title="Sales in months 1/2/3 of the 90-day window">M1 / M2 / M3</TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right">Avg Daily</TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5 text-right">
+                      <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("stock")} data-testid="sort-forecast-stock">
+                        Stock<SortIcon col="stock" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5 text-right" title="Sales in months 1/2/3 of the 90-day window">
+                      <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("totalSold90")} data-testid="sort-forecast-total">
+                        M1 / M2 / M3<SortIcon col="totalSold90" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5 text-right">Avg / Week</TableHead>
                     <TableHead className="whitespace-nowrap py-2.5 text-right" title={`Forecasted demand for next ${forecastResult.forecastDays} days`}>
-                      Forecast ({forecastResult.forecastDays}d)
+                      <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("forecastedDemand")} data-testid="sort-forecast-demand">
+                        Forecast ({forecastResult.forecastDays}d)<SortIcon col="forecastedDemand" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                      </button>
                     </TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right" title={`Reorder Point = Smoothed × ${forecastResult.leadTimeDays}d lead time`}>
-                      ROP
+                    <TableHead className="whitespace-nowrap py-2.5 text-right" title={`Reorder Point = demand × ${forecastResult.leadTimeDays}d lead time`}>
+                      <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("rop")} data-testid="sort-forecast-rop">
+                        ROP<SortIcon col="rop" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                      </button>
                     </TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right">Coverage</TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5 text-right">
+                      <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("coverageDays")} data-testid="sort-forecast-coverage">
+                        Coverage<SortIcon col="coverageDays" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                      </button>
+                    </TableHead>
                     <TableHead className="whitespace-nowrap py-2.5 text-right">Last Sale</TableHead>
                     <TableHead className="whitespace-nowrap py-2.5">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredForecast.length === 0 ? (
+                  {sortedForecast.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         No products in this category.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredForecast.map(row => (
+                    sortedForecast.map(row => (
                       <TableRow key={row.productId} data-testid={`row-product-${row.productId}`}>
                         <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
                         <TableCell className="py-2 max-w-[180px] truncate" title={row.name}>{row.name}</TableCell>
@@ -1106,7 +1132,7 @@ export default function StockPage() {
                         <TableCell className="py-2 text-right text-sm text-muted-foreground">
                           {fmtInt(row.bucket1Sales)} / {fmtInt(row.bucket2Sales)} / {fmtInt(row.bucket3Sales)}
                         </TableCell>
-                        <TableCell className="py-2 text-right">{fmtDec(row.avgDailyDemand, 1)}</TableCell>
+                        <TableCell className="py-2 text-right">{fmtInt(row.avgDailyDemand * 7)}</TableCell>
                         <TableCell className="py-2 text-right font-medium">{fmtInt(row.forecastedDemand)}</TableCell>
                         <TableCell className="py-2 text-right">
                           <span className={row.status === "Reorder Needed" ? "text-red-600 font-semibold" : ""}>
