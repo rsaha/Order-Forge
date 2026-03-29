@@ -155,12 +155,12 @@ export default function StockPage() {
     staleTime: 0,
   });
 
-  // Sync settings from fetched data
-  const prevBrandRef = useRef<string>("");
-  if (brandSettings && brandSettings.brand !== prevBrandRef.current) {
-    prevBrandRef.current = brandSettings.brand;
-    setSettings(brandSettings);
-  }
+  // Sync settings from fetched data (in effect to avoid render-phase state update)
+  useEffect(() => {
+    if (brandSettings) {
+      setSettings(brandSettings);
+    }
+  }, [brandSettings]);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (data: { leadTimeDays: number; nonMovingDays: number; slowMovingDays: number }) => {
@@ -237,7 +237,6 @@ export default function StockPage() {
     setForecastResult(null);
     setUploadResult(null);
     setShowUnmatched(false);
-    prevBrandRef.current = "";
     setSettings({ brand, leadTimeDays: 2, nonMovingDays: 60, slowMovingDays: 90 });
   };
 

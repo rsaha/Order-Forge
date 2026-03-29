@@ -5481,18 +5481,19 @@ export async function registerRoutes(
         // Exponential smoothing: weight recent bucket more
         const smoothedDailyDemand = ALPHA * b3DailyRate + (1 - ALPHA) * movingAvgDailyRate;
 
-        const forecastedDemand = Math.ceil(smoothedDailyDemand * forecastDays);
-        const rop = Math.ceil(smoothedDailyDemand * leadTimeDays);
+        // Keep exact values for classification, round only for display
+        const forecastedDemandExact = smoothedDailyDemand * forecastDays;
+        const ropExact = smoothedDailyDemand * leadTimeDays;
         const currentStock = product.stock || 0;
-        const coverageDays = smoothedDailyDemand > 0 ? Math.round(currentStock / smoothedDailyDemand) : null;
+        const coverageDaysExact = smoothedDailyDemand > 0 ? currentStock / smoothedDailyDemand : null;
 
         // Last sale date from the configurable non-moving window
         const lastSaleDate = lastSaleDates.get(product.id) || null;
 
-        // Determine status
+        // Determine status using exact values (no rounding artifacts)
         const isNonMoving = !lastSaleDate || lastSaleDate < nonMovingCutoff;
-        const isExtraStock = !isNonMoving && coverageDays !== null && coverageDays > slowMovingDays;
-        const isReorderNeeded = !isNonMoving && !isExtraStock && currentStock < rop;
+        const isExtraStock = !isNonMoving && coverageDaysExact !== null && coverageDaysExact > slowMovingDays;
+        const isReorderNeeded = !isNonMoving && !isExtraStock && currentStock < ropExact;
         const status: string = isNonMoving ? 'Non-Moving' :
           isExtraStock ? 'Extra Stock' :
           isReorderNeeded ? 'Reorder Needed' : 'OK';
@@ -5509,9 +5510,9 @@ export async function registerRoutes(
           totalSold90,
           avgDailyDemand: parseFloat(movingAvgDailyRate.toFixed(3)),
           smoothedDailyDemand: parseFloat(smoothedDailyDemand.toFixed(3)),
-          forecastedDemand,
-          rop,
-          coverageDays,
+          forecastedDemand: Math.ceil(forecastedDemandExact),
+          rop: Math.ceil(ropExact),
+          coverageDays: coverageDaysExact !== null ? Math.round(coverageDaysExact) : null,
           lastSaleDate: lastSaleDate?.toISOString() || null,
           status,
         };
