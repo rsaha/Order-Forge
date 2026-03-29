@@ -134,9 +134,10 @@ export interface IStorage {
   upsertBrandForecastSettings(brand: string, settings: { leadTimeDays: number; nonMovingDays: number; slowMovingDays: number }, updatedBy?: string): Promise<BrandForecastSettings>;
 
   // Stock operations
-  updateProductsStock(updates: Array<{ productId: string; stock: number }>): Promise<number>;
+  updateProductsStock(updates: Array<{ productId: string; stock: number }>): Promise<{ count: number; updatedProducts: Product[] }>;
   getProductsForForecast(brand: string): Promise<Product[]>;
   getSoldQuantitiesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Array<{ productId: string; quantity: number; lastSaleDate: Date }>>;
+  getLastSaleDatesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Map<string, Date>>;
 }
 
 export interface StatusMetric {
@@ -1979,18 +1980,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Stock operations
-  async updateProductsStock(updates: Array<{ productId: string; stock: number }>): Promise<number> {
-    if (updates.length === 0) return 0;
-    let updated = 0;
-    for (const { productId, stock } of updates) {
-      const result = await db
-        .update(products)
-        .set({ stock })
-        .where(eq(products.id, productId))
-        .returning({ id: products.id });
-      if (result.length > 0) updated++;
-    }
-    return updated;
+  async updateProductsStock(updates: Array<{ productId: string; stock: number }>): Promise<{ count: number; updatedProducts: Product[] }> {
+    if (updates.length === 0) return { count: 0, updatedProducts: [] };
+    // Bulk update using unnest
+    const ids = updates.map(u => u.productId);
+    const stocks = updates.map(u => u.stock);
+    const updatedRows = await db.execute(sql`
+      UPDATE products
+      SET stock = v.stock::integer
+      FROM (SELECT unnest(${sql.raw(`ARRAY[${ids.map(id => `'${id}'`).join(',')}]`)}::text[]) AS id,
+                   unnest(${sql.raw(`ARRAY[${stocks.join(',')}]`)}::integer[]) AS stock) AS v
+      WHERE products.id = v.id
+      RETURNING products.*
+    `);
+    const updatedProducts = (updatedRows.rows as any[]).map(r => ({
+      id: r.id,
+      sku: r.sku,
+      name: r.name,
+      brand: r.brand,
+      size: r.size,
+      mrp: r.mrp,
+      stock: r.stock,
+      isActive: r.is_active,
+      userId: r.user_id,
+      createdAt: r.created_at,
+    })) as Product[];
+    return { count: updatedProducts.length, updatedProducts };
   }
 
   async getProductsForForecast(brand: string): Promise<Product[]> {
@@ -2025,6 +2040,31 @@ export class DatabaseStorage implements IStorage {
       quantity: Number(r.quantity),
       lastSaleDate: new Date(r.lastSaleDate),
     }));
+  }
+
+  async getLastSaleDatesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Map<string, Date>> {
+    const SOLD_STATUSES = ['Invoiced', 'Dispatched', 'Delivered', 'PODReceived'];
+    const rows = await db
+      .select({
+        productId: orderItems.productId,
+        lastSaleDate: sql<Date>`MAX(COALESCE(${orders.invoiceDate}, ${orders.createdAt}))`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(
+        and(
+          eq(orders.brand, brand),
+          inArray(orders.status, SOLD_STATUSES),
+          gte(sql`COALESCE(${orders.invoiceDate}, ${orders.createdAt})`, fromDate),
+          lte(sql`COALESCE(${orders.invoiceDate}, ${orders.createdAt})`, toDate),
+        ),
+      )
+      .groupBy(orderItems.productId);
+    const result = new Map<string, Date>();
+    for (const r of rows) {
+      result.set(r.productId, new Date(r.lastSaleDate));
+    }
+    return result;
   }
 }
 

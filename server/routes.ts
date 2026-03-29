@@ -5399,12 +5399,13 @@ export async function registerRoutes(
         }
       }
 
-      const updatedCount = await storage.updateProductsStock(updates);
+      const { count: updatedCount, updatedProducts } = await storage.updateProductsStock(updates);
       res.json({
         message: `Updated stock for ${updatedCount} products`,
         updatedCount,
         unmatchedCount: unmatched.length,
         unmatched,
+        updatedProducts: updatedProducts.map(p => ({ id: p.id, sku: p.sku, name: p.name, size: p.size, stock: p.stock })),
       });
     } catch (error) {
       console.error("Error uploading stock:", error);
@@ -5447,21 +5448,21 @@ export async function registerRoutes(
       const bucket3Start = new Date(windowStart.getTime() + 60 * MS_DAY);
       const bucket3End = now;
 
-      const [allProducts, b1Sales, b2Sales, b3Sales] = await Promise.all([
+      // Non-moving window: use the configured nonMovingDays (may exceed 90)
+      const nonMovingWindowStart = new Date(now.getTime() - Math.max(nonMovingDays, 90) * MS_DAY);
+
+      const [allProducts, b1Sales, b2Sales, b3Sales, lastSaleDates] = await Promise.all([
         storage.getProductsForForecast(brand),
         storage.getSoldQuantitiesByProduct(brand, bucket1Start, bucket1End),
         storage.getSoldQuantitiesByProduct(brand, bucket2Start, bucket2End),
         storage.getSoldQuantitiesByProduct(brand, bucket3Start, bucket3End),
+        storage.getLastSaleDatesByProduct(brand, nonMovingWindowStart, now),
       ]);
-
-      // Also get last-90-day sales for non-moving check
-      const allSales90 = await storage.getSoldQuantitiesByProduct(brand, windowStart, now);
 
       // Build lookups
       const b1Map = new Map(b1Sales.map(s => [s.productId, s]));
       const b2Map = new Map(b2Sales.map(s => [s.productId, s]));
       const b3Map = new Map(b3Sales.map(s => [s.productId, s]));
-      const all90Map = new Map(allSales90.map(s => [s.productId, s]));
 
       const ALPHA = 0.3;
       const nonMovingCutoff = new Date(now.getTime() - nonMovingDays * MS_DAY);
@@ -5485,9 +5486,8 @@ export async function registerRoutes(
         const currentStock = product.stock || 0;
         const coverageDays = smoothedDailyDemand > 0 ? Math.round(currentStock / smoothedDailyDemand) : null;
 
-        // Last sale date from all 90-day window
-        const lastSaleEntry = all90Map.get(product.id);
-        const lastSaleDate = lastSaleEntry?.lastSaleDate || null;
+        // Last sale date from the configurable non-moving window
+        const lastSaleDate = lastSaleDates.get(product.id) || null;
 
         // Determine status
         const isNonMoving = !lastSaleDate || lastSaleDate < nonMovingCutoff;
