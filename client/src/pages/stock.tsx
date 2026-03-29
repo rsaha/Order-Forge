@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -132,10 +132,11 @@ export default function StockPage() {
 
   const isAdmin = user?.isAdmin || false;
 
-  if (!authLoading && !isAdmin) {
-    navigate("/");
-    return null;
-  }
+  useEffect(() => {
+    if (!authLoading && !isAdmin) {
+      navigate("/");
+    }
+  }, [authLoading, isAdmin, navigate]);
 
   const { data: brands = [] } = useQuery<BrandRecord[]>({
     queryKey: ["/api/brands"],
@@ -242,7 +243,7 @@ export default function StockPage() {
 
   const exportToExcel = () => {
     if (!forecastResult) return;
-    const rows = filteredResults.map(r => ({
+    const rows = forecastResult.results.map(r => ({
       SKU: r.sku,
       Name: r.name,
       Size: r.size,
@@ -276,7 +277,7 @@ export default function StockPage() {
 
   const STATUS_TABS = ["All", "Reorder Needed", "Extra Stock", "Non-Moving", "OK"];
 
-  if (authLoading) {
+  if (authLoading || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
