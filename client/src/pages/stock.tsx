@@ -226,6 +226,9 @@ export default function StockPage() {
   const [forecastSort, setForecastSort] = useState<{ col: ForecastSortCol; dir: SortDir }>({ col: "rop", dir: "desc" });
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [showImports, setShowImports] = useState(false);
+  const [step1Open, setStep1Open] = useState(true);
+  const [step2Open, setStep2Open] = useState(true);
+  const [step3Open, setStep3Open] = useState(true);
 
   // Preview flow state
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -260,6 +263,15 @@ export default function StockPage() {
   useEffect(() => {
     if (brandSettings) setSettings(brandSettings);
   }, [brandSettings]);
+
+  // Auto-collapse steps when forecast result loads, to maximize forecast space
+  useEffect(() => {
+    if (forecastResult) {
+      setStep1Open(false);
+      setStep2Open(false);
+      setStep3Open(false);
+    }
+  }, [forecastResult]);
 
   const { data: salesData, isLoading: salesLoading } = useQuery<SalesResult>({
     queryKey: ["/api/stock/sales", selectedBrand],
@@ -528,14 +540,20 @@ export default function StockPage() {
 
         {/* Step 1: Brand & Settings */}
         <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
+          <button
+            className="flex items-center gap-2 w-full text-left"
+            onClick={() => setStep1Open(o => !o)}
+            data-testid="toggle-step1"
+          >
             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
               <Settings className="w-4 h-4 text-blue-600" />
             </div>
-            <h2 className="font-semibold">Step 1 — Brand & Settings</h2>
-          </div>
+            <span className="font-semibold flex-1">Step 1 — Brand & Settings</span>
+            {selectedBrand && !step1Open && <span className="text-xs text-muted-foreground mr-2">{selectedBrand}</span>}
+            {step1Open ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+          </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          {step1Open && (<div className="mt-4"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
             <div className="lg:col-span-2">
               <Label className="text-sm mb-1.5 block">Brand</Label>
               <Select value={selectedBrand} onValueChange={handleBrandChange}>
@@ -608,19 +626,25 @@ export default function StockPage() {
               </p>
             </div>
           )}
+          </div>)}
         </Card>
 
         {/* Step 2: Sales Analysis (auto-loads) */}
         {selectedBrand && (
           <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <button
+                className="flex items-center gap-2 text-left"
+                onClick={() => setStep2Open(o => !o)}
+                data-testid="toggle-step2"
+              >
                 <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
                   <BarChart2 className="w-4 h-4 text-indigo-600" />
                 </div>
-                <h2 className="font-semibold">Step 2 — Sales Analysis (last 90 days)</h2>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <span className="font-semibold">Step 2 — Sales Analysis</span>
+                {step2Open ? <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" /> : <ChevronRight className="w-4 h-4 text-muted-foreground ml-1" />}
+              </button>
+              {step2Open && <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex rounded-md border overflow-hidden text-xs">
                   <button
                     className={`px-3 py-1.5 transition-colors ${salesFilter === "moving" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
@@ -655,9 +679,10 @@ export default function StockPage() {
                     Export
                   </Button>
                 )}
-              </div>
+              </div>}
             </div>
 
+            {step2Open && (<>
             {salesLoading ? (
               <div className="flex items-center gap-2 py-6 text-muted-foreground text-sm">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -773,20 +798,27 @@ export default function StockPage() {
                 )}
               </div>
             )}
+            </>)}
           </Card>
         )}
 
         {/* Step 3: Stock Upload */}
         {selectedBrand && (
           <Card className="p-5">
-            <div className="flex items-center gap-2 mb-4">
+            <button
+              className="flex items-center gap-2 w-full text-left"
+              onClick={() => setStep3Open(o => !o)}
+              data-testid="toggle-step3"
+            >
               <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/30">
                 <Upload className="w-4 h-4 text-teal-600" />
               </div>
-              <h2 className="font-semibold">Step 3 — Upload Current Stock</h2>
-            </div>
+              <span className="font-semibold flex-1">Step 3 — Upload Current Stock</span>
+              {step3Open ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+            </button>
 
-            <p className="text-sm text-muted-foreground mb-3">
+            {step3Open && (<>
+            <p className="text-sm text-muted-foreground mb-3 mt-4">
               Upload a <strong>Stock Detail (Summary)</strong> Excel export with <strong>NameToDisplay</strong> and <strong>Stock</strong> columns.
               Products are matched to <strong>{selectedBrand}</strong> by name. Review and correct matches before confirming.
             </p>
@@ -1015,6 +1047,7 @@ export default function StockPage() {
                 </div>
               )}
             </div>
+            </>)}
           </Card>
         )}
 
