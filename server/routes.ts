@@ -5775,8 +5775,9 @@ export async function registerRoutes(
         const lastSaleDate = lastSaleDates.get(product.id) || null;
 
         // Determine status using exact values (no rounding artifacts)
-        const isNonMoving = !lastSaleDate || lastSaleDate < nonMovingCutoff;
-        const isExtraStock = !isNonMoving && coverageDaysExact !== null && coverageDaysExact > slowMovingDays;
+        // Items with 0 stock are never Non-Moving or Extra Stock (nothing is stuck)
+        const isNonMoving = currentStock > 0 && (!lastSaleDate || lastSaleDate < nonMovingCutoff);
+        const isExtraStock = currentStock > 0 && !isNonMoving && coverageDaysExact !== null && coverageDaysExact > slowMovingDays;
         const isReorderNeeded = !isNonMoving && !isExtraStock && currentStock < ropExact;
         const status: string = isNonMoving ? 'Non-Moving' :
           isExtraStock ? 'Extra Stock' :
