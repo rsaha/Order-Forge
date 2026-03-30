@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -424,10 +430,13 @@ export default function StockPage() {
     setForecastSort(prev => prev.col === col ? { col, dir: prev.dir === "asc" ? "desc" : "asc" } : { col, dir: "desc" });
   };
 
-  const exportForecastToExcel = () => {
+  const exportForecastToExcel = (filterStatus?: string) => {
     if (!forecastResult) return;
     const { bucket1Month: m1, bucket2Month: m2, bucket3Month: m3 } = forecastResult;
-    const rows = forecastResult.results.map(r => ({
+    const sourceRows = filterStatus
+      ? forecastResult.results.filter(r => r.status === filterStatus)
+      : forecastResult.results;
+    const rows = sourceRows.map(r => ({
       SKU: r.sku,
       Name: r.name,
       Size: r.size,
@@ -453,7 +462,8 @@ export default function StockPage() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Forecast");
-    XLSX.writeFile(wb, `forecast_${forecastResult.brand}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const suffix = filterStatus ? `_${filterStatus.replace(/\s+/g, "_")}` : "";
+    XLSX.writeFile(wb, `forecast_${forecastResult.brand}${suffix}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const exportSalesToExcel = () => {
@@ -1110,10 +1120,28 @@ export default function StockPage() {
                   Forecast — {forecastResult.brand} ({forecastResult.forecastDays}-day horizon)
                 </h2>
               </div>
-              <Button variant="outline" size="sm" onClick={exportForecastToExcel} data-testid="button-export-forecast">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" data-testid="button-export-forecast">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportForecastToExcel()} data-testid="export-forecast-all">
+                    All products
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportForecastToExcel("Reorder Needed")} data-testid="export-forecast-reorder">
+                    Reorder Needed only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportForecastToExcel("Non-Moving")} data-testid="export-forecast-nonmoving">
+                    Non-Moving only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportForecastToExcel("Extra Stock")} data-testid="export-forecast-extrastock">
+                    Extra Stock only
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Summary metrics strip */}
