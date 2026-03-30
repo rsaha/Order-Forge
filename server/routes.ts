@@ -5775,8 +5775,9 @@ export async function registerRoutes(
         const lastSaleDate = lastSaleDates.get(product.id) || null;
 
         // Determine status using exact values (no rounding artifacts)
-        // Items with 0 stock are never Non-Moving or Extra Stock (nothing is stuck)
-        const isNonMoving = currentStock > 0 && (!lastSaleDate || lastSaleDate < nonMovingCutoff);
+        // Non-Moving: has stock, AND (no sales in configured window OR no sales in 3-month analysis window)
+        // Extra Stock / Non-Moving require stock > 0 — items with no stock are Reorder Needed or excluded
+        const isNonMoving = currentStock > 0 && (!lastSaleDate || lastSaleDate < nonMovingCutoff || totalSold90 === 0);
         const isExtraStock = currentStock > 0 && !isNonMoving && coverageDaysExact !== null && coverageDaysExact > slowMovingDays;
         const isReorderNeeded = !isNonMoving && !isExtraStock && currentStock < ropExact;
         const status: string = isNonMoving ? 'Non-Moving' :
@@ -5817,11 +5818,14 @@ export async function registerRoutes(
         };
       });
 
+      // Exclude dead products: 0 stock and 0 sales in 3 months — nothing to act on
+      const activeResults = results.filter(r => !(r.currentStock === 0 && r.totalSold90 === 0));
+
       // Sort: Reorder Needed first, then Extra Stock, Non-Moving, OK
       const statusOrder: Record<string, number> = { 'Reorder Needed': 0, 'Extra Stock': 1, 'Non-Moving': 2, 'OK': 3 };
-      results.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
+      activeResults.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
 
-      res.json({ brand, forecastDays, leadTimeDays, nonMovingDays, slowMovingDays, bucket1Month: m1.label, bucket2Month: m2.label, bucket3Month: m3.label, results });
+      res.json({ brand, forecastDays, leadTimeDays, nonMovingDays, slowMovingDays, bucket1Month: m1.label, bucket2Month: m2.label, bucket3Month: m3.label, results: activeResults });
     } catch (error) {
       console.error("Error running stock forecast:", error);
       res.status(500).json({ message: "Failed to run forecast" });
