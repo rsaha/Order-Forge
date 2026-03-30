@@ -5341,6 +5341,32 @@ export async function registerRoutes(
     }
   });
 
+  // Helper: compute last 3 full calendar month buckets
+  function getCalendarMonthBuckets(now: Date) {
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
+    // Is today the last day of the month?
+    const lastDayOfCurrent = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const isLastDay = now.getDate() === lastDayOfCurrent;
+    // End month: current if last day, else previous month
+    let endY = now.getFullYear(), endM = now.getMonth();
+    if (!isLastDay) { endM--; if (endM < 0) { endM = 11; endY--; } }
+    const m3 = { year: endY, month: endM, days: daysInMonth(endY, endM), label: `${MONTH_NAMES[endM]} ${endY}` };
+    let m2Y = endY, m2M = endM - 1; if (m2M < 0) { m2M = 11; m2Y--; }
+    const m2 = { year: m2Y, month: m2M, days: daysInMonth(m2Y, m2M), label: `${MONTH_NAMES[m2M]} ${m2Y}` };
+    let m1Y = m2Y, m1M = m2M - 1; if (m1M < 0) { m1M = 11; m1Y--; }
+    const m1 = { year: m1Y, month: m1M, days: daysInMonth(m1Y, m1M), label: `${MONTH_NAMES[m1M]} ${m1Y}` };
+    return {
+      m1, m2, m3,
+      bucket1Start: new Date(m1.year, m1.month, 1),
+      bucket1End:   new Date(m2.year, m2.month, 1),
+      bucket2Start: new Date(m2.year, m2.month, 1),
+      bucket2End:   new Date(m3.year, m3.month, 1),
+      bucket3Start: new Date(m3.year, m3.month, 1),
+      bucket3End:   new Date(m3.year, m3.month + 1, 1),
+    };
+  }
+
   // GET /api/stock/sales/:brand — get sales analysis (avg demand per product, no stock needed)
   app.get('/api/stock/sales/:brand', isAuthenticated, async (req: any, res) => {
     try {
@@ -5350,19 +5376,13 @@ export async function registerRoutes(
       const brand = decodeURIComponent(req.params.brand);
 
       const now = new Date();
-      const MS_DAY = 24 * 60 * 60 * 1000;
-      const windowStart = new Date(now.getTime() - 90 * MS_DAY);
-      const bucket1Start = windowStart;
-      const bucket1End = new Date(windowStart.getTime() + 30 * MS_DAY - 1);
-      const bucket2Start = new Date(windowStart.getTime() + 30 * MS_DAY);
-      const bucket2End = new Date(windowStart.getTime() + 60 * MS_DAY - 1);
-      const bucket3Start = new Date(windowStart.getTime() + 60 * MS_DAY);
+      const { m1, m2, m3, bucket1Start, bucket1End, bucket2Start, bucket2End, bucket3Start, bucket3End } = getCalendarMonthBuckets(now);
 
       const [allProducts, b1Sales, b2Sales, b3Sales] = await Promise.all([
         storage.getProductsForForecast(brand),
         storage.getSoldQuantitiesByProduct(brand, bucket1Start, bucket1End),
         storage.getSoldQuantitiesByProduct(brand, bucket2Start, bucket2End),
-        storage.getSoldQuantitiesByProduct(brand, bucket3Start, now),
+        storage.getSoldQuantitiesByProduct(brand, bucket3Start, bucket3End),
       ]);
 
       const b1Map = new Map(b1Sales.map(s => [s.productId, s]));
@@ -5375,11 +5395,13 @@ export async function registerRoutes(
         const b2 = b2Map.get(product.id)?.quantity || 0;
         const b3 = b3Map.get(product.id)?.quantity || 0;
         const totalSold90 = b1 + b2 + b3;
-        const movingAvgMonthly = (b1 + b2 + b3) / 3;
-        const movingAvgDailyRate = movingAvgMonthly / 30;
-        const b3DailyRate = b3 / 30;
+        const movingAvgMonthly = totalSold90 / 3;
+        const avgDays = (m1.days + m2.days + m3.days) / 3;
+        const movingAvgDailyRate = movingAvgMonthly / avgDays;
+        const b3DailyRate = b3 / m3.days;
         const smoothedDailyDemand = ALPHA * b3DailyRate + (1 - ALPHA) * movingAvgDailyRate;
         const lastSaleEntry = b3Map.get(product.id) || b2Map.get(product.id) || b1Map.get(product.id);
+        const unitPrice = product.distributorPrice ? parseFloat(product.distributorPrice) : parseFloat(product.price) * 0.45;
 
         return {
           productId: product.id,
@@ -5392,7 +5414,13 @@ export async function registerRoutes(
           bucket3Sales: b3,
           totalSold90,
           avgDailyDemand: parseFloat(movingAvgDailyRate.toFixed(3)),
+          avgWeeklyDemand: parseFloat((movingAvgDailyRate * 7).toFixed(2)),
+          avgMonthlyDemand: parseFloat(movingAvgMonthly.toFixed(2)),
           smoothedDailyDemand: parseFloat(smoothedDailyDemand.toFixed(3)),
+          smoothedWeeklyDemand: parseFloat((smoothedDailyDemand * 7).toFixed(2)),
+          smoothedMonthlyDemand: parseFloat((smoothedDailyDemand * avgDays).toFixed(2)),
+          unitPrice: parseFloat(unitPrice.toFixed(2)),
+          hasPTS: !!product.distributorPrice,
           lastSaleDate: lastSaleEntry?.lastSaleDate?.toISOString() || null,
         };
       });
@@ -5400,7 +5428,7 @@ export async function registerRoutes(
       // Sort by totalSold90 desc, then by name
       results.sort((a, b) => b.totalSold90 - a.totalSold90 || a.name.localeCompare(b.name));
 
-      res.json({ brand, bucketDays: 30, results });
+      res.json({ brand, bucket1Month: m1.label, bucket2Month: m2.label, bucket3Month: m3.label, results });
     } catch (error) {
       console.error("Error fetching stock sales:", error);
       res.status(500).json({ message: "Failed to fetch sales data" });
@@ -5700,18 +5728,9 @@ export async function registerRoutes(
       const nonMovingDays = settings?.nonMovingDays ?? 60;
       const slowMovingDays = settings?.slowMovingDays ?? 90;
 
-      // 90-day window ending today
       const now = new Date();
       const MS_DAY = 24 * 60 * 60 * 1000;
-      const windowStart = new Date(now.getTime() - 90 * MS_DAY);
-
-      // Three 30-day buckets (oldest to newest)
-      const bucket1Start = windowStart;
-      const bucket1End = new Date(windowStart.getTime() + 30 * MS_DAY - 1);
-      const bucket2Start = new Date(windowStart.getTime() + 30 * MS_DAY);
-      const bucket2End = new Date(windowStart.getTime() + 60 * MS_DAY - 1);
-      const bucket3Start = new Date(windowStart.getTime() + 60 * MS_DAY);
-      const bucket3End = now;
+      const { m1, m2, m3, bucket1Start, bucket1End, bucket2Start, bucket2End, bucket3Start, bucket3End } = getCalendarMonthBuckets(now);
 
       // Non-moving window: use the configured nonMovingDays (may exceed 90)
       const nonMovingWindowStart = new Date(now.getTime() - Math.max(nonMovingDays, 90) * MS_DAY);
@@ -5731,19 +5750,19 @@ export async function registerRoutes(
 
       const ALPHA = 0.3;
       const nonMovingCutoff = new Date(now.getTime() - nonMovingDays * MS_DAY);
+      const avgDays = (m1.days + m2.days + m3.days) / 3;
 
       const results = allProducts.map(product => {
         const b1 = b1Map.get(product.id)?.quantity || 0;
         const b2 = b2Map.get(product.id)?.quantity || 0;
         const b3 = b3Map.get(product.id)?.quantity || 0;
-        const totalSold90 = (b1Map.get(product.id)?.quantity || 0) + (b2Map.get(product.id)?.quantity || 0) + (b3Map.get(product.id)?.quantity || 0);
+        const totalSold90 = b1 + b2 + b3;
 
-        // 3-month moving average (in units per 30 days)
-        const movingAvgMonthly = (b1 + b2 + b3) / 3;
-        // Daily rates
-        const b3DailyRate = b3 / 30;
-        const movingAvgDailyRate = movingAvgMonthly / 30;
-        // Exponential smoothing: weight recent bucket more
+        // 3-month moving average using actual calendar month days
+        const movingAvgMonthly = totalSold90 / 3;
+        const movingAvgDailyRate = movingAvgMonthly / avgDays;
+        const b3DailyRate = b3 / m3.days;
+        // Exponential smoothing: weight recent month more
         const smoothedDailyDemand = ALPHA * b3DailyRate + (1 - ALPHA) * movingAvgDailyRate;
 
         // Keep exact values for classification, round only for display
@@ -5763,6 +5782,12 @@ export async function registerRoutes(
           isExtraStock ? 'Extra Stock' :
           isReorderNeeded ? 'Reorder Needed' : 'OK';
 
+        // Value: use distributorPrice (PTS) if available, else MRP × 0.45
+        const unitPrice = product.distributorPrice
+          ? parseFloat(product.distributorPrice)
+          : parseFloat(product.price) * 0.45;
+        const reorderQty = Math.max(Math.ceil(ropExact) - currentStock, 0);
+
         return {
           productId: product.id,
           sku: product.sku,
@@ -5774,12 +5799,20 @@ export async function registerRoutes(
           bucket3Sales: b3,
           totalSold90,
           avgDailyDemand: parseFloat(movingAvgDailyRate.toFixed(3)),
+          avgWeeklyDemand: parseFloat((movingAvgDailyRate * 7).toFixed(2)),
+          avgMonthlyDemand: parseFloat(movingAvgMonthly.toFixed(2)),
           smoothedDailyDemand: parseFloat(smoothedDailyDemand.toFixed(3)),
+          smoothedWeeklyDemand: parseFloat((smoothedDailyDemand * 7).toFixed(2)),
+          smoothedMonthlyDemand: parseFloat((smoothedDailyDemand * avgDays).toFixed(2)),
           forecastedDemand: Math.ceil(forecastedDemandExact),
           rop: Math.ceil(ropExact),
           coverageDays: coverageDaysExact !== null ? Math.round(coverageDaysExact) : null,
           lastSaleDate: lastSaleDate?.toISOString() || null,
           status,
+          unitPrice: parseFloat(unitPrice.toFixed(2)),
+          hasPTS: !!product.distributorPrice,
+          stockValue: parseFloat((unitPrice * currentStock).toFixed(2)),
+          reorderValue: parseFloat((unitPrice * reorderQty).toFixed(2)),
         };
       });
 
@@ -5787,7 +5820,7 @@ export async function registerRoutes(
       const statusOrder: Record<string, number> = { 'Reorder Needed': 0, 'Extra Stock': 1, 'Non-Moving': 2, 'OK': 3 };
       results.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
 
-      res.json({ brand, forecastDays, leadTimeDays, nonMovingDays, slowMovingDays, results });
+      res.json({ brand, forecastDays, leadTimeDays, nonMovingDays, slowMovingDays, bucket1Month: m1.label, bucket2Month: m2.label, bucket3Month: m3.label, results });
     } catch (error) {
       console.error("Error running stock forecast:", error);
       res.status(500).json({ message: "Failed to run forecast" });

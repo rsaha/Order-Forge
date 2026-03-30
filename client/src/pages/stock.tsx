@@ -65,13 +65,21 @@ interface SalesRow {
   bucket3Sales: number;
   totalSold90: number;
   avgDailyDemand: number;
+  avgWeeklyDemand: number;
+  avgMonthlyDemand: number;
   smoothedDailyDemand: number;
+  smoothedWeeklyDemand: number;
+  smoothedMonthlyDemand: number;
+  unitPrice: number;
+  hasPTS: boolean;
   lastSaleDate: string | null;
 }
 
 interface SalesResult {
   brand: string;
-  bucketDays: number;
+  bucket1Month: string;
+  bucket2Month: string;
+  bucket3Month: string;
   results: SalesRow[];
 }
 
@@ -80,6 +88,8 @@ interface ForecastRow extends SalesRow {
   rop: number;
   coverageDays: number | null;
   status: "Non-Moving" | "Extra Stock" | "Reorder Needed" | "OK";
+  stockValue: number;
+  reorderValue: number;
 }
 
 interface ForecastResult {
@@ -88,6 +98,9 @@ interface ForecastResult {
   leadTimeDays: number;
   nonMovingDays: number;
   slowMovingDays: number;
+  bucket1Month: string;
+  bucket2Month: string;
+  bucket3Month: string;
   results: ForecastRow[];
 }
 
@@ -401,20 +414,27 @@ export default function StockPage() {
 
   const exportForecastToExcel = () => {
     if (!forecastResult) return;
+    const { bucket1Month: m1, bucket2Month: m2, bucket3Month: m3 } = forecastResult;
     const rows = forecastResult.results.map(r => ({
       SKU: r.sku,
       Name: r.name,
       Size: r.size,
       "Current Stock": r.currentStock,
-      "Sales (M1)": r.bucket1Sales,
-      "Sales (M2)": r.bucket2Sales,
-      "Sales (M3)": r.bucket3Sales,
-      "Total Sold (90d)": r.totalSold90,
-      "Avg Daily Demand": r.avgDailyDemand,
-      "Smoothed Daily": r.smoothedDailyDemand,
+      [`Sales (${m1})`]: r.bucket1Sales,
+      [`Sales (${m2})`]: r.bucket2Sales,
+      [`Sales (${m3})`]: r.bucket3Sales,
+      "Total (3-month)": r.totalSold90,
+      "Avg/Week (moving)": r.avgWeeklyDemand,
+      "Avg/Month (moving)": r.avgMonthlyDemand,
+      "Avg/Week (smoothed)": r.smoothedWeeklyDemand,
+      "Avg/Month (smoothed)": r.smoothedMonthlyDemand,
       [`Forecast (${forecastResult.forecastDays}d)`]: r.forecastedDemand,
       "ROP": r.rop,
       "Coverage (days)": r.coverageDays ?? "∞",
+      "Unit Price (PTS/est)": r.unitPrice,
+      "PTS Available": r.hasPTS ? "Yes" : "No",
+      "Stock Value": r.stockValue,
+      "Reorder Value": r.reorderValue,
       "Last Sale": r.lastSaleDate ? new Date(r.lastSaleDate).toLocaleDateString("en-IN") : "Never",
       Status: r.status,
     }));
@@ -426,17 +446,22 @@ export default function StockPage() {
 
   const exportSalesToExcel = () => {
     if (!salesData) return;
+    const { bucket1Month: m1, bucket2Month: m2, bucket3Month: m3 } = salesData;
     const rows = salesData.results.map(r => ({
       SKU: r.sku,
       Name: r.name,
       Size: r.size,
       "Current Stock": r.currentStock,
-      "Sales (M1)": r.bucket1Sales,
-      "Sales (M2)": r.bucket2Sales,
-      "Sales (M3)": r.bucket3Sales,
-      "Total Sold (90d)": r.totalSold90,
-      "Avg Daily Demand": r.avgDailyDemand,
-      "Smoothed Daily": r.smoothedDailyDemand,
+      [`Sales (${m1})`]: r.bucket1Sales,
+      [`Sales (${m2})`]: r.bucket2Sales,
+      [`Sales (${m3})`]: r.bucket3Sales,
+      "Total (3-month)": r.totalSold90,
+      "Avg/Week (moving)": r.avgWeeklyDemand,
+      "Avg/Month (moving)": r.avgMonthlyDemand,
+      "Avg/Week (smoothed)": r.smoothedWeeklyDemand,
+      "Avg/Month (smoothed)": r.smoothedMonthlyDemand,
+      "Unit Price (PTS/est)": r.unitPrice,
+      "PTS Available": r.hasPTS ? "Yes" : "No",
       "Last Sale": r.lastSaleDate ? new Date(r.lastSaleDate).toLocaleDateString("en-IN") : "Never",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -661,25 +686,28 @@ export default function StockPage() {
                           </button>
                         </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap">Size</TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right" title="Sales in 3 consecutive 30-day buckets (oldest → newest)">M1 / M2 / M3</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right" title="Sales in the 3 calendar months shown">
+                          {salesData ? `${salesData.bucket1Month} / ${salesData.bucket2Month} / ${salesData.bucket3Month}` : "M1 / M2 / M3"}
+                        </TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right">
                           <button
                             className="flex items-center justify-end w-full hover:text-foreground"
                             onClick={() => toggleSalesSort("totalSold90")}
                             data-testid="sort-sales-total"
                           >
-                            Total 90d
+                            Total (3mo)
                             <SortIcon col="totalSold90" sortCol={salesSort.col} sortDir={salesSort.dir} />
                           </button>
                         </TableHead>
-                        <TableHead className="py-2.5 whitespace-nowrap text-right">Avg / Week</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right" title="Smoothed average weekly demand (ETS α=0.3)">Avg/Wk ⌛</TableHead>
+                        <TableHead className="py-2.5 whitespace-nowrap text-right" title="Smoothed average monthly demand (ETS α=0.3)">Avg/Mo ⌛</TableHead>
                         <TableHead className="py-2.5 whitespace-nowrap text-right">Last Sale</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedSales.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                             No products found.
                           </TableCell>
                         </TableRow>
@@ -693,7 +721,8 @@ export default function StockPage() {
                               {fmtInt(row.bucket1Sales)} / {fmtInt(row.bucket2Sales)} / {fmtInt(row.bucket3Sales)}
                             </TableCell>
                             <TableCell className="py-2 text-right font-medium">{fmtInt(row.totalSold90)}</TableCell>
-                            <TableCell className="py-2 text-right">{fmtInt(row.avgDailyDemand * 7)}</TableCell>
+                            <TableCell className="py-2 text-right">{fmtInt(row.smoothedWeeklyDemand)}</TableCell>
+                            <TableCell className="py-2 text-right">{fmtInt(row.smoothedMonthlyDemand)}</TableCell>
                             <TableCell className="py-2 text-right text-xs text-muted-foreground">
                               {fmt(row.lastSaleDate)}
                             </TableCell>
@@ -1058,17 +1087,22 @@ export default function StockPage() {
             {(() => {
               const results = forecastResult.results;
               const reorderItems = results.filter(r => r.status === "Reorder Needed");
+              const nonMovingItems = results.filter(r => r.status === "Non-Moving");
               const shortfall = reorderItems.reduce((s, r) => s + Math.max(r.rop - r.currentStock, 0), 0);
+              const reorderVal = reorderItems.reduce((s, r) => s + r.reorderValue, 0);
+              const nonMovingVal = nonMovingItems.reduce((s, r) => s + r.stockValue, 0);
               const totalSold = results.reduce((s, r) => s + r.totalSold90, 0);
-              const avgWeekly = results.length > 0
-                ? results.reduce((s, r) => s + r.avgDailyDemand * 7, 0) / results.filter(r => r.avgDailyDemand > 0).length
+              const movingResults = results.filter(r => r.smoothedWeeklyDemand > 0);
+              const avgWeekly = movingResults.length > 0
+                ? movingResults.reduce((s, r) => s + r.smoothedWeeklyDemand, 0) / movingResults.length
                 : 0;
+              const fmtVal = (v: number) => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(1)}K` : `₹${Math.round(v)}`;
               const tiles = [
-                { label: "Reorder Needed", value: reorderItems.length, sub: shortfall > 0 ? `${Math.round(shortfall)} units short` : "No shortfall", color: "border-red-200 bg-red-50 dark:bg-red-950/20", val: "text-red-600" },
-                { label: "OK", value: statusCounts["OK"] || 0, sub: "Adequate coverage", color: "border-green-200 bg-green-50 dark:bg-green-950/20", val: "text-green-600" },
-                { label: "Extra Stock", value: statusCounts["Extra Stock"] || 0, sub: "Above safety level", color: "border-amber-200 bg-amber-50 dark:bg-amber-950/20", val: "text-amber-600" },
-                { label: "Non-Moving", value: statusCounts["Non-Moving"] || 0, sub: "No recent sales", color: "border-gray-200 bg-gray-50 dark:bg-gray-800/40", val: "text-gray-600" },
-                { label: "90d Sales", value: Math.round(totalSold), sub: avgWeekly > 0 ? `~${Math.round(avgWeekly)} avg/wk` : "No sales data", color: "border-blue-200 bg-blue-50 dark:bg-blue-950/20", val: "text-blue-600" },
+                { label: "Reorder Needed", value: reorderItems.length, sub: shortfall > 0 ? `${Math.round(shortfall)} units short` : "No shortfall", extra: reorderVal > 0 ? fmtVal(reorderVal) + " to buy" : null, color: "border-red-200 bg-red-50 dark:bg-red-950/20", val: "text-red-600" },
+                { label: "OK", value: statusCounts["OK"] || 0, sub: "Adequate coverage", extra: null, color: "border-green-200 bg-green-50 dark:bg-green-950/20", val: "text-green-600" },
+                { label: "Extra Stock", value: statusCounts["Extra Stock"] || 0, sub: "Above safety level", extra: null, color: "border-amber-200 bg-amber-50 dark:bg-amber-950/20", val: "text-amber-600" },
+                { label: "Non-Moving", value: nonMovingItems.length, sub: `No sales in ${forecastResult.nonMovingDays}d`, extra: nonMovingVal > 0 ? fmtVal(nonMovingVal) + " stock value" : null, color: "border-gray-200 bg-gray-50 dark:bg-gray-800/40", val: "text-gray-600" },
+                { label: "3-Month Sales", value: Math.round(totalSold), sub: avgWeekly > 0 ? `~${Math.round(avgWeekly)}/wk smoothed` : "No sales data", extra: null, color: "border-blue-200 bg-blue-50 dark:bg-blue-950/20", val: "text-blue-600" },
               ];
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
@@ -1077,6 +1111,7 @@ export default function StockPage() {
                       <div className={`text-2xl font-bold ${t.val}`}>{t.value.toLocaleString()}</div>
                       <div className="text-xs font-medium text-foreground mt-0.5">{t.label}</div>
                       <div className="text-[11px] text-muted-foreground mt-0.5">{t.sub}</div>
+                      {t.extra && <div className={`text-[11px] font-semibold mt-0.5 ${t.val}`}>{t.extra}</div>}
                     </div>
                   ))}
                 </div>
@@ -1122,12 +1157,14 @@ export default function StockPage() {
                         Stock<SortIcon col="stock" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
                       </button>
                     </TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right" title="Sales in months 1/2/3 of the 90-day window">
+                    <TableHead className="whitespace-nowrap py-2.5 text-right" title="Sales in 3 calendar months">
                       <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("totalSold90")} data-testid="sort-forecast-total">
-                        M1 / M2 / M3<SortIcon col="totalSold90" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
+                        {forecastResult.bucket1Month} / {forecastResult.bucket2Month} / {forecastResult.bucket3Month}
+                        <SortIcon col="totalSold90" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
                       </button>
                     </TableHead>
-                    <TableHead className="whitespace-nowrap py-2.5 text-right">Avg / Week</TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5 text-right" title="Smoothed average weekly demand (ETS α=0.3)">Avg/Wk ⌛</TableHead>
+                    <TableHead className="whitespace-nowrap py-2.5 text-right" title="Smoothed average monthly demand (ETS α=0.3)">Avg/Mo ⌛</TableHead>
                     <TableHead className="whitespace-nowrap py-2.5 text-right" title={`Forecasted demand for next ${forecastResult.forecastDays} days`}>
                       <button className="flex items-center justify-end w-full hover:text-foreground" onClick={() => toggleForecastSort("forecastedDemand")} data-testid="sort-forecast-demand">
                         Forecast ({forecastResult.forecastDays}d)<SortIcon col="forecastedDemand" sortCol={forecastSort.col} sortDir={forecastSort.dir} />
@@ -1150,7 +1187,7 @@ export default function StockPage() {
                 <TableBody>
                   {sortedForecast.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                         No products in this category.
                       </TableCell>
                     </TableRow>
@@ -1164,7 +1201,8 @@ export default function StockPage() {
                         <TableCell className="py-2 text-right text-sm text-muted-foreground">
                           {fmtInt(row.bucket1Sales)} / {fmtInt(row.bucket2Sales)} / {fmtInt(row.bucket3Sales)}
                         </TableCell>
-                        <TableCell className="py-2 text-right">{fmtInt(row.avgDailyDemand * 7)}</TableCell>
+                        <TableCell className="py-2 text-right">{fmtInt(row.smoothedWeeklyDemand)}</TableCell>
+                        <TableCell className="py-2 text-right">{fmtInt(row.smoothedMonthlyDemand)}</TableCell>
                         <TableCell className="py-2 text-right font-medium">{fmtInt(row.forecastedDemand)}</TableCell>
                         <TableCell className="py-2 text-right">
                           <span className={row.status === "Reorder Needed" ? "text-red-600 font-semibold" : ""}>
