@@ -1031,7 +1031,7 @@ export default function StockPage() {
               )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Uses last 90 days of Invoiced/Dispatched/Delivered orders · 3-month moving average + exponential smoothing (α = 0.3).
+              Uses last 90 days of Invoiced / Dispatched / Delivered / POD Received orders · Pending & Created orders are excluded from demand · 3-month moving average + exponential smoothing (α = 0.3).
             </p>
           </Card>
         )}
@@ -1053,6 +1053,35 @@ export default function StockPage() {
                 Export
               </Button>
             </div>
+
+            {/* Summary metrics strip */}
+            {(() => {
+              const results = forecastResult.results;
+              const reorderItems = results.filter(r => r.status === "Reorder Needed");
+              const shortfall = reorderItems.reduce((s, r) => s + Math.max(r.rop - r.currentStock, 0), 0);
+              const totalSold = results.reduce((s, r) => s + r.totalSold90, 0);
+              const avgWeekly = results.length > 0
+                ? results.reduce((s, r) => s + r.avgDailyDemand * 7, 0) / results.filter(r => r.avgDailyDemand > 0).length
+                : 0;
+              const tiles = [
+                { label: "Reorder Needed", value: reorderItems.length, sub: shortfall > 0 ? `${Math.round(shortfall)} units short` : "No shortfall", color: "border-red-200 bg-red-50 dark:bg-red-950/20", val: "text-red-600" },
+                { label: "OK", value: statusCounts["OK"] || 0, sub: "Adequate coverage", color: "border-green-200 bg-green-50 dark:bg-green-950/20", val: "text-green-600" },
+                { label: "Extra Stock", value: statusCounts["Extra Stock"] || 0, sub: "Above safety level", color: "border-amber-200 bg-amber-50 dark:bg-amber-950/20", val: "text-amber-600" },
+                { label: "Non-Moving", value: statusCounts["Non-Moving"] || 0, sub: "No recent sales", color: "border-gray-200 bg-gray-50 dark:bg-gray-800/40", val: "text-gray-600" },
+                { label: "90d Sales", value: Math.round(totalSold), sub: avgWeekly > 0 ? `~${Math.round(avgWeekly)} avg/wk` : "No sales data", color: "border-blue-200 bg-blue-50 dark:bg-blue-950/20", val: "text-blue-600" },
+              ];
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+                  {tiles.map(t => (
+                    <div key={t.label} className={`rounded-lg border p-3 ${t.color}`}>
+                      <div className={`text-2xl font-bold ${t.val}`}>{t.value.toLocaleString()}</div>
+                      <div className="text-xs font-medium text-foreground mt-0.5">{t.label}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{t.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             <div className="flex flex-wrap gap-2 mb-4">
               {STATUS_TABS.map(tab => {
