@@ -1,29 +1,35 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Boxes, LayoutDashboard } from "lucide-react";
+import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Boxes, ShoppingBag, Warehouse, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   cartItemCount: number;
-  activeTab?: "products" | "order" | "import";
-  onTabChange?: (tab: "products" | "order" | "import") => void;
+  activeTab?: "order" | "import";
+  onTabChange?: (tab: "order" | "import") => void;
   onCartClick: () => void;
   isAdmin?: boolean;
   isBrandAdmin?: boolean;
   showTabs?: boolean;
-  showPortal?: boolean;
 }
 
-export default function Header({ 
-  cartItemCount, 
-  activeTab, 
+export default function Header({
+  cartItemCount,
+  activeTab,
   onTabChange,
   onCartClick,
   isAdmin = false,
   isBrandAdmin = false,
   showTabs = true,
-  showPortal = false,
 }: HeaderProps) {
+  const [location] = useLocation();
+
   return (
     <>
       <div className="flex items-center gap-2">
@@ -31,7 +37,8 @@ export default function Header({
         <h1 className="font-semibold text-lg hidden sm:block">Order Entry</h1>
       </div>
 
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 flex-wrap">
+        {/* Order & Import tabs — only shown on the home page */}
         {showTabs && (
           <>
             {onTabChange ? (
@@ -70,31 +77,37 @@ export default function Header({
                 </Button>
               </Link>
             )}
-            {isAdmin && (
-              onTabChange ? (
-                <Button
-                  variant={activeTab === "products" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => onTabChange("products")}
-                  data-testid="tab-products"
-                >
-                  <Package className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Products</span>
-                </Button>
-              ) : (
-                <Link href="/?tab=products">
-                  <Button variant="ghost" size="sm" data-testid="tab-products">
-                    <Package className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Products</span>
-                  </Button>
-                </Link>
-              )
-            )}
           </>
         )}
+
+        {/* Sales Orders — all logged-in users */}
+        <Link href="/sales-orders">
+          <Button
+            variant={location === "/sales-orders" ? "secondary" : "ghost"}
+            size="sm"
+            data-testid="tab-sales-orders"
+          >
+            <ShoppingBag className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Sales Orders</span>
+          </Button>
+        </Link>
+
+        {/* Inventory — all logged-in users */}
+        <Link href="/inventory">
+          <Button
+            variant={location === "/inventory" ? "secondary" : "ghost"}
+            size="sm"
+            data-testid="tab-inventory"
+          >
+            <Warehouse className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Inventory</span>
+          </Button>
+        </Link>
+
+        {/* Orders — all logged-in users */}
         <Link href="/orders">
           <Button
-            variant="ghost"
+            variant={location === "/orders" ? "secondary" : "ghost"}
             size="sm"
             data-testid="tab-orders"
           >
@@ -102,34 +115,12 @@ export default function Header({
             <span className="hidden sm:inline">Orders</span>
           </Button>
         </Link>
-        {showPortal && (
-          <Link href="/portal">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="tab-portal"
-            >
-              <LayoutDashboard className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Portal</span>
-            </Button>
-          </Link>
-        )}
-        {isAdmin && (
-          <Link href="/users">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="tab-users"
-            >
-              <Users className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Users</span>
-            </Button>
-          </Link>
-        )}
+
+        {/* Analytics — admin only */}
         {isAdmin && (
           <Link href="/analytics">
             <Button
-              variant="ghost"
+              variant={location === "/analytics" ? "secondary" : "ghost"}
               size="sm"
               data-testid="tab-analytics"
             >
@@ -138,17 +129,37 @@ export default function Header({
             </Button>
           </Link>
         )}
+
+        {/* Admin dropdown — admin only */}
         {isAdmin && (
-          <Link href="/stock">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="tab-stock"
-            >
-              <Boxes className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Stock</span>
-            </Button>
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" data-testid="dropdown-admin">
+                <span className="hidden sm:inline mr-1">Admin</span>
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <Link href="/products">
+                <DropdownMenuItem data-testid="admin-menu-products" className="cursor-pointer">
+                  <Package className="w-4 h-4 mr-2" />
+                  Products
+                </DropdownMenuItem>
+              </Link>
+              <Link href="/users">
+                <DropdownMenuItem data-testid="admin-menu-users" className="cursor-pointer">
+                  <Users className="w-4 h-4 mr-2" />
+                  Users
+                </DropdownMenuItem>
+              </Link>
+              <Link href="/stock">
+                <DropdownMenuItem data-testid="admin-menu-stock" className="cursor-pointer">
+                  <Boxes className="w-4 h-4 mr-2" />
+                  Stock Forecast
+                </DropdownMenuItem>
+              </Link>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </nav>
 
@@ -161,7 +172,7 @@ export default function Header({
       >
         <ShoppingCart className="w-5 h-5" />
         {cartItemCount > 0 && (
-          <Badge 
+          <Badge
             className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
             data-testid="badge-cart-count"
           >

@@ -1,15 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
-import SearchBar from "@/components/SearchBar";
-import BrandFilter from "@/components/BrandFilter";
-import ProductCard from "@/components/ProductCard";
-import UploadDropzone from "@/components/UploadDropzone";
 import CartPanel from "@/components/CartPanel";
 import MobileCartDrawer from "@/components/MobileCartDrawer";
 import MobileCartPage from "@/components/MobileCartPage";
 import FloatingCartButton from "@/components/FloatingCartButton";
-import EmptyState from "@/components/EmptyState";
 import ImportOrder from "@/components/ImportOrder";
 import ParsedOrderReview from "@/components/ParsedOrderReview";
 import OrderTab from "@/components/OrderTab";
@@ -17,21 +12,14 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
-import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
+import { queryClient } from "@/lib/queryClient";
+import { generateWhatsAppMessage, openWhatsApp } from "@/lib/whatsapp";
 import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Pencil, ShoppingCart, Trash2, MessageCircle, CheckCircle, Download, Upload, ArrowLeft, Tag, Megaphone } from "lucide-react";
-import { Link } from "wouter";
-import * as XLSX from "xlsx";
+import { LogOut, ShoppingCart, MessageCircle, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface ParsedItem {
   rawText: string;
@@ -55,12 +43,6 @@ function getEffectivePrice(product: { price: number; distributorPrice?: number |
     if (!isNaN(dp) && dp > 0) return dp;
   }
   return product.price;
-}
-
-interface UploadedFile {
-  name: string;
-  brand: string;
-  productCount: number;
 }
 
 interface StoredCartItem {
@@ -103,22 +85,20 @@ export default function Home() {
   const isVerySmallScreen = useIsMobile(376);
   
   // Read tab from URL query parameter
-  const getInitialTab = (): "products" | "order" | "import" => {
+  const getInitialTab = (): "order" | "import" => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "products" || tab === "order" || tab === "import") {
+    if (tab === "order" || tab === "import") {
       return tab;
     }
     return "order";
   };
   
-  const [activeTab, setActiveTab] = useState<"products" | "order" | "import">(getInitialTab);
-  const [showUploadSection, setShowUploadSection] = useState(false);
+  const [activeTab, setActiveTab] = useState<"order" | "import">(getInitialTab);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItemData[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [partyName, setPartyName] = useState("");
   const [importText, setImportText] = useState("");
@@ -145,21 +125,8 @@ export default function Home() {
     setOrderDetails(newDetails);
   }, [orderDetails.partyName]);
   
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [createdOrder, setCreatedOrder] = useState<any>(null);
   const [showOrderSuccessDialog, setShowOrderSuccessDialog] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    name: "",
-    brand: "",
-    sku: "",
-    size: "",
-    alias1: "",
-    alias2: "",
-    price: "",
-    distributorPrice: "",
-    stock: "",
-  });
   
   const isAdmin = user?.isAdmin === true;
   const isBrandAdmin = user?.role === 'BrandAdmin';
@@ -168,13 +135,6 @@ export default function Home() {
   
   // State for Admin to create orders on behalf of other users
   const [selectedOrderUserId, setSelectedOrderUserId] = useState<string | null>(null);
-
-  const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
-    retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes - products don't change often
-    refetchOnWindowFocus: false,
-  });
 
   const { data: orderProducts = [] } = useQuery<Product[]>({
     queryKey: ["/api/products/by-brand"],
@@ -278,151 +238,6 @@ export default function Home() {
     saveCartToStorage(cart);
   }, [cart]);
 
-  const uploadMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch("/api/products/upload", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      setUploadedFiles(prev => [...prev, {
-        name: data.fileName || "uploaded-file.xlsx",
-        brand: data.brand,
-        productCount: data.count,
-      }]);
-      toast({
-        title: "Upload successful",
-        description: `Imported ${data.count} products`,
-      });
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error as Error)) {
-        toast({
-          title: "Session expired",
-          description: "Please log in again",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Upload failed",
-        description: "Could not parse the file",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateProductMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
-      return apiRequest("PATCH", `/api/products/${id}`, updates);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Product updated successfully" });
-      setSelectedProduct(null);
-    },
-    onError: () => {
-      toast({ title: "Failed to update product", variant: "destructive" });
-    },
-  });
-
-  const deleteProductMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/products/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      toast({ title: "Product deleted successfully" });
-      setProductToDelete(null);
-    },
-    onError: () => {
-      toast({ title: "Failed to delete product", variant: "destructive" });
-    },
-  });
-
-  const handleProductClick = useCallback((product: Product) => {
-    setSelectedProduct(product);
-    setEditFormData({
-      name: product.name,
-      brand: product.brand,
-      sku: product.sku,
-      size: product.size || "",
-      alias1: (product as any).alias1 || "",
-      alias2: (product as any).alias2 || "",
-      price: String(product.price),
-      distributorPrice: (product as any).distributorPrice ? String((product as any).distributorPrice) : "",
-      stock: String(product.stock),
-    });
-  }, []);
-
-  const handleSaveProduct = useCallback(() => {
-    if (!selectedProduct) return;
-    updateProductMutation.mutate({
-      id: selectedProduct.id,
-      updates: {
-        name: editFormData.name,
-        brand: editFormData.brand,
-        sku: editFormData.sku,
-        size: editFormData.size || null,
-        alias1: editFormData.alias1 || null,
-        alias2: editFormData.alias2 || null,
-        price: editFormData.price,
-        distributorPrice: editFormData.distributorPrice || null,
-        stock: parseInt(editFormData.stock) || 0,
-      },
-    });
-  }, [selectedProduct, editFormData, updateProductMutation]);
-
-  const handleDeleteProduct = useCallback(() => {
-    if (!productToDelete) return;
-    deleteProductMutation.mutate(productToDelete.id);
-  }, [productToDelete, deleteProductMutation]);
-
-  const handleExportProducts = useCallback(() => {
-    if (!selectedBrand) {
-      toast({ title: "Please select a brand to export", variant: "destructive" });
-      return;
-    }
-
-    const brandProducts = products.filter(p => p.brand === selectedBrand);
-    if (brandProducts.length === 0) {
-      toast({ title: `No ${selectedBrand} products found`, variant: "destructive" });
-      return;
-    }
-
-    const worksheetData = [
-      ["SKU", "Name", "Brand", "Size", "MRP", "PTS", "Alias 1", "Alias 2"],
-      ...brandProducts.map(p => [
-        p.sku,
-        p.name,
-        p.brand,
-        p.size || "",
-        p.price,
-        (p as any).distributorPrice || "",
-        (p as any).alias1 || "",
-        (p as any).alias2 || "",
-      ]),
-    ];
-
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedBrand} Products`);
-
-    const date = new Date().toISOString().split("T")[0];
-    XLSX.writeFile(workbook, `${selectedBrand}_Products_${date}.xlsx`);
-
-    toast({ title: `Exported ${brandProducts.length} ${selectedBrand} products` });
-  }, [products, selectedBrand, toast]);
 
   const formatINR = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -433,13 +248,9 @@ export default function Home() {
   };
 
   const brands = useMemo(() => {
-    const uniqueBrands = Array.from(new Set(products.map(p => p.brand)));
+    const uniqueBrands = Array.from(new Set(orderProducts.map(p => p.brand)));
     return uniqueBrands.sort();
-  }, [products]);
-
-  const filteredProducts = useMemo(() => {
-    return filterProductsWithFuzzySearch(products, searchQuery, selectedBrand, popularityCounts);
-  }, [products, searchQuery, selectedBrand, popularityCounts]);
+  }, [orderProducts]);
 
   const cartItemCount = cart.length;
 
@@ -519,16 +330,6 @@ export default function Home() {
     setCart(prevCart => prevCart.filter(item => item.product.id !== productId));
   }, []);
 
-  const handleFileUpload = useCallback((file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("brand", file.name.split(/[-_.]/)[0].toUpperCase());
-    uploadMutation.mutate(formData);
-  }, [uploadMutation]);
-
-  const handleRemoveFile = useCallback((fileName: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
-  }, []);
 
   const generateOrderMessage = useCallback(() => {
     const lines = [
@@ -765,7 +566,7 @@ export default function Home() {
     
     matchedItems.forEach(item => {
       if (item.matchedProduct) {
-        const product = products.find(p => p.id === item.matchedProduct!.id);
+        const product = orderProducts.find(p => p.id === item.matchedProduct!.id);
         if (product) {
           setCart(prevCart => {
             const existingItem = prevCart.find(ci => ci.product.id === product.id);
@@ -810,7 +611,7 @@ export default function Home() {
     setParsedItems([]);
     setPartyName("");
     setIsCartOpen(true);
-  }, [parsedItems, products, toast, cart, partyName]);
+  }, [parsedItems, orderProducts, toast, cart, partyName]);
 
   const handleClearParsedItems = useCallback(() => {
     setParsedItems([]);
@@ -828,7 +629,7 @@ export default function Home() {
             onCartClick={() => setIsCartOpen(true)}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
-            showPortal={true}
+            showTabs={true}
           />
           
           {user && (
@@ -895,166 +696,6 @@ export default function Home() {
         <div className="px-4 pt-4">
           <AnnouncementBanner userBrands={brands} />
         </div>
-        {activeTab === "products" && (
-          <div className="flex-1 min-h-0 flex flex-col">
-            {showUploadSection ? (
-              <div className="flex-1 overflow-auto p-4 max-w-2xl mx-auto">
-                <div className="flex items-center gap-3 mb-6">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowUploadSection(false)}
-                    data-testid="button-back-from-upload"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </Button>
-                  <div>
-                    <h2 className="text-xl font-semibold">Upload Product Inventory</h2>
-                    <p className="text-muted-foreground text-sm">
-                      Import product lists from your brands. Upload Excel files (.xlsx, .xls) with columns: Brand, Name, Product SKU ID, Size, and optionally MRP.
-                    </p>
-                  </div>
-                </div>
-                <UploadDropzone
-                  onFileUpload={handleFileUpload}
-                  uploadedFiles={uploadedFiles}
-                  onRemoveFile={handleRemoveFile}
-                  isUploading={uploadMutation.isPending}
-                />
-              </div>
-            ) : isLoading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-muted-foreground">Loading products...</p>
-              </div>
-            ) : products.length === 0 ? (
-              <EmptyState type="no-products" onUploadClick={() => isAdmin ? setShowUploadSection(true) : setActiveTab("import")} />
-            ) : (
-              <>
-                <div className="flex-shrink-0 flex flex-col gap-3 p-4 border-b bg-background">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex-1 min-w-[200px]">
-                      <SearchBar value={searchQuery} onChange={setSearchQuery} />
-                    </div>
-                    <Link href="/brands">
-                      <Button
-                        variant="outline"
-                        data-testid="button-manage-brands"
-                      >
-                        <Tag className="w-4 h-4 mr-2" />
-                        Brands
-                      </Button>
-                    </Link>
-                    <Link href="/announcements">
-                      <Button
-                        variant="outline"
-                        data-testid="button-manage-announcements"
-                      >
-                        <Megaphone className="w-4 h-4 mr-2" />
-                        Announcements
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowUploadSection(true)}
-                      data-testid="button-upload-products"
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleExportProducts}
-                      disabled={!selectedBrand}
-                      data-testid="button-export-products"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {selectedBrand ? `Export ${selectedBrand}` : "Export"}
-                    </Button>
-                  </div>
-                  <BrandFilter
-                    brands={brands}
-                    selectedBrand={selectedBrand}
-                    onSelectBrand={setSelectedBrand}
-                  />
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-auto p-4">
-                  {filteredProducts.length === 0 ? (
-                    <EmptyState type="no-results" />
-                  ) : (
-                    <div className="border rounded-md overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm" data-testid="product-table">
-                          <thead>
-                            <tr className="border-b bg-muted">
-                              <th className="p-3 text-left font-medium text-muted-foreground">SKU</th>
-                              <th className="p-3 text-left font-medium text-muted-foreground">Name</th>
-                              <th className="p-3 text-left font-medium text-muted-foreground">Brand</th>
-                              <th className="p-3 text-left font-medium text-muted-foreground">Size</th>
-                              <th className="p-3 text-right font-medium text-muted-foreground">PTS</th>
-                              <th className="p-3 text-right font-medium text-muted-foreground">MRP</th>
-                              <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredProducts.map(product => (
-                              <tr
-                                key={product.id}
-                                className="border-b hover-elevate cursor-pointer"
-                                onClick={() => handleProductClick(product)}
-                                data-testid={`row-product-${product.id}`}
-                              >
-                                <td className="p-3 font-mono text-muted-foreground" data-testid={`text-sku-${product.id}`}>
-                                  {product.sku}
-                                </td>
-                                <td className="p-3 font-medium max-w-[200px] break-words whitespace-normal" data-testid={`text-name-${product.id}`}>
-                                  {product.name}
-                                </td>
-                                <td className="p-3" data-testid={`text-brand-${product.id}`}>
-                                  {product.brand}
-                                </td>
-                                <td className="p-3" data-testid={`text-size-${product.id}`}>
-                                  {product.size || "-"}
-                                </td>
-                                <td className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
-                                  {product.distributorPrice ? formatINR(Number(product.distributorPrice)) : "-"}
-                                </td>
-                                <td className="p-3 text-right" data-testid={`text-mrp-${product.id}`}>
-                                  {formatINR(Number(product.price))}
-                                </td>
-                                <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                  <div className="flex items-center justify-center gap-1">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => handleProductClick(product)}
-                                      data-testid={`button-edit-${product.id}`}
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => setProductToDelete(product)}
-                                      data-testid={`button-delete-${product.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4 text-destructive" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
         {activeTab === "order" && (
           !isAdmin && orderProducts.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-8">
@@ -1251,130 +892,6 @@ export default function Home() {
           onClick={() => setIsCartOpen(true)}
         />
       )}
-
-      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-sku">SKU</Label>
-              <Input
-                id="edit-sku"
-                value={editFormData.sku}
-                onChange={(e) => setEditFormData({ ...editFormData, sku: e.target.value })}
-                data-testid="input-edit-sku"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-name">Name</Label>
-              <Input
-                id="edit-name"
-                value={editFormData.name}
-                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                data-testid="input-edit-name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-brand">Brand</Label>
-              <Input
-                id="edit-brand"
-                value={editFormData.brand}
-                onChange={(e) => setEditFormData({ ...editFormData, brand: e.target.value })}
-                data-testid="input-edit-brand"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-size">Size</Label>
-              <Input
-                id="edit-size"
-                value={editFormData.size}
-                onChange={(e) => setEditFormData({ ...editFormData, size: e.target.value })}
-                data-testid="input-edit-size"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-alias1">Alias 1</Label>
-              <Input
-                id="edit-alias1"
-                value={editFormData.alias1}
-                onChange={(e) => setEditFormData({ ...editFormData, alias1: e.target.value })}
-                placeholder="e.g., short name or abbreviation"
-                data-testid="input-edit-alias1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-alias2">Alias 2</Label>
-              <Input
-                id="edit-alias2"
-                value={editFormData.alias2}
-                onChange={(e) => setEditFormData({ ...editFormData, alias2: e.target.value })}
-                placeholder="e.g., alternate name"
-                data-testid="input-edit-alias2"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Short names used in import order matching
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="edit-price">MRP</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                step="0.01"
-                value={editFormData.price}
-                onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })}
-                data-testid="input-edit-price"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-distributor-price">PTS (Price to Stockist)</Label>
-              <Input
-                id="edit-distributor-price"
-                type="number"
-                step="0.01"
-                value={editFormData.distributorPrice}
-                onChange={(e) => setEditFormData({ ...editFormData, distributorPrice: e.target.value })}
-                placeholder="Leave empty to use MRP"
-                data-testid="input-edit-distributor-price"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Price used for cart calculations (optional)
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedProduct(null)} data-testid="button-cancel-edit">
-              Cancel
-            </Button>
-            <Button onClick={handleSaveProduct} disabled={updateProductMutation.isPending} data-testid="button-save-product">
-              {updateProductMutation.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Product</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{productToDelete?.name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteProduct}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete"
-            >
-              {deleteProductMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog open={showOrderSuccessDialog} onOpenChange={setShowOrderSuccessDialog}>
         <DialogContent className="sm:max-w-md">

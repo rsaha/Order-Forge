@@ -16,6 +16,9 @@ import BrandsPage from "@/pages/brands";
 import AnnouncementsPage from "@/pages/announcements";
 import StockPage from "@/pages/stock";
 import PortalPage from "@/pages/portal";
+import SalesOrdersPage from "@/pages/sales-orders";
+import InventoryPage from "@/pages/inventory";
+import ProductsPage from "@/pages/products";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -49,6 +52,9 @@ function Router() {
       <Route path="/announcements" component={AnnouncementsPage} />
       <Route path="/stock" component={StockPage} />
       <Route path="/portal" component={PortalPage} />
+      <Route path="/sales-orders" component={SalesOrdersPage} />
+      <Route path="/inventory" component={InventoryPage} />
+      <Route path="/products" component={ProductsPage} />
       <Route component={NotFound} />
     </Switch>
   );
