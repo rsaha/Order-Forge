@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,24 +15,13 @@ import { CheckCircle, ListOrdered } from "lucide-react";
 import Header from "@/components/Header";
 import type { Order, OrderItem } from "@shared/schema";
 
+/* ─── helpers ─── */
 function getDefaultDates() {
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const toStr = (d: Date) => d.toISOString().split("T")[0];
-  return { startDate: toStr(firstDay), endDate: toStr(now) };
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  return { startDate: fmt(firstDay), endDate: fmt(now) };
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  Backordered: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-  Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  Dispatched: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
-  Delivered: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
-  PODReceived: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-  Cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-};
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -46,11 +34,47 @@ function formatCurrency(v: number | string | null | undefined) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-type PortalOrder = Order & {
-  createdByName?: string | null;
-  actualCreatorName?: string | null;
+/* ─── status config ─── */
+type OrderStatus = "Created" | "Approved" | "Backordered" | "Pending" | "Invoiced" | "Dispatched" | "Delivered" | "PODReceived" | "Cancelled";
+
+interface TabConfig {
+  label: string;
+  status: OrderStatus | "All";
+  badgeClass: string;
+  borderClass: string;
+}
+
+const ALL_TABS: TabConfig[] = [
+  { label: "Needs Approval", status: "Created",     badgeClass: "bg-blue-100 text-blue-800",    borderClass: "border-blue-500 text-blue-700" },
+  { label: "Approved",       status: "Approved",    badgeClass: "bg-green-100 text-green-800",  borderClass: "border-green-500 text-green-700" },
+  { label: "Backordered",    status: "Backordered", badgeClass: "bg-rose-100 text-rose-800",    borderClass: "border-rose-500 text-rose-700" },
+  { label: "Pending",        status: "Pending",     badgeClass: "bg-amber-100 text-amber-800",  borderClass: "border-amber-500 text-amber-700" },
+  { label: "Invoiced",       status: "Invoiced",    badgeClass: "bg-purple-100 text-purple-800",borderClass: "border-purple-500 text-purple-700" },
+  { label: "Dispatched",     status: "Dispatched",  badgeClass: "bg-orange-100 text-orange-800",borderClass: "border-orange-500 text-orange-700" },
+  { label: "Delivered",      status: "Delivered",   badgeClass: "bg-teal-100 text-teal-800",    borderClass: "border-teal-500 text-teal-700" },
+  { label: "POD Received",   status: "PODReceived", badgeClass: "bg-indigo-100 text-indigo-800",borderClass: "border-indigo-500 text-indigo-700" },
+  { label: "Cancelled",      status: "Cancelled",   badgeClass: "bg-gray-100 text-gray-800",    borderClass: "border-gray-500 text-gray-700" },
+  { label: "All",            status: "All",         badgeClass: "bg-muted text-foreground",     borderClass: "border-foreground" },
+];
+
+const CUSTOMER_STATUSES = new Set<string>(["Created", "Approved", "Invoiced", "Cancelled", "All"]);
+
+const STATUS_BADGE: Record<string, string> = {
+  Created:     "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  Approved:    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
+  Pending:     "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  Invoiced:    "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  Dispatched:  "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  Delivered:   "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+  PODReceived: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+  Cancelled:   "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
+/* ─── types ─── */
+type PortalOrder = Order & { createdByName?: string | null; actualCreatorName?: string | null };
+
+/* ─── order detail dialog ─── */
 function OrderDetailDialog({ order, open, onClose }: { order: PortalOrder | null; open: boolean; onClose: () => void }) {
   const { data: items, isLoading } = useQuery<OrderItem[]>({
     queryKey: ["/api/orders", order?.id, "items"],
@@ -67,11 +91,11 @@ function OrderDetailDialog({ order, open, onClose }: { order: PortalOrder | null
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>Order — {order.partyName}</span>
-            <Badge className={STATUS_COLORS[order.status] || ""}>{order.status}</Badge>
+            <Badge className={STATUS_BADGE[order.status] || ""}>{order.status}</Badge>
           </DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 text-sm mb-4">
@@ -134,20 +158,29 @@ function OrderDetailDialog({ order, open, onClose }: { order: PortalOrder | null
   );
 }
 
+/* ─── main page ─── */
 export default function SalesOrdersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.isAdmin === true;
   const isBrandAdmin = user?.role === "BrandAdmin";
+  const isCustomer = user?.role?.toLowerCase() === "customer";
+  const canApprove = !isCustomer;
 
-  const [statusTab, setStatusTab] = useState("Needs Approval");
-  const [selectedOrder, setSelectedOrder] = useState<PortalOrder | null>(null);
   const defaults = getDefaultDates();
   const [startDate, setStartDate] = useState(defaults.startDate);
   const [endDate, setEndDate] = useState(defaults.endDate);
+  const [activeTab, setActiveTab] = useState<string>("Created");
+  const [selectedOrder, setSelectedOrder] = useState<PortalOrder | null>(null);
 
+  /* visible tabs depend on role */
+  const visibleTabs = useMemo(
+    () => isCustomer ? ALL_TABS.filter(t => CUSTOMER_STATUSES.has(t.status as string)) : ALL_TABS,
+    [isCustomer]
+  );
+
+  /* fetch orders */
   const queryParams = new URLSearchParams({ startDate, endDate }).toString();
-
   const { data: orders = [], isLoading } = useQuery<PortalOrder[]>({
     queryKey: ["/api/portal/orders", startDate, endDate],
     queryFn: async () => {
@@ -157,9 +190,9 @@ export default function SalesOrdersPage() {
     },
   });
 
+  /* approve mutation */
   const approveMutation = useMutation({
-    mutationFn: (orderId: string) =>
-      apiRequest("PATCH", `/api/portal/orders/${orderId}/approve`, {}),
+    mutationFn: (orderId: string) => apiRequest("PATCH", `/api/portal/orders/${orderId}/approve`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/portal/orders"] });
       toast({ title: "Order approved", description: "Status changed to Approved." });
@@ -169,45 +202,45 @@ export default function SalesOrdersPage() {
     },
   });
 
-  const filtered = orders.filter((o) => {
-    if (statusTab === "Needs Approval") return o.status === "Created";
-    if (statusTab === "Approved") return o.status === "Approved";
-    return true;
-  });
+  /* count per status */
+  const countByStatus = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const o of orders) {
+      map[o.status] = (map[o.status] || 0) + 1;
+    }
+    return map;
+  }, [orders]);
 
-  const needsApprovalCount = orders.filter((o) => o.status === "Created").length;
-  const approvedCount = orders.filter((o) => o.status === "Approved").length;
+  /* filter orders to active tab */
+  const filtered = useMemo(() => {
+    if (activeTab === "All") return orders;
+    return orders.filter(o => o.status === activeTab);
+  }, [orders, activeTab]);
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
-        Loading...
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading...</div>;
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="flex-shrink-0 sticky top-0 z-50 bg-background border-b">
         <div className="flex items-center justify-between gap-4 px-4 h-16">
-          <Header
-            cartItemCount={0}
-            onCartClick={() => {}}
-            isAdmin={isAdmin}
-            isBrandAdmin={isBrandAdmin}
-          />
+          <Header cartItemCount={0} onCartClick={() => {}} isAdmin={isAdmin} isBrandAdmin={isBrandAdmin} />
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto w-full px-4 py-6">
         <div className="mb-5">
-          <h1 className="text-xl font-bold">Sales Orders</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Review and approve customer orders</p>
+          <h1 className="text-xl font-bold">My Orders</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isAdmin ? "All orders across the system" : isBrandAdmin ? "Orders for your brands" : "Your orders"}
+          </p>
         </div>
 
         <Card>
           <CardContent className="pt-5">
-            <div className="flex flex-wrap items-end gap-3 mb-4 pb-4 border-b">
+            {/* date range filter */}
+            <div className="flex flex-wrap items-end gap-3 mb-5 pb-4 border-b">
               <div className="flex items-end gap-2">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
@@ -230,112 +263,128 @@ export default function SalesOrdersPage() {
                   />
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground pb-1">{orders.length} orders</span>
+              <span className="text-xs text-muted-foreground pb-1">{orders.length} total orders</span>
             </div>
 
-            <Tabs value={statusTab} onValueChange={setStatusTab}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="Needs Approval" data-testid="tab-needs-approval">
-                  Needs Approval
-                  {needsApprovalCount > 0 && (
-                    <Badge className="ml-2 bg-blue-600 text-white text-xs px-1.5 py-0 rounded-full">
-                      {needsApprovalCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="Approved" data-testid="tab-approved-orders">
-                  Approved
-                  {approvedCount > 0 && (
-                    <Badge className="ml-2 bg-green-600 text-white text-xs px-1.5 py-0 rounded-full">
-                      {approvedCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="All" data-testid="tab-all-orders">All ({orders.length})</TabsTrigger>
-              </TabsList>
+            {/* status tabs — horizontal scrollable */}
+            <div className="flex gap-0 border-b mb-4 overflow-x-auto">
+              {visibleTabs.map((tab) => {
+                const count = tab.status === "All" ? orders.length : (countByStatus[tab.status] || 0);
+                const isActive = activeTab === tab.status;
+                return (
+                  <button
+                    key={tab.status}
+                    onClick={() => setActiveTab(tab.status as string)}
+                    data-testid={`tab-status-${tab.status}`}
+                    className={`
+                      flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
+                      ${isActive
+                        ? `${tab.borderClass} bg-muted/40`
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"
+                      }
+                    `}
+                  >
+                    {tab.label}
+                    {count > 0 && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${isActive ? tab.badgeClass : "bg-muted text-muted-foreground"}`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-              <TabsContent value={statusTab}>
-                {isLoading ? (
-                  <div className="space-y-2">
-                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <ListOrdered className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p>No orders in this category</p>
-                  </div>
-                ) : (
-                  <div className="rounded-md border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/50">
-                          <TableHead>Party</TableHead>
-                          <TableHead className="hidden sm:table-cell">Brand</TableHead>
-                          <TableHead className="hidden md:table-cell">Date</TableHead>
-                          <TableHead className="text-right">Value</TableHead>
-                          <TableHead>Status</TableHead>
-                          {isBrandAdmin && (
-                            <TableHead className="hidden lg:table-cell">Salesperson</TableHead>
-                          )}
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filtered.map((order) => (
-                          <TableRow
-                            key={order.id}
-                            className="cursor-pointer hover:bg-muted/30"
-                            onClick={() => setSelectedOrder(order)}
-                            data-testid={`row-order-${order.id}`}
-                          >
-                            <TableCell className="font-medium max-w-[140px] truncate">
-                              {order.partyName || "—"}
-                            </TableCell>
-                            <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                              {order.brand}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                              {formatDate(order.createdAt?.toString())}
-                            </TableCell>
-                            <TableCell className="text-right text-sm font-medium">
-                              {formatCurrency(order.total)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={`text-xs ${STATUS_COLORS[order.status] || ""}`}>
-                                {order.status}
-                              </Badge>
-                            </TableCell>
-                            {isBrandAdmin && (
-                              <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                                {order.actualCreatorName || order.createdByName || "—"}
-                              </TableCell>
+            {/* orders table */}
+            {isLoading ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <ListOrdered className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No orders in this category</p>
+              </div>
+            ) : (
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Party</TableHead>
+                      <TableHead className="hidden sm:table-cell">Brand</TableHead>
+                      <TableHead className="hidden md:table-cell">Date</TableHead>
+                      {activeTab === "Invoiced" || activeTab === "All" ? (
+                        <TableHead className="hidden md:table-cell">Invoice #</TableHead>
+                      ) : null}
+                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead>Status</TableHead>
+                      {(isAdmin || isBrandAdmin) && (
+                        <TableHead className="hidden lg:table-cell">Salesperson</TableHead>
+                      )}
+                      {canApprove && <TableHead className="text-right">Action</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((order) => (
+                      <TableRow
+                        key={order.id}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => setSelectedOrder(order)}
+                        data-testid={`row-order-${order.id}`}
+                      >
+                        <TableCell className="font-medium max-w-[140px] truncate">
+                          {order.partyName || "—"}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                          {order.brand}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                          {formatDate(order.createdAt?.toString())}
+                        </TableCell>
+                        {activeTab === "Invoiced" || activeTab === "All" ? (
+                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                            {order.invoiceNumber || "—"}
+                          </TableCell>
+                        ) : null}
+                        <TableCell className="text-right text-sm font-medium">
+                          {formatCurrency(order.total)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs ${STATUS_BADGE[order.status] || ""}`}>
+                            {order.status === "PODReceived" ? "POD Received" : order.status}
+                          </Badge>
+                        </TableCell>
+                        {(isAdmin || isBrandAdmin) && (
+                          <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                            {order.actualCreatorName || order.createdByName || "—"}
+                          </TableCell>
+                        )}
+                        {canApprove && (
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            {order.status === "Created" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                                disabled={approveMutation.isPending}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  approveMutation.mutate(order.id);
+                                }}
+                                data-testid={`button-approve-${order.id}`}
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                                Approve
+                              </Button>
                             )}
-                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                              {order.status === "Created" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
-                                  disabled={approveMutation.isPending}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    approveMutation.mutate(order.id);
-                                  }}
-                                  data-testid={`button-approve-${order.id}`}
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                                  Approve
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -5870,6 +5870,9 @@ export async function registerRoutes(
             allOrders.push(order);
           }
         }
+      } else if (user.role?.toLowerCase() === 'customer') {
+        // Customers see only their own orders
+        allOrders = await storage.getUserOrders(user.id);
       } else {
         return res.status(403).json({ message: "Access denied" });
       }
