@@ -677,14 +677,16 @@ export default function Home() {
           >
             Order
           </Button>
-          <Button
-            variant={activeTab === "import" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("import")}
-            data-testid="tab-import"
-          >
-            Import
-          </Button>
+          {!isCustomer && (
+            <Button
+              variant={activeTab === "import" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("import")}
+              data-testid="tab-import"
+            >
+              Import
+            </Button>
+          )}
         </div>
         {activeTab === "order" && (
           !isAdmin && orderProducts.length === 0 ? (
@@ -722,7 +724,7 @@ export default function Home() {
           )
         )}
 
-        {activeTab === "import" && (
+        {activeTab === "import" && !isCustomer && (
           !isAdmin && orderProducts.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center max-w-md">
