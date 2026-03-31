@@ -668,16 +668,16 @@ export default function Home() {
         <div className="px-4 pt-4">
           <AnnouncementBanner userBrands={brands} />
         </div>
-        <div className="px-4 pt-3 pb-1 flex gap-2">
-          <Button
-            variant={activeTab === "order" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("order")}
-            data-testid="tab-order"
-          >
-            Order
-          </Button>
-          {!isCustomer && (
+        {!isCustomer && (
+          <div className="px-4 pt-3 pb-1 flex gap-2">
+            <Button
+              variant={activeTab === "order" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("order")}
+              data-testid="tab-order"
+            >
+              Order
+            </Button>
             <Button
               variant={activeTab === "import" ? "default" : "outline"}
               size="sm"
@@ -686,9 +686,9 @@ export default function Home() {
             >
               Import
             </Button>
-          )}
-        </div>
-        {activeTab === "order" && (
+          </div>
+        )}
+        {(isCustomer || activeTab === "order") && (
           !isAdmin && orderProducts.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center max-w-md">
