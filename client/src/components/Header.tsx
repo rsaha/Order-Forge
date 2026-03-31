@@ -1,26 +1,20 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, ShoppingBag, Warehouse } from "lucide-react";
+import { ShoppingCart, Package, ListOrdered, Users, BarChart3, ShoppingBag, Warehouse, Home } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
 
 interface HeaderProps {
   cartItemCount: number;
-  activeTab?: "order" | "import";
-  onTabChange?: (tab: "order" | "import") => void;
   onCartClick: () => void;
   isAdmin?: boolean;
   isBrandAdmin?: boolean;
-  showTabs?: boolean;
 }
 
 export default function Header({
   cartItemCount,
-  activeTab,
-  onTabChange,
   onCartClick,
   isAdmin = false,
   isBrandAdmin = false,
-  showTabs = true,
 }: HeaderProps) {
   const [location] = useLocation();
 
@@ -32,49 +26,19 @@ export default function Header({
       </div>
 
       <nav className="flex gap-1 flex-wrap">
-        {/* Order & Import tabs — only shown on the home page */}
-        {showTabs && (
-          <>
-            {onTabChange ? (
-              <Button
-                variant={activeTab === "order" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => onTabChange("order")}
-                data-testid="tab-order"
-              >
-                <ClipboardList className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Order</span>
-              </Button>
-            ) : (
-              <Link href="/?tab=order">
-                <Button variant="ghost" size="sm" data-testid="tab-order">
-                  <ClipboardList className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Order</span>
-                </Button>
-              </Link>
-            )}
-            {onTabChange ? (
-              <Button
-                variant={activeTab === "import" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => onTabChange("import")}
-                data-testid="tab-import"
-              >
-                <FileText className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Import</span>
-              </Button>
-            ) : (
-              <Link href="/?tab=import">
-                <Button variant="ghost" size="sm" data-testid="tab-import">
-                  <FileText className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Import</span>
-                </Button>
-              </Link>
-            )}
-          </>
-        )}
+        {/* Home — all logged-in users */}
+        <Link href="/">
+          <Button
+            variant={location === "/" ? "secondary" : "ghost"}
+            size="sm"
+            data-testid="tab-home"
+          >
+            <Home className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Home</span>
+          </Button>
+        </Link>
 
-        {/* Sales Orders — all logged-in users */}
+        {/* My Orders — all logged-in users */}
         <Link href="/sales-orders">
           <Button
             variant={location === "/sales-orders" ? "secondary" : "ghost"}

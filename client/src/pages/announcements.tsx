@@ -238,7 +238,6 @@ export default function AnnouncementsPage() {
             cartItemCount={0}
             onCartClick={() => {}}
             isAdmin={isAdmin}
-            showTabs={false}
           />
         </div>
       </header>

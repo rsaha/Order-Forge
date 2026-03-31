@@ -624,12 +624,9 @@ export default function Home() {
         <div className="flex items-center justify-between gap-4 px-4 h-16">
           <Header
             cartItemCount={cartItemCount}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
             onCartClick={() => setIsCartOpen(true)}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
-            showTabs={true}
           />
           
           {user && (
@@ -695,6 +692,24 @@ export default function Home() {
       <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="px-4 pt-4">
           <AnnouncementBanner userBrands={brands} />
+        </div>
+        <div className="px-4 pt-3 pb-1 flex gap-2">
+          <Button
+            variant={activeTab === "order" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("order")}
+            data-testid="tab-order"
+          >
+            Order
+          </Button>
+          <Button
+            variant={activeTab === "import" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("import")}
+            data-testid="tab-import"
+          >
+            Import
+          </Button>
         </div>
         {activeTab === "order" && (
           !isAdmin && orderProducts.length === 0 ? (

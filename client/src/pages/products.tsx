@@ -620,7 +620,6 @@ export default function ProductsPage() {
             cartItemCount={0}
             onCartClick={() => {}}
             isAdmin={isAdmin}
-            showTabs={false}
           />
         </div>
       </header>

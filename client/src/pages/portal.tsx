@@ -533,7 +533,6 @@ export default function PortalPage() {
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
             showPortal={true}
-            showTabs={false}
           />
         </div>
       </header>

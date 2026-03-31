@@ -136,7 +136,6 @@ export default function BrandsPage() {
             cartItemCount={0}
             onCartClick={() => {}}
             isAdmin={isAdmin}
-            showTabs={false}
           />
         </div>
       </header>

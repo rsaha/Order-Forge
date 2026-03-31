@@ -77,7 +77,6 @@ export default function InventoryPage() {
             onCartClick={() => {}}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
-            showTabs={false}
           />
         </div>
       </header>

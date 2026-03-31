@@ -195,7 +195,6 @@ export default function SalesOrdersPage() {
             onCartClick={() => {}}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
-            showTabs={false}
           />
         </div>
       </header>

@@ -387,7 +387,6 @@ export default function UsersPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-50 bg-background border-b">
         <div className="flex items-center justify-between gap-4 px-4 h-14">
-          <Header onCartClick={() => {}} cartItemCount={0} isAdmin={isAdmin} showTabs={false} />
         </div>
       </header>
 
