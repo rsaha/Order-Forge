@@ -1821,14 +1821,32 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2">
+                              <div className="font-medium text-sm">{order.partyName || "Unknown"}</div>
+                              {(order as any).ownerRole === "Customer" && (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-0.5">
+                                  Needs Approval
+                                </span>
+                              )}
+                            </td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
+                                {isAdmin && (order as any).ownerRole === "Customer" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50 mr-1"
+                                    disabled={updateMutation.isPending}
+                                    onClick={(e) => { e.stopPropagation(); updateMutation.mutate({ id: order.id, updates: { status: "Approved" } }); }}
+                                    data-testid={`button-approve-order-${order.id}`}
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                                  </Button>
+                                )}
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
-                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
                                 {hasAdminAccess && (
                                   <Button 
                                     size="icon" 

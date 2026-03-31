@@ -90,7 +90,7 @@ export interface IStorage {
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   getUserOrders(userId: string): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   getCustomerOrders(userId: string, partyName?: string | null): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
-  getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
+  getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null; ownerRole?: string | null })[]>;
   getOrdersByBrands(brands: string[], filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   getOrderById(id: string): Promise<Order | undefined>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
@@ -975,7 +975,7 @@ export class DatabaseStorage implements IStorage {
     return conditions;
   }
 
-  async getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
+  async getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null; ownerRole?: string | null })[]> {
     const conditions = this.buildOrderConditions(filters);
     
     // Create alias for the creator (who actually made the order, may differ from owner)
@@ -1016,6 +1016,7 @@ export class DatabaseStorage implements IStorage {
       // Order owner info (sales user)
       createdByName: users.firstName,
       createdByEmail: users.email,
+      ownerRole: users.role,
       // Actual creator info (may be admin creating on behalf of sales user)
       actualCreatorName: creatorUser.firstName,
     })
