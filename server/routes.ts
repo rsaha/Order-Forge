@@ -1474,6 +1474,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "All products must be from the same brand" });
       }
 
+      // Admins and BrandAdmins don't need approval — auto-approve their orders
+      const autoApprove = currentUser?.isAdmin || currentUser?.role === "BrandAdmin";
+
       const order = await storage.createOrder({
         userId: orderOwnerUserId, // Order owner (sales user)
         createdBy: currentUserId, // Who actually created the order (for audit)
@@ -1486,7 +1489,7 @@ export async function registerRoutes(
         deliveryCompany: deliveryCompany || "Guided",
         specialNotes: specialNotes || null,
         importText: importText || null,
-        status: "Created",
+        status: autoApprove ? "Approved" : "Created",
       });
 
       const orderItemsData = items.map((item: any) => ({
