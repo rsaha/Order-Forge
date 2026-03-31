@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CheckCircle, ListOrdered, Search, X, Filter, Download,
@@ -235,6 +236,24 @@ export default function SalesOrdersPage() {
     },
     onError: (err: Error) => toast({ title: "Failed to approve", description: err.message, variant: "destructive" }),
   });
+
+  /* customer cancel */
+  const [orderToCancel, setOrderToCancel] = useState<PortalOrder | null>(null);
+  const cancelMutation = useMutation({
+    mutationFn: (orderId: string) => apiRequest("PATCH", `/api/portal/orders/${orderId}/cancel`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/orders"] });
+      setOrderToCancel(null);
+      setSelectedOrder(null);
+      toast({ title: "Order cancelled", description: "Your order has been cancelled." });
+    },
+    onError: (err: Error) => {
+      setOrderToCancel(null);
+      toast({ title: "Failed to cancel", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const PRE_INVOICE_STATUSES = ["Created", "Approved", "Pending", "Backordered"];
 
   /* bulk WA data */
   const { data: bulkSummary = [] } = useQuery<BulkGroup[]>({
@@ -608,6 +627,15 @@ export default function SalesOrdersPage() {
                           </Button>
                         </div>
                       )}
+                      {isCustomer && PRE_INVOICE_STATUSES.includes(order.status) && (
+                        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs w-full border-red-300 text-red-700 hover:bg-red-50"
+                            onClick={(e) => { e.stopPropagation(); setOrderToCancel(order); }}
+                            data-testid={`button-cancel-order-${order.id}`}>
+                            <X className="w-3.5 h-3.5 mr-1" />Cancel Order
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -623,7 +651,7 @@ export default function SalesOrdersPage() {
                         <TableHead className="hidden sm:table-cell">Brand</TableHead>
                         <TableHead className="hidden md:table-cell">Date</TableHead>
                         <TableHead className="text-right">Value</TableHead>
-                        {canApprove && <TableHead className="text-right">Action</TableHead>}
+                        {(canApprove || isCustomer) && <TableHead className="text-right">Action</TableHead>}
                       </>)}
                       {activeTab === "Approved" && (<>
                         <TableHead className="text-xs">Date</TableHead>
@@ -651,6 +679,7 @@ export default function SalesOrdersPage() {
                         <TableHead className="hidden md:table-cell">Parent Order</TableHead>
                         <TableHead className="hidden lg:table-cell">Notes</TableHead>
                         <TableHead className="text-right">Order Value</TableHead>
+                        {isCustomer && <TableHead className="text-right">Action</TableHead>}
                       </>)}
                       {activeTab === "Invoiced" && (<>
                         <TableHead className="text-xs">Date</TableHead>
@@ -739,6 +768,15 @@ export default function SalesOrdersPage() {
                                 </Button>
                               </TableCell>
                             )}
+                            {isCustomer && (
+                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
+                                  onClick={(e) => { e.stopPropagation(); setOrderToCancel(order); }}
+                                  data-testid={`button-cancel-order-${order.id}`}>
+                                  <X className="w-3.5 h-3.5 mr-1" />Cancel
+                                </Button>
+                              </TableCell>
+                            )}
                           </>)}
                           {/* Approved */}
                           {activeTab === "Approved" && (<>
@@ -771,6 +809,15 @@ export default function SalesOrdersPage() {
                             <TableCell className="hidden md:table-cell text-sm">{(order as any).parentOrderId ? `#${(order as any).parentOrderId.slice(-6)}` : "-"}</TableCell>
                             <TableCell className="hidden lg:table-cell max-w-[200px]"><div className="truncate text-sm" title={(order as any).specialNotes || ""}>{(order as any).specialNotes || "-"}</div></TableCell>
                             <TableCell className="text-right font-medium whitespace-nowrap">{orderValue}</TableCell>
+                            {isCustomer && (
+                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
+                                  onClick={(e) => { e.stopPropagation(); setOrderToCancel(order); }}
+                                  data-testid={`button-cancel-order-${order.id}`}>
+                                  <X className="w-3.5 h-3.5 mr-1" />Cancel
+                                </Button>
+                              </TableCell>
+                            )}
                           </>)}
                           {/* Invoiced */}
                           {activeTab === "Invoiced" && (<>
@@ -884,10 +931,16 @@ export default function SalesOrdersPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve Order" : "Order Details"}
+              {isAdmin ? "Edit Order"
+                : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve Order"
+                : isCustomer && selectedOrder && PRE_INVOICE_STATUSES.includes(selectedOrder.status) ? "Edit / Cancel Order"
+                : "Order Details"}
             </DialogTitle>
             <DialogDescription>
-              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve this order to proceed with fulfillment." : "View your order details."}
+              {isAdmin ? "Update order details and tracking information."
+                : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve this order to proceed with fulfillment."
+                : isCustomer && selectedOrder && PRE_INVOICE_STATUSES.includes(selectedOrder.status) ? "You can edit items or cancel this order. Changes will require re-approval."
+                : "View your order details."}
             </DialogDescription>
           </DialogHeader>
           {selectedOrder && (
@@ -897,6 +950,7 @@ export default function SalesOrdersPage() {
               isAdmin={isAdmin}
               isBrandAdmin={isBrandAdmin}
               hasAdminAccess={hasAdminAccess}
+              isCustomer={isCustomer}
               userId={user?.id}
               pendingOrderLookup={pendingOrderLookup}
               onClose={() => setSelectedOrder(null)}
@@ -905,6 +959,30 @@ export default function SalesOrdersPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* cancel order confirmation */}
+      <AlertDialog open={!!orderToCancel} onOpenChange={(v) => { if (!v) setOrderToCancel(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel your order for <strong>{orderToCancel?.partyName || "—"}</strong> ({orderToCancel?.brand}).
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelMutation.isPending}>Keep Order</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cancelMutation.isPending}
+              onClick={() => orderToCancel && cancelMutation.mutate(orderToCancel.id)}
+              data-testid="button-confirm-cancel-order"
+            >
+              {cancelMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Cancelling...</> : "Yes, Cancel Order"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* export dialog */}
       <Dialog open={showExport} onOpenChange={(v) => { setShowExport(v); if (!v) { setExportStatus("all"); setExportType("summary"); } }}>

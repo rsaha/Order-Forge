@@ -2109,7 +2109,7 @@ export async function registerRoutes(
     }
   });
 
-  // Add items to an existing order (only when status is Created, Approved, or Pending)
+  // Add items to an existing order (only when status is Created, Approved, Pending, or Backordered)
   app.post('/api/orders/:id/items', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -2121,10 +2121,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created, Approved, or Pending status)
-      if (!['Created', 'Approved', 'Pending'].includes(order.status)) {
+      // Check if order is editable (pre-invoice statuses)
+      if (!['Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created, Approved, or Pending orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only pre-invoice orders can be modified.` 
         });
       }
 
@@ -2190,9 +2190,14 @@ export async function registerRoutes(
         };
       }));
 
-      const updatedOrder = await storage.appendItemsToOrder(orderId, orderItemsData);
+      let updatedOrder = await storage.appendItemsToOrder(orderId, orderItemsData);
       if (!updatedOrder) {
         return res.status(500).json({ message: "Failed to update order" });
+      }
+
+      // If a customer edits their order, reset to Created so it needs approval again
+      if (user?.role?.toLowerCase() === 'customer' && order.userId === userId && order.status !== 'Created') {
+        updatedOrder = await storage.updateOrder(orderId, { status: 'Created' }) ?? updatedOrder;
       }
 
       res.json(updatedOrder);
@@ -2215,10 +2220,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created, Approved, or Pending status)
-      if (!['Created', 'Approved', 'Pending'].includes(order.status)) {
+      // Check if order is editable (pre-invoice statuses)
+      if (!['Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created, Approved, or Pending orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only pre-invoice orders can be modified.` 
         });
       }
 
@@ -2265,8 +2270,11 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order item not found" });
       }
 
-      // Recalculate order total
-      const updatedOrder = await storage.recalculateOrderTotal(orderId);
+      // Recalculate order total; if customer edited, reset to Created for re-approval
+      let updatedOrder = await storage.recalculateOrderTotal(orderId);
+      if (user?.role?.toLowerCase() === 'customer' && isOwner && order.status !== 'Created') {
+        updatedOrder = await storage.updateOrder(orderId, { status: 'Created' }) ?? updatedOrder;
+      }
 
       res.json({ item: updatedItem, order: updatedOrder });
     } catch (error) {
@@ -2287,10 +2295,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order is editable (Created, Approved, or Pending status)
-      if (!['Created', 'Approved', 'Pending'].includes(order.status)) {
+      // Check if order is editable (pre-invoice statuses)
+      if (!['Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot modify order with status "${order.status}". Only Created, Approved, or Pending orders can be modified.` 
+          message: `Cannot modify order with status "${order.status}". Only pre-invoice orders can be modified.` 
         });
       }
 
@@ -2327,8 +2335,11 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order item not found" });
       }
 
-      // Recalculate order total
-      const updatedOrder = await storage.recalculateOrderTotal(orderId);
+      // Recalculate order total; if customer deleted an item, reset to Created for re-approval
+      let updatedOrder = await storage.recalculateOrderTotal(orderId);
+      if (user?.role?.toLowerCase() === 'customer' && isOwner && order.status !== 'Created') {
+        updatedOrder = await storage.updateOrder(orderId, { status: 'Created' }) ?? updatedOrder;
+      }
 
       res.json({ message: "Item deleted", order: updatedOrder });
     } catch (error) {
@@ -5938,6 +5949,35 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error approving portal order:", error);
       res.status(500).json({ message: "Failed to approve order" });
+    }
+  });
+
+  // PATCH /api/portal/orders/:id/cancel — customer self-service cancel (pre-invoice only)
+  app.patch("/api/portal/orders/:id/cancel", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const orderId = req.params.id;
+    try {
+      const order = await storage.getOrderById(orderId);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      // Only the order owner can self-cancel
+      if (order.userId !== userId) return res.status(403).json({ message: "Access denied" });
+
+      // Can only cancel pre-invoice orders
+      const cancelableStatuses = ['Created', 'Approved', 'Pending', 'Backordered'];
+      if (!cancelableStatuses.includes(order.status)) {
+        return res.status(400).json({ message: `Cannot cancel an order with status "${order.status}". Only pre-invoice orders can be cancelled.` });
+      }
+
+      const updated = await storage.updateOrder(orderId, { status: 'Cancelled' });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error cancelling portal order:", error);
+      res.status(500).json({ message: "Failed to cancel order" });
     }
   });
 

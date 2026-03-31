@@ -109,6 +109,7 @@ export interface OrderDetailPanelProps {
   isAdmin: boolean;
   isBrandAdmin: boolean;
   hasAdminAccess: boolean;
+  isCustomer?: boolean;
   userId?: string;
   pendingOrderLookup?: Map<string, Order>;
   onClose: () => void;
@@ -122,6 +123,7 @@ export function OrderDetailPanel({
   isAdmin,
   isBrandAdmin,
   hasAdminAccess,
+  isCustomer = false,
   userId,
   pendingOrderLookup = new Map(),
   onClose,
@@ -398,8 +400,8 @@ export function OrderDetailPanel({
 
   /* ─── handlers ─── */
 
-  const isOrderEditable = (o: Order) =>
-    o.status === "Created" || o.status === "Approved" || o.status === "Pending";
+  const PRE_INVOICE_STATUSES = ["Created", "Approved", "Pending", "Backordered"];
+  const isOrderEditable = (o: Order) => PRE_INVOICE_STATUSES.includes(o.status);
 
   const handleSave = () => {
     if (editFormData.status === "Invoiced" || editFormData.status === "Dispatched") {
@@ -1331,8 +1333,16 @@ export function OrderDetailPanel({
             </div>
           </div>
         ) : (
-          /* ── Regular user: read-only ── */
+          /* ── Regular user / Customer: read-only summary ── */
           <div className="space-y-3">
+            {/* Customer edit notice for pre-invoice orders */}
+            {isCustomer && isOrderEditable(localOrder) && (
+              <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  You can add, edit, or remove items above. Any changes will reset this order to <strong>Needs Approval</strong> and your salesperson will need to approve it again.
+                </p>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Status:</span>
               <Badge className={statusColors[localOrder.status as OrderStatus]}>
