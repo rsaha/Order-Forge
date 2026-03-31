@@ -89,6 +89,7 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   getUserOrders(userId: string): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
+  getCustomerOrders(userId: string, partyName?: string | null): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   getAllOrders(filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   getOrdersByBrands(brands: string[], filters?: OrderFilters): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]>;
   getOrderById(id: string): Promise<Order | undefined>;
@@ -849,6 +850,56 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(users, eq(orders.userId, users.id))
     .leftJoin(creatorUser, eq(orders.createdBy, creatorUser.id))
     .where(eq(orders.userId, userId))
+    .orderBy(desc(orders.createdAt));
+  }
+
+  async getCustomerOrders(userId: string, partyName?: string | null): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
+    const creatorUser = alias(users, 'creatorUser');
+    // Match orders owned by this customer OR placed under their party name
+    const condition = partyName
+      ? or(eq(orders.userId, userId), eq(orders.partyName, partyName))
+      : eq(orders.userId, userId);
+
+    return db.select({
+      id: orders.id,
+      userId: orders.userId,
+      brand: orders.brand,
+      status: orders.status,
+      total: orders.total,
+      discountPercent: orders.discountPercent,
+      whatsappPhone: orders.whatsappPhone,
+      email: orders.email,
+      partyName: orders.partyName,
+      deliveryAddress: orders.deliveryAddress,
+      invoiceNumber: orders.invoiceNumber,
+      invoiceDate: orders.invoiceDate,
+      dispatchDate: orders.dispatchDate,
+      dispatchBy: orders.dispatchBy,
+      cases: orders.cases,
+      specialNotes: orders.specialNotes,
+      estimatedDeliveryDate: orders.estimatedDeliveryDate,
+      actualDeliveryDate: orders.actualDeliveryDate,
+      deliveryCost: orders.deliveryCost,
+      deliveryNote: orders.deliveryNote,
+      deliveryCompany: orders.deliveryCompany,
+      actualOrderValue: orders.actualOrderValue,
+      deliveredOnTime: orders.deliveredOnTime,
+      approvedBy: orders.approvedBy,
+      approvedAt: orders.approvedAt,
+      importText: orders.importText,
+      podStatus: orders.podStatus,
+      podTimestamp: orders.podTimestamp,
+      parentOrderId: orders.parentOrderId,
+      createdBy: orders.createdBy,
+      createdAt: orders.createdAt,
+      createdByName: users.firstName,
+      createdByEmail: users.email,
+      actualCreatorName: creatorUser.firstName,
+    })
+    .from(orders)
+    .leftJoin(users, eq(orders.userId, users.id))
+    .leftJoin(creatorUser, eq(orders.createdBy, creatorUser.id))
+    .where(condition!)
     .orderBy(desc(orders.createdAt));
   }
 

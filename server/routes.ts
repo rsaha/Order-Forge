@@ -5895,8 +5895,8 @@ export async function registerRoutes(
           }
         }
       } else if (user.role?.toLowerCase() === 'customer') {
-        // Customers see only their own orders
-        allOrders = await storage.getUserOrders(user.id);
+        // Customers see their own orders + any orders placed under their party name
+        allOrders = await storage.getCustomerOrders(user.id, user.partyName);
       } else {
         return res.status(403).json({ message: "Access denied" });
       }
