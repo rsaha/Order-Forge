@@ -62,8 +62,8 @@ export default function Header({
           </Button>
         </Link>
 
-        {/* Orders — all logged-in users */}
-        <Link href="/orders">
+        {/* Orders — hidden for now, route still exists at /orders */}
+        {/* <Link href="/orders">
           <Button
             variant={location === "/orders" ? "secondary" : "ghost"}
             size="sm"
@@ -72,7 +72,7 @@ export default function Header({
             <ListOrdered className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Orders</span>
           </Button>
-        </Link>
+        </Link> */}
 
         {/* Analytics — admin only */}
         {isAdmin && (
