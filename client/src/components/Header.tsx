@@ -22,6 +22,7 @@ export default function Header({
 }: HeaderProps) {
   const [location] = useLocation();
   const { user } = useAuth();
+  const isCustomer = user?.role?.toLowerCase() === "customer";
 
   return (
     <>
@@ -57,8 +58,8 @@ export default function Header({
           </Link>
         )}
 
-        {/* Inventory — non-admin users only */}
-        {!isAdmin && (
+        {/* Inventory — BrandAdmin and User (sales) only; not Customer */}
+        {!isAdmin && !isCustomer && (
           <Link href="/inventory">
             <Button
               variant={location === "/inventory" ? "secondary" : "ghost"}
