@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle, ChevronDown, ChevronRight, Package, ListOrdered, AlertTriangle, Info, CalendarDays, Tag } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronRight, Package, ListOrdered, AlertTriangle, CalendarDays, Tag } from "lucide-react";
 import Header from "@/components/Header";
 import type { Order, OrderItem } from "@shared/schema";
 
@@ -466,25 +466,15 @@ export default function PortalPage() {
   const isAdmin = user?.isAdmin === true;
   const isBrandAdmin = user?.role === "BrandAdmin";
 
-  if (!user || isAdmin || (user.role !== "User" && user.role !== "BrandAdmin")) {
+  if (!user) {
     return (
-      <div className="flex flex-col h-screen min-h-0">
-        <header className="flex-shrink-0 sticky top-0 z-50 bg-background border-b">
-          <div className="flex items-center justify-between gap-4 px-4 h-16">
-            <Header cartItemCount={0} onCartClick={() => {}} isAdmin={isAdmin} isBrandAdmin={isBrandAdmin} showTabs={false} />
-          </div>
-        </header>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            <Info className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p>This page is for Sales Users and Brand Admins only.</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Loading...
       </div>
     );
   }
 
-  const roleLabel = user.role === "BrandAdmin" ? "Brand Admin Portal" : "Sales Portal";
+  const roleLabel = isAdmin ? "Admin Portal" : user.role === "BrandAdmin" ? "Brand Admin Portal" : "Sales Portal";
 
   return (
     <div className="flex flex-col min-h-screen bg-background">

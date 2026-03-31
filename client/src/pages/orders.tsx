@@ -1478,7 +1478,7 @@ export default function OrdersPage() {
             onCartClick={() => {}}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
-            showPortal={!isAdmin && (isBrandAdmin || user?.role === 'User')}
+            showPortal={true}
           />
         </div>
       </header>

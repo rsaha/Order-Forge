@@ -5838,12 +5838,13 @@ export async function registerRoutes(
   app.get("/api/portal/orders", isAuthenticated, async (req, res) => {
     const user = req.user as Express.User;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.isAdmin) return res.status(403).json({ message: "Use /api/admin/orders for admins" });
 
     try {
       let allOrders: (Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[] = [];
 
-      if (user.role === 'BrandAdmin') {
+      if (user.isAdmin) {
+        allOrders = await storage.getAllOrders({});
+      } else if (user.role === 'BrandAdmin') {
         const brandAccess = await storage.getUserBrandAccess(user.id);
         if (brandAccess.length > 0) {
           allOrders = await storage.getOrdersByBrands(brandAccess, {});
@@ -5878,7 +5879,6 @@ export async function registerRoutes(
   app.patch("/api/portal/orders/:id/approve", isAuthenticated, async (req, res) => {
     const user = req.user as Express.User;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.isAdmin) return res.status(403).json({ message: "Use /api/admin/orders for admins" });
 
     const orderId = req.params.id;
     try {
@@ -5886,7 +5886,9 @@ export async function registerRoutes(
       if (!order) return res.status(404).json({ message: "Order not found" });
       if (order.status !== 'Created') return res.status(400).json({ message: "Only Created orders can be approved" });
 
-      if (user.role === 'BrandAdmin') {
+      if (user.isAdmin) {
+        // Admins can approve any order — no further checks needed
+      } else if (user.role === 'BrandAdmin') {
         const brandAccess = await storage.getUserBrandAccess(user.id);
         if (!brandAccess.includes(order.brand)) {
           return res.status(403).json({ message: "No access to this order's brand" });
@@ -5917,13 +5919,18 @@ export async function registerRoutes(
   app.get("/api/portal/stock", isAuthenticated, async (req, res) => {
     const user = req.user as Express.User;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.isAdmin) return res.status(403).json({ message: "Use /api/stock for admins" });
-    if (user.role !== 'BrandAdmin' && user.role !== 'User') {
-      return res.status(403).json({ message: "Access denied" });
-    }
 
     try {
-      const brandAccess = await storage.getUserBrandAccess(user.id);
+      let brandAccess: string[] = [];
+      if (user.isAdmin) {
+        const activeBrands = await storage.getActiveBrands();
+        brandAccess = activeBrands.map(b => b.name);
+      } else if (user.role === 'BrandAdmin' || user.role === 'User') {
+        brandAccess = await storage.getUserBrandAccess(user.id);
+      } else {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
       if (!brandAccess.length) return res.json({ brands: [] });
 
       const { brand: brandFilter } = req.query;
