@@ -23,23 +23,22 @@ let devUserId: string | null = null;
 async function getDevUserId(): Promise<string> {
   if (devUserId) return devUserId;
   const allUsers = await storage.getAllUsers();
-  // Find an existing Customer user
+  // Find an existing Admin user
   for (const u of allUsers) {
-    if (u.role === "Customer" && !u.isAdmin) {
+    if (u.isAdmin) {
       devUserId = u.id;
       return u.id;
     }
   }
-  // Create a dev customer user if none found
+  // Create a dev admin user if none found
   const devUser = await storage.upsertUser({
-    id: "dev-customer",
-    email: "dev-customer@local",
+    id: "dev-admin",
+    email: "dev-admin@local",
     firstName: "Dev",
-    lastName: "Customer",
+    lastName: "Admin",
     profileImageUrl: null,
-    isAdmin: false,
+    isAdmin: true,
   });
-  await storage.updateUserRole("dev-customer", "Customer");
   devUserId = devUser.id;
   return devUser.id;
 }
@@ -107,7 +106,7 @@ async function upsertGoogleUser(profile: Profile): Promise<string> {
 
 export async function setupAuth(app: Express) {
   if (isDev) {
-    console.log("[DEV MODE] Auth bypass enabled - auto-login as Customer");
+    console.log("[DEV MODE] Auth bypass enabled - auto-login as Admin");
     app.get("/api/login", (_req, res) => res.redirect("/"));
     app.get("/api/callback", (_req, res) => res.redirect("/"));
     app.get("/api/logout", (_req, res) => res.redirect("/"));
