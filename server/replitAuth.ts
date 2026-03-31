@@ -18,26 +18,34 @@ interface AuthenticatedRequest {
 }
 
 const isDev = process.env.NODE_ENV !== "production";
-let devAdminUserId: string | null = null;
+let devUserId: string | null = null;
 
-async function getDevAdminUserId(): Promise<string> {
-  if (devAdminUserId) return devAdminUserId;
+async function getDevUserId(): Promise<string> {
+  if (devUserId) return devUserId;
   const allUsers = await storage.getAllUsers();
-  const admin = allUsers.find(u => u.isAdmin && u.role === "Admin");
-  if (admin) {
-    devAdminUserId = admin.id;
-    return admin.id;
+  // Find a BrandAdmin with UM brand access
+  for (const u of allUsers) {
+    if (u.role === "BrandAdmin") {
+      const brands = await storage.getUserBrandAccess(u.id);
+      if (brands.includes("UM")) {
+        devUserId = u.id;
+        return u.id;
+      }
+    }
   }
-  await storage.upsertUser({
-    id: "dev-admin",
-    email: "dev@admin.local",
+  // Create a dev BrandAdmin user for UM if none found
+  const devUser = await storage.upsertUser({
+    id: "dev-brandadmin-um",
+    email: "dev-brandadmin@local",
     firstName: "Dev",
-    lastName: "Admin",
+    lastName: "BrandAdmin UM",
     profileImageUrl: null,
-    isAdmin: true,
+    isAdmin: false,
   });
-  devAdminUserId = "dev-admin";
-  return "dev-admin";
+  await storage.updateUserRole("dev-brandadmin-um", "BrandAdmin");
+  await storage.setUserBrandAccess("dev-brandadmin-um", ["UM"]);
+  devUserId = devUser.id;
+  return devUser.id;
 }
 
 export function getSession() {
@@ -103,7 +111,7 @@ async function upsertGoogleUser(profile: Profile): Promise<string> {
 
 export async function setupAuth(app: Express) {
   if (isDev) {
-    console.log("[DEV MODE] Auth bypass enabled - auto-login as admin user");
+    console.log("[DEV MODE] Auth bypass enabled - auto-login as BrandAdmin (UM)");
     app.get("/api/login", (_req, res) => res.redirect("/"));
     app.get("/api/callback", (_req, res) => res.redirect("/"));
     app.get("/api/logout", (_req, res) => res.redirect("/"));
@@ -182,9 +190,9 @@ export async function setupAuth(app: Express) {
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   if (isDev) {
-    const adminId = await getDevAdminUserId();
+    const userId = await getDevUserId();
     (req as unknown as AuthenticatedRequest).user = {
-      claims: { sub: adminId },
+      claims: { sub: userId },
     };
     return next();
   }
