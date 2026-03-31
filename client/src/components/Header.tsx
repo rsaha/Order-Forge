@@ -1,13 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Package, ListOrdered, Users, BarChart3, ShoppingBag, Warehouse, Home } from "lucide-react";
+import { ShoppingCart, Package, ListOrdered, Users, BarChart3, ShoppingBag, Warehouse, Home, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderProps {
   cartItemCount: number;
   onCartClick: () => void;
   isAdmin?: boolean;
   isBrandAdmin?: boolean;
+  showPortal?: boolean;
 }
 
 export default function Header({
@@ -15,8 +18,10 @@ export default function Header({
   onCartClick,
   isAdmin = false,
   isBrandAdmin = false,
+  showPortal = false,
 }: HeaderProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
 
   return (
     <>
@@ -123,23 +128,49 @@ export default function Header({
         )}
       </nav>
 
-      <Button
-        variant="outline"
-        size="icon"
-        className="relative"
-        onClick={onCartClick}
-        data-testid="button-cart"
-      >
-        <ShoppingCart className="w-5 h-5" />
+      <div className="flex items-center gap-2">
         {cartItemCount > 0 && (
-          <Badge
-            className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
-            data-testid="badge-cart-count"
+          <Button
+            variant="outline"
+            size="icon"
+            className="relative"
+            onClick={onCartClick}
+            data-testid="button-cart"
           >
-            {cartItemCount}
-          </Badge>
+            <ShoppingCart className="w-5 h-5" />
+            <Badge
+              className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              data-testid="badge-cart-count"
+            >
+              {cartItemCount}
+            </Badge>
+          </Button>
         )}
-      </Button>
+
+        {user && (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={user.profileImageUrl || undefined} />
+              <AvatarFallback>
+                {user.firstName?.[0] || user.email?.[0] || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm hidden sm:block max-w-[120px] truncate">
+              {user.firstName || user.email}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              data-testid="button-logout"
+            >
+              <a href="/api/logout">
+                <LogOut className="w-5 h-5" />
+              </a>
+            </Button>
+          </div>
+        )}
+      </div>
     </>
   );
 }

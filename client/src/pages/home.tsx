@@ -16,9 +16,8 @@ import { queryClient } from "@/lib/queryClient";
 import { generateWhatsAppMessage, openWhatsApp } from "@/lib/whatsapp";
 import type { CartItemData } from "@/components/CartItem";
 import type { Product, Order } from "@shared/schema";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, ShoppingCart, MessageCircle, CheckCircle } from "lucide-react";
+import { ShoppingCart, MessageCircle, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface ParsedItem {
@@ -628,30 +627,6 @@ export default function Home() {
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
           />
-          
-          {user && (
-            <div className="flex items-center gap-2">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user.profileImageUrl || undefined} />
-                <AvatarFallback>
-                  {user.firstName?.[0] || user.email?.[0] || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm hidden sm:block">
-                {user.firstName || user.email}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                data-testid="button-logout"
-              >
-                <a href="/api/logout">
-                  <LogOut className="w-5 h-5" />
-                </a>
-              </Button>
-            </div>
-          )}
         </div>
       </header>
 
