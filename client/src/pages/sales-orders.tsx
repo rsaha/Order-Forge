@@ -439,97 +439,91 @@ export default function SalesOrdersPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto w-full px-4 py-5">
+      <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-5">
         {/* title row */}
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold">My Orders</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-lg sm:text-xl font-bold">My Orders</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               {isAdmin ? "All orders across the system" : isBrandAdmin ? "Orders for your brands" : isCustomer ? "Your order history" : "Your orders"}
             </p>
           </div>
           {isAdmin && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowExport(true)} data-testid="button-export-orders">
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Export</span>
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 px-2.5" onClick={() => setShowExport(true)} data-testid="button-export-orders">
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-xs">Export</span>
               </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowBulkWA(true)} data-testid="button-bulk-whatsapp">
-                <Send className="w-4 h-4" />
-                <span className="hidden sm:inline">Bulk WhatsApp</span>
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 px-2.5" onClick={() => setShowBulkWA(true)} data-testid="button-bulk-whatsapp">
+                <Send className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-xs">Bulk WhatsApp</span>
               </Button>
             </div>
           )}
         </div>
 
         <Card>
-          <CardContent className="pt-4">
-            {/* filter row */}
-            <div className="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b">
-              {/* search */}
-              <div className="relative flex-1 min-w-48 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search party, invoice, brand…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9"
-                  data-testid="input-search-orders"
-                />
-                {searchQuery && (
-                  <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setSearchQuery("")}>
-                    <X className="w-3 h-3" />
-                  </Button>
+          <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+            {/* filter area — two rows on mobile */}
+            <div className="mb-3 pb-3 border-b space-y-2">
+              {/* row 1: search + brand dropdown */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search party, invoice…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-9 text-sm"
+                    data-testid="input-search-orders"
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setSearchQuery("")}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+                {hasAdminAccess && availableBrands.length > 0 && (
+                  <Select value={brandFilter} onValueChange={setBrandFilter}>
+                    <SelectTrigger className="w-28 sm:w-36 h-9 text-xs" data-testid="select-brand-filter">
+                      <SelectValue placeholder="Brand" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Brands</SelectItem>
+                      {availableBrands.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
-
-              <Filter className="w-4 h-4 text-muted-foreground hidden sm:block" />
-
-              {/* date presets */}
-              <div className="flex gap-1 flex-wrap">
+              {/* row 2: date presets (scrollable) + dc filter + count */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-none">
                 {DATE_PRESETS.map(p => (
                   <Button
                     key={p.value}
                     variant={datePreset === p.value ? "default" : "outline"}
                     size="sm"
-                    className="h-8 px-2.5 text-xs"
+                    className="h-7 px-2 text-xs whitespace-nowrap flex-shrink-0"
                     onClick={() => handlePreset(p.value)}
                     data-testid={`button-preset-${p.value}`}
                   >
                     {p.label}
                   </Button>
                 ))}
+                {isAdmin && (
+                  <Select value={dcFilter} onValueChange={setDcFilter}>
+                    <SelectTrigger className="w-36 h-7 text-xs flex-shrink-0" data-testid="select-dc-filter">
+                      <SelectValue placeholder="Delivery Co." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Delivery Co.</SelectItem>
+                      {DELIVERY_COMPANIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap flex-shrink-0">
+                  {searchQuery ? `${totalSearchMatches} match${totalSearchMatches !== 1 ? "es" : ""}` : `${orders.length} orders`}
+                </span>
               </div>
-
-              {/* brand filter (admin + brandadmin) */}
-              {hasAdminAccess && availableBrands.length > 0 && (
-                <Select value={brandFilter} onValueChange={setBrandFilter}>
-                  <SelectTrigger className="w-36 h-8" data-testid="select-brand-filter">
-                    <SelectValue placeholder="Brand" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Brands</SelectItem>
-                    {availableBrands.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-
-              {/* delivery company filter (admin only) */}
-              {isAdmin && (
-                <Select value={dcFilter} onValueChange={setDcFilter}>
-                  <SelectTrigger className="w-40 h-8 hidden lg:flex" data-testid="select-dc-filter">
-                    <SelectValue placeholder="Delivery Co." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Delivery Co.</SelectItem>
-                    {DELIVERY_COMPANIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-
-              <span className="text-xs text-muted-foreground ml-auto">
-                {searchQuery ? `${totalSearchMatches} match${totalSearchMatches !== 1 ? "es" : ""}` : `${orders.length} orders`}
-              </span>
             </div>
 
             {/* status tabs */}
@@ -561,7 +555,7 @@ export default function SalesOrdersPage() {
               })}
             </div>
 
-            {/* table */}
+            {/* order list */}
             {isLoading ? (
               <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
             ) : filtered.length === 0 ? (
@@ -569,8 +563,75 @@ export default function SalesOrdersPage() {
                 <ListOrdered className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p>{searchQuery ? "No orders match your search" : "No orders in this category"}</p>
               </div>
-            ) : (
-              <div className="rounded-md border overflow-x-auto">
+            ) : (<>
+              {/* ── Mobile card list (< sm) ── */}
+              <div className="sm:hidden divide-y -mx-3 border-t">
+                {filtered.map((order) => {
+                  const orderValue = formatCurrency((order as any).actualOrderValue || order.total);
+                  const dateShort = order.createdAt
+                    ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+                    : "-";
+                  const extraLine = (() => {
+                    if (activeTab === "Invoiced") return order.invoiceNumber ? `Invoice: ${order.invoiceNumber}` : null;
+                    if (activeTab === "Dispatched") {
+                      const parts = [(order as any).dispatchBy, (order as any).cases ? `${(order as any).cases} cases` : null].filter(Boolean);
+                      return parts.length ? parts.join(" · ") : null;
+                    }
+                    if (activeTab === "Delivered") {
+                      const parts = [order.invoiceNumber ? `Inv: ${order.invoiceNumber}` : null, (order as any).actualDeliveryDate ? `Del: ${new Date((order as any).actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : null].filter(Boolean);
+                      return parts.length ? parts.join(" · ") : null;
+                    }
+                    if (activeTab === "PODReceived") {
+                      return (order as any).podTimestamp ? `POD: ${new Date((order as any).podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : "POD Received";
+                    }
+                    if (activeTab === "Approved" && (order as any).approvedBy) return `Approved by ${(order as any).approvedBy}`;
+                    if (activeTab === "Pending" && (order as any).parentOrderId) return `Parent: #${(order as any).parentOrderId.slice(-6)}`;
+                    return null;
+                  })();
+                  return (
+                    <div
+                      key={order.id}
+                      className="px-3 py-3 cursor-pointer hover:bg-muted/30 active:bg-muted/50"
+                      onClick={() => setSelectedOrder(order)}
+                      data-testid={`row-order-${order.id}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-medium text-sm leading-snug flex-1 min-w-0 truncate">{order.partyName || "Unknown"}</span>
+                        <span className="font-semibold text-sm whitespace-nowrap">{orderValue}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1 gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
+                          {order.brand && (
+                            <span className="bg-muted text-muted-foreground px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap">{order.brand}</span>
+                          )}
+                          {activeTab === "All" && (
+                            <Badge className={`text-xs py-0 px-1.5 h-5 ${STATUS_BADGE[order.status] || ""}`}>
+                              {order.status === "PODReceived" ? "POD" : order.status}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">{dateShort}</span>
+                      </div>
+                      {extraLine && (
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">{extraLine}</div>
+                      )}
+                      {activeTab === "Created" && canApprove && (
+                        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
+                            disabled={approveMutation.isPending}
+                            onClick={(e) => { e.stopPropagation(); approveMutation.mutate(order.id); }}
+                            data-testid={`button-approve-${order.id}`}>
+                            <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── Desktop table (≥ sm) ── */}
+              <div className="hidden sm:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -828,7 +889,7 @@ export default function SalesOrdersPage() {
                   </TableBody>
                 </Table>
               </div>
-            )}
+            </>)}
           </CardContent>
         </Card>
       </div>
