@@ -23,27 +23,23 @@ let devUserId: string | null = null;
 async function getDevUserId(): Promise<string> {
   if (devUserId) return devUserId;
   const allUsers = await storage.getAllUsers();
-  // Find an existing Sales User (role "User") with UM brand access
+  // Find an existing Customer user
   for (const u of allUsers) {
-    if (u.role === "User" && !u.isAdmin) {
-      const brands = await storage.getUserBrandAccess(u.id);
-      if (brands.includes("UM")) {
-        devUserId = u.id;
-        return u.id;
-      }
+    if (u.role === "Customer" && !u.isAdmin) {
+      devUserId = u.id;
+      return u.id;
     }
   }
-  // Create a dev sales user for UM if none found
+  // Create a dev customer user if none found
   const devUser = await storage.upsertUser({
-    id: "dev-sales-um",
-    email: "dev-sales-um@local",
+    id: "dev-customer",
+    email: "dev-customer@local",
     firstName: "Dev",
-    lastName: "Sales UM",
+    lastName: "Customer",
     profileImageUrl: null,
     isAdmin: false,
   });
-  await storage.updateUserRole("dev-sales-um", "User");
-  await storage.setUserBrandAccess("dev-sales-um", ["UM"]);
+  await storage.updateUserRole("dev-customer", "Customer");
   devUserId = devUser.id;
   return devUser.id;
 }
@@ -111,7 +107,7 @@ async function upsertGoogleUser(profile: Profile): Promise<string> {
 
 export async function setupAuth(app: Express) {
   if (isDev) {
-    console.log("[DEV MODE] Auth bypass enabled - auto-login as Sales User (UM)");
+    console.log("[DEV MODE] Auth bypass enabled - auto-login as Customer");
     app.get("/api/login", (_req, res) => res.redirect("/"));
     app.get("/api/callback", (_req, res) => res.redirect("/"));
     app.get("/api/logout", (_req, res) => res.redirect("/"));
