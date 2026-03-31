@@ -5832,5 +5832,150 @@ export async function registerRoutes(
     }
   });
 
+  // ─── PORTAL ROUTES (Users & BrandAdmins) ────────────────────────────────────
+
+  // GET /api/portal/orders — combined order view for User and BrandAdmin
+  app.get("/api/portal/orders", isAuthenticated, async (req, res) => {
+    const user = req.user as Express.User;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    if (user.isAdmin) return res.status(403).json({ message: "Use /api/admin/orders for admins" });
+
+    try {
+      let allOrders: (Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[] = [];
+
+      if (user.role === 'BrandAdmin') {
+        const brandAccess = await storage.getUserBrandAccess(user.id);
+        if (brandAccess.length > 0) {
+          allOrders = await storage.getOrdersByBrands(brandAccess, {});
+        }
+      } else if (user.role === 'User') {
+        const [ownOrders, partyOrders, customerOrders] = await Promise.all([
+          storage.getUserOrders(user.id),
+          storage.getOrdersForLinkedParties(user.id),
+          storage.getOrdersForLinkedCustomers(user.id),
+        ]);
+        const seen = new Set<string>();
+        for (const order of [...ownOrders, ...partyOrders, ...customerOrders]) {
+          if (!seen.has(order.id)) {
+            seen.add(order.id);
+            allOrders.push(order);
+          }
+        }
+      } else {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Sort newest first
+      allOrders.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+      res.json(allOrders);
+    } catch (error) {
+      console.error("Error fetching portal orders:", error);
+      res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  // PATCH /api/portal/orders/:id/approve — approve a Created order
+  app.patch("/api/portal/orders/:id/approve", isAuthenticated, async (req, res) => {
+    const user = req.user as Express.User;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    if (user.isAdmin) return res.status(403).json({ message: "Use /api/admin/orders for admins" });
+
+    const orderId = req.params.id;
+    try {
+      const order = await storage.getOrderById(orderId);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      if (order.status !== 'Created') return res.status(400).json({ message: "Only Created orders can be approved" });
+
+      if (user.role === 'BrandAdmin') {
+        const brandAccess = await storage.getUserBrandAccess(user.id);
+        if (!brandAccess.includes(order.brand)) {
+          return res.status(403).json({ message: "No access to this order's brand" });
+        }
+      } else if (user.role === 'User') {
+        const [partyAccess, isCustomerLinked] = await Promise.all([
+          storage.getUserPartyAccess(user.id),
+          storage.salesUserHasAccessToOrderOwner(user.id, order.userId),
+        ]);
+        const isOwn = order.userId === user.id;
+        const isPartyLinked = order.partyName ? partyAccess.includes(order.partyName) : false;
+        if (!isOwn && !isPartyLinked && !isCustomerLinked) {
+          return res.status(403).json({ message: "No access to this order" });
+        }
+      } else {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const updated = await storage.updateOrder(orderId, { status: 'Approved' });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error approving portal order:", error);
+      res.status(500).json({ message: "Failed to approve order" });
+    }
+  });
+
+  // GET /api/portal/stock — stock overview for accessible brands
+  app.get("/api/portal/stock", isAuthenticated, async (req, res) => {
+    const user = req.user as Express.User;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    if (user.isAdmin) return res.status(403).json({ message: "Use /api/stock for admins" });
+    if (user.role !== 'BrandAdmin' && user.role !== 'User') {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    try {
+      const brandAccess = await storage.getUserBrandAccess(user.id);
+      if (!brandAccess.length) return res.json({ brands: [] });
+
+      const { brand: brandFilter } = req.query;
+      const targetBrands = brandFilter
+        ? [brandFilter as string].filter(b => brandAccess.includes(b))
+        : brandAccess;
+
+      const now = new Date();
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+      const brandResults = await Promise.all(targetBrands.map(async (b) => {
+        const [products, imports, salesData, lastSaleDates] = await Promise.all([
+          storage.getProductsForForecast(b),
+          storage.getStockImports(b, 1),
+          storage.getSoldQuantitiesByProduct(b, ninetyDaysAgo, now),
+          storage.getLastSaleDatesByProduct(b, ninetyDaysAgo, now),
+        ]);
+
+        const salesMap = new Map(salesData.map(s => [s.productId, s.quantity]));
+        const lastImport = imports[0] || null;
+
+        const stockedProducts = products
+          .filter(p => p.stock > 0)
+          .map(p => ({
+            productId: p.id,
+            sku: p.sku,
+            name: p.name,
+            size: p.size,
+            brand: p.brand,
+            stock: p.stock,
+            totalSold90: salesMap.get(p.id) || 0,
+            lastSaleDate: lastSaleDates.get(p.id)?.toISOString() || null,
+            isNonMoving: (salesMap.get(p.id) || 0) === 0,
+          }));
+
+        return {
+          brand: b,
+          lastImportDate: lastImport?.importedAt?.toISOString() || null,
+          updatedCount: lastImport?.updatedCount || null,
+          totalStocked: stockedProducts.length,
+          activeCount: stockedProducts.filter(p => !p.isNonMoving).length,
+          nonMovingCount: stockedProducts.filter(p => p.isNonMoving).length,
+          products: stockedProducts,
+        };
+      }));
+
+      res.json({ brands: brandResults });
+    } catch (error) {
+      console.error("Error fetching portal stock:", error);
+      res.status(500).json({ message: "Failed to fetch stock data" });
+    }
+  });
+
   return httpServer;
 }

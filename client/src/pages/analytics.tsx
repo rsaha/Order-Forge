@@ -807,6 +807,7 @@ export default function AnalyticsPage() {
             onCartClick={() => {}}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
+            showPortal={!isAdmin && isBrandAdmin}
           />
         </div>
       </header>

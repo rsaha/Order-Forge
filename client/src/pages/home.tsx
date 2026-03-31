@@ -828,6 +828,7 @@ export default function Home() {
             onCartClick={() => setIsCartOpen(true)}
             isAdmin={isAdmin}
             isBrandAdmin={isBrandAdmin}
+            showPortal={!isAdmin && (isBrandAdmin || user?.role === 'User')}
           />
           
           {user && (

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Boxes } from "lucide-react";
+import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Boxes, LayoutDashboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 
@@ -11,6 +11,7 @@ interface HeaderProps {
   isAdmin?: boolean;
   isBrandAdmin?: boolean;
   showTabs?: boolean;
+  showPortal?: boolean;
 }
 
 export default function Header({ 
@@ -21,6 +22,7 @@ export default function Header({
   isAdmin = false,
   isBrandAdmin = false,
   showTabs = true,
+  showPortal = false,
 }: HeaderProps) {
   return (
     <>
@@ -100,6 +102,18 @@ export default function Header({
             <span className="hidden sm:inline">Orders</span>
           </Button>
         </Link>
+        {showPortal && (
+          <Link href="/portal">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="tab-portal"
+            >
+              <LayoutDashboard className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Portal</span>
+            </Button>
+          </Link>
+        )}
         {isAdmin && (
           <Link href="/users">
             <Button
