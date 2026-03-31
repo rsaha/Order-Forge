@@ -345,6 +345,8 @@ function StockSection() {
 
   const { data, isLoading } = useQuery<{ brands: BrandStock[] }>({
     queryKey: ["/api/portal/stock"],
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const brands = data?.brands || [];

@@ -5835,8 +5835,10 @@ export async function registerRoutes(
   // ─── PORTAL ROUTES (Users & BrandAdmins) ────────────────────────────────────
 
   // GET /api/portal/orders — combined order view for User and BrandAdmin
-  app.get("/api/portal/orders", isAuthenticated, async (req, res) => {
-    const user = req.user as Express.User;
+  app.get("/api/portal/orders", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     try {
@@ -5882,8 +5884,10 @@ export async function registerRoutes(
   });
 
   // PATCH /api/portal/orders/:id/approve — approve a Created order
-  app.patch("/api/portal/orders/:id/approve", isAuthenticated, async (req, res) => {
-    const user = req.user as Express.User;
+  app.patch("/api/portal/orders/:id/approve", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     const orderId = req.params.id;
@@ -5922,8 +5926,10 @@ export async function registerRoutes(
   });
 
   // GET /api/portal/stock — stock overview for accessible brands
-  app.get("/api/portal/stock", isAuthenticated, async (req, res) => {
-    const user = req.user as Express.User;
+  app.get("/api/portal/stock", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     try {
