@@ -101,7 +101,16 @@ const ALL_TABS: TabConfig[] = [
   { label: "All",            status: "All",         badgeClass: "bg-muted text-foreground",      borderClass: "border-foreground" },
 ];
 
-const CUSTOMER_STATUSES = new Set(["Created", "Approved", "Invoiced", "Cancelled", "All"]);
+const CUSTOMER_STATUSES = new Set(["Created", "Pending", "Backordered", "Invoiced", "Dispatched", "Delivered", "Cancelled"]);
+
+const CUSTOMER_TABS: TabConfig[] = [
+  { label: "Created",    status: "Created",    badgeClass: "bg-blue-100 text-blue-800",     borderClass: "border-blue-500 text-blue-700" },
+  { label: "Pending",    status: "Pending",    badgeClass: "bg-amber-100 text-amber-800",   borderClass: "border-amber-500 text-amber-700" },
+  { label: "Invoiced",   status: "Invoiced",   badgeClass: "bg-purple-100 text-purple-800", borderClass: "border-purple-500 text-purple-700" },
+  { label: "Dispatched", status: "Dispatched", badgeClass: "bg-orange-100 text-orange-800", borderClass: "border-orange-500 text-orange-700" },
+  { label: "Delivered",  status: "Delivered",  badgeClass: "bg-teal-100 text-teal-800",     borderClass: "border-teal-500 text-teal-700" },
+  { label: "Cancelled",  status: "Cancelled",  badgeClass: "bg-gray-100 text-gray-800",     borderClass: "border-gray-500 text-gray-700" },
+];
 
 const STATUS_BADGE: Record<string, string> = {
   Created:     "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -244,7 +253,7 @@ export default function SalesOrdersPage() {
 
   /* tab visibility */
   const visibleTabs = useMemo(() => {
-    if (isCustomer) return ALL_TABS.filter(t => CUSTOMER_STATUSES.has(t.status));
+    if (isCustomer) return CUSTOMER_TABS;
     if (isBrandAdmin) return ALL_TABS.filter(t => t.status !== "PODReceived");
     return ALL_TABS;
   }, [isCustomer, isBrandAdmin]);
@@ -254,20 +263,29 @@ export default function SalesOrdersPage() {
     const map: Record<string, number> = {};
     for (const o of orders) {
       if (matchesSearch(o, searchQuery)) {
-        map[o.status] = (map[o.status] || 0) + 1;
+        // For customers, group Backordered under Pending
+        const key = (isCustomer && o.status === "Backordered") ? "Pending" : o.status;
+        map[key] = (map[key] || 0) + 1;
       }
     }
     return map;
-  }, [orders, searchQuery]);
+  }, [orders, searchQuery, isCustomer]);
 
   const totalSearchMatches = useMemo(() =>
     orders.filter(o => matchesSearch(o, searchQuery)).length, [orders, searchQuery]);
 
   const filtered = useMemo(() => {
     let list = orders.filter(o => matchesSearch(o, searchQuery));
-    if (activeTab !== "All") list = list.filter(o => o.status === activeTab);
+    if (activeTab !== "All") {
+      // For customers, Pending tab shows both Pending and Backordered
+      if (isCustomer && activeTab === "Pending") {
+        list = list.filter(o => o.status === "Pending" || o.status === "Backordered");
+      } else {
+        list = list.filter(o => o.status === activeTab);
+      }
+    }
     return list;
-  }, [orders, searchQuery, activeTab]);
+  }, [orders, searchQuery, activeTab, isCustomer]);
 
   const pendingOrderLookup = useMemo(() => {
     const lookup = new Map<string, Order>();
