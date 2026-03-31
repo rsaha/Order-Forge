@@ -512,7 +512,7 @@ export default function SalesOrdersPage() {
               {/* ── Mobile card list (< sm) ── */}
               <div className="sm:hidden divide-y -mx-3 border-t">
                 {filtered.map((order) => {
-                  const orderValue = formatCurrency((order as any).actualOrderValue || order.total);
+                  const orderValue = formatCurrency(["Invoiced","Dispatched","Delivered","PODReceived"].includes(activeTab) ? ((order as any).actualOrderValue || order.total) : order.total);
                   const dateShort = order.createdAt
                     ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
                     : "-";
@@ -677,7 +677,9 @@ export default function SalesOrdersPage() {
                       const createdBy = order.actualCreatorName && order.actualCreatorName !== order.createdByName
                         ? `${order.createdByName || "-"} (by ${order.actualCreatorName})`
                         : (order.createdByName || "-");
-                      const orderValue = formatCurrency((order as any).actualOrderValue || order.total);
+                      // actualOrderValue is only meaningful for post-invoice statuses
+                      const hasActualValue = ["Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(activeTab);
+                      const orderValue = formatCurrency(hasActualValue ? ((order as any).actualOrderValue || order.total) : order.total);
                       const dateShort = order.createdAt
                         ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
                         : "-";
@@ -826,7 +828,7 @@ export default function SalesOrdersPage() {
                             <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
                             <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
                             <TableCell className="hidden md:table-cell text-sm">{order.invoiceNumber || "-"}</TableCell>
-                            <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency((order as any).actualOrderValue || order.total)}</TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(["Invoiced","Dispatched","Delivered","PODReceived"].includes(order.status) ? ((order as any).actualOrderValue || order.total) : order.total)}</TableCell>
                           </>)}
                         </TableRow>
                       );
