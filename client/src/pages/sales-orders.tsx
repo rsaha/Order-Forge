@@ -16,7 +16,8 @@ import {
   Send, MessageCircle, Package, Truck, Loader2,
 } from "lucide-react";
 import Header from "@/components/Header";
-import type { Order, OrderItem } from "@shared/schema";
+import { OrderDetailPanel } from "@/components/OrderDetailPanel";
+import type { Order } from "@shared/schema";
 import * as XLSX from "xlsx";
 
 /* ─── constants ─── */
@@ -141,70 +142,6 @@ interface BulkGroup {
 /* ─── types ─── */
 type PortalOrder = Order & { createdByName?: string | null; actualCreatorName?: string | null };
 
-/* ─── order detail dialog ─── */
-function OrderDetailDialog({ order, open, onClose, hasAdminAccess }: {
-  order: PortalOrder | null; open: boolean; onClose: () => void; hasAdminAccess: boolean;
-}) {
-  const { data: items, isLoading } = useQuery<OrderItem[]>({
-    queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", order?.id, "items"],
-    queryFn: async () => {
-      if (!order) return [];
-      const endpoint = hasAdminAccess ? `/api/admin/orders/${order.id}` : `/api/orders/${order.id}`;
-      const res = await fetch(endpoint, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch items");
-      const data = await res.json();
-      return data.items || [];
-    },
-    enabled: open && !!order,
-  });
-  if (!order) return null;
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 flex-wrap">
-            <span>Order — {order.partyName}</span>
-            <Badge className={STATUS_BADGE[order.status] || ""}>{order.status === "PODReceived" ? "POD Received" : order.status}</Badge>
-          </DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-          <div><span className="text-muted-foreground">Brand</span><p className="font-medium">{order.brand}</p></div>
-          <div><span className="text-muted-foreground">Date</span><p className="font-medium">{formatDate(order.createdAt?.toString())}</p></div>
-          <div><span className="text-muted-foreground">Total</span><p className="font-medium">{formatCurrency(order.total)}</p></div>
-          {order.invoiceNumber && <div><span className="text-muted-foreground">Invoice #</span><p className="font-medium">{order.invoiceNumber}</p></div>}
-          {order.specialNotes && <div className="col-span-2"><span className="text-muted-foreground">Notes</span><p className="font-medium">{order.specialNotes}</p></div>}
-        </div>
-        {isLoading ? <Skeleton className="h-32 w-full" /> : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Free</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items?.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="text-sm">
-                    <div className="font-medium">{(item as any).productName || item.productId}</div>
-                    {(item as any).size && <div className="text-xs text-muted-foreground">{(item as any).size}</div>}
-                  </TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">{item.freeQuantity || "—"}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(Number(item.unitPrice) * item.quantity)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* ─── main page ─── */
 export default function SalesOrdersPage() {
@@ -330,6 +267,14 @@ export default function SalesOrdersPage() {
     if (activeTab !== "All") list = list.filter(o => o.status === activeTab);
     return list;
   }, [orders, searchQuery, activeTab]);
+
+  const pendingOrderLookup = useMemo(() => {
+    const lookup = new Map<string, Order>();
+    orders
+      .filter(o => o.status === "Pending" && (o as any).parentOrderId)
+      .forEach(po => lookup.set((po as any).parentOrderId, po));
+    return lookup;
+  }, [orders]);
 
   /* handle date preset change */
   const handlePreset = useCallback((preset: string) => {
@@ -895,7 +840,31 @@ export default function SalesOrdersPage() {
       </div>
 
       {/* order detail dialog */}
-      <OrderDetailDialog order={selectedOrder} open={!!selectedOrder} onClose={() => setSelectedOrder(null)} hasAdminAccess={hasAdminAccess} />
+      <Dialog open={!!selectedOrder} onOpenChange={(v) => { if (!v) setSelectedOrder(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {isAdmin ? "Edit Order" : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve Order" : "Order Details"}
+            </DialogTitle>
+            <DialogDescription>
+              {isAdmin ? "Update order details and tracking information." : isBrandAdmin && selectedOrder?.status === "Created" ? "Approve this order to proceed with fulfillment." : "View your order details."}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedOrder && (
+            <OrderDetailPanel
+              key={selectedOrder.id}
+              order={selectedOrder as Order}
+              isAdmin={isAdmin}
+              isBrandAdmin={isBrandAdmin}
+              hasAdminAccess={hasAdminAccess}
+              userId={user?.id}
+              pendingOrderLookup={pendingOrderLookup}
+              onClose={() => setSelectedOrder(null)}
+              onViewPendingOrder={(pendingOrder) => setSelectedOrder(pendingOrder as PortalOrder)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* export dialog */}
       <Dialog open={showExport} onOpenChange={(v) => { setShowExport(v); if (!v) { setExportStatus("all"); setExportType("summary"); } }}>
