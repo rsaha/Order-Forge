@@ -574,60 +574,257 @@ export default function SalesOrdersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead>Party</TableHead>
-                      <TableHead className="hidden sm:table-cell">Brand</TableHead>
-                      <TableHead className="hidden md:table-cell">Date</TableHead>
-                      {(activeTab === "Invoiced" || activeTab === "All") && (
-                        <TableHead className="hidden lg:table-cell">Invoice #</TableHead>
-                      )}
-                      {(activeTab === "Dispatched" || activeTab === "Delivered" || activeTab === "All") && (
-                        <TableHead className="hidden lg:table-cell">Dispatch</TableHead>
-                      )}
-                      <TableHead className="text-right">Value</TableHead>
-                      {activeTab === "All" && <TableHead>Status</TableHead>}
-                      {(isAdmin || isBrandAdmin) && <TableHead className="hidden lg:table-cell">By</TableHead>}
-                      {canApprove && <TableHead className="text-right">Action</TableHead>}
+                      {activeTab === "Created" && (<>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden sm:table-cell">Brand</TableHead>
+                        <TableHead className="hidden md:table-cell">Date</TableHead>
+                        <TableHead className="text-right">Value</TableHead>
+                        {canApprove && <TableHead className="text-right">Action</TableHead>}
+                      </>)}
+                      {activeTab === "Approved" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="hidden md:table-cell">Approved By</TableHead>
+                        <TableHead className="hidden md:table-cell">Approved At</TableHead>
+                        <TableHead className="hidden lg:table-cell">Notes</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
+                      </>)}
+                      {activeTab === "Backordered" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="hidden lg:table-cell">Notes</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
+                      </>)}
+                      {activeTab === "Pending" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="hidden md:table-cell">Parent Order</TableHead>
+                        <TableHead className="hidden lg:table-cell">Notes</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
+                      </>)}
+                      {activeTab === "Invoiced" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead>Invoice #</TableHead>
+                        <TableHead className="hidden md:table-cell">Invoice Date</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
+                      </>)}
+                      {activeTab === "Dispatched" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="hidden md:table-cell">Invoice #</TableHead>
+                        <TableHead className="hidden md:table-cell">Dispatch By</TableHead>
+                        <TableHead className="hidden md:table-cell text-center">Cases</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
+                        <TableHead className="hidden lg:table-cell">Est. Delivery</TableHead>
+                      </>)}
+                      {activeTab === "Delivered" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="hidden md:table-cell">Invoice #</TableHead>
+                        <TableHead className="hidden md:table-cell">Dispatch On</TableHead>
+                        <TableHead className="hidden md:table-cell">Dispatch By</TableHead>
+                        <TableHead className="hidden md:table-cell">Delivered On</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
+                        <TableHead className="hidden lg:table-cell text-center">On Time?</TableHead>
+                      </>)}
+                      {activeTab === "PODReceived" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Invoice #</TableHead>
+                        <TableHead className="hidden md:table-cell">Delivered On</TableHead>
+                        <TableHead className="hidden md:table-cell">POD Received</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </>)}
+                      {activeTab === "Cancelled" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </>)}
+                      {activeTab === "All" && (<>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden lg:table-cell">Brand</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead className="hidden md:table-cell">Created By</TableHead>
+                        <TableHead className="hidden md:table-cell">Invoice #</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </>)}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((order) => (
-                      <TableRow key={order.id} className="cursor-pointer hover:bg-muted/30" onClick={() => setSelectedOrder(order)} data-testid={`row-order-${order.id}`}>
-                        <TableCell className="font-medium max-w-[150px] truncate">{order.partyName || "—"}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{order.brand}</TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{formatDate(order.createdAt?.toString())}</TableCell>
-                        {(activeTab === "Invoiced" || activeTab === "All") && (
-                          <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{order.invoiceNumber || "—"}</TableCell>
-                        )}
-                        {(activeTab === "Dispatched" || activeTab === "Delivered" || activeTab === "All") && (
-                          <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{formatDate((order as any).dispatchDate)}</TableCell>
-                        )}
-                        <TableCell className="text-right text-sm font-medium">{formatCurrency(order.total)}</TableCell>
-                        {activeTab === "All" && (
-                          <TableCell>
-                            <Badge className={`text-xs ${STATUS_BADGE[order.status] || ""}`}>
-                              {order.status === "PODReceived" ? "POD Received" : order.status}
-                            </Badge>
-                          </TableCell>
-                        )}
-                        {(isAdmin || isBrandAdmin) && (
-                          <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[120px] truncate">
-                            {order.actualCreatorName || order.createdByName || "—"}
-                          </TableCell>
-                        )}
-                        {canApprove && (
-                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                            {order.status === "Created" && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
-                                disabled={approveMutation.isPending}
-                                onClick={(e) => { e.stopPropagation(); approveMutation.mutate(order.id); }}
-                                data-testid={`button-approve-${order.id}`}>
-                                <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
-                              </Button>
+                    {filtered.map((order) => {
+                      const createdBy = order.actualCreatorName && order.actualCreatorName !== order.createdByName
+                        ? `${order.createdByName || "-"} (by ${order.actualCreatorName})`
+                        : (order.createdByName || "-");
+                      const orderValue = formatCurrency((order as any).actualOrderValue || order.total);
+                      const dateShort = order.createdAt
+                        ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+                        : "-";
+                      return (
+                        <TableRow key={order.id} className="cursor-pointer hover:bg-muted/30" onClick={() => setSelectedOrder(order)} data-testid={`row-order-${order.id}`}>
+                          {/* Needs Approval (Created) */}
+                          {activeTab === "Created" && (<>
+                            <TableCell className="font-medium max-w-[150px] truncate">{order.partyName || "—"}</TableCell>
+                            <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{order.brand}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{formatDate(order.createdAt?.toString())}</TableCell>
+                            <TableCell className="text-right text-sm font-medium">{formatCurrency(order.total)}</TableCell>
+                            {canApprove && (
+                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                                  disabled={approveMutation.isPending}
+                                  onClick={(e) => { e.stopPropagation(); approveMutation.mutate(order.id); }}
+                                  data-testid={`button-approve-${order.id}`}>
+                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                                </Button>
+                              </TableCell>
                             )}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
+                          </>)}
+                          {/* Approved */}
+                          {activeTab === "Approved" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{(order as any).approvedBy || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-xs whitespace-nowrap">
+                              {(order as any).approvedAt ? new Date((order as any).approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell max-w-[200px]"><div className="truncate text-sm" title={(order as any).deliveryNote || ""}>{(order as any).deliveryNote || "-"}</div></TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{orderValue}</TableCell>
+                          </>)}
+                          {/* Backordered */}
+                          {activeTab === "Backordered" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="hidden lg:table-cell max-w-[200px]"><div className="truncate text-sm" title={(order as any).specialNotes || ""}>{(order as any).specialNotes || "-"}</div></TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(order.total)}</TableCell>
+                          </>)}
+                          {/* Pending */}
+                          {activeTab === "Pending" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{order.createdByName || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{(order as any).parentOrderId ? `#${(order as any).parentOrderId.slice(-6)}` : "-"}</TableCell>
+                            <TableCell className="hidden lg:table-cell max-w-[200px]"><div className="truncate text-sm" title={(order as any).specialNotes || ""}>{(order as any).specialNotes || "-"}</div></TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{orderValue}</TableCell>
+                          </>)}
+                          {/* Invoiced */}
+                          {activeTab === "Invoiced" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="text-sm font-medium">{order.invoiceNumber || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-xs whitespace-nowrap">
+                              {(order as any).invoiceDate ? new Date((order as any).invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
+                            </TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{orderValue}</TableCell>
+                          </>)}
+                          {/* Dispatched */}
+                          {activeTab === "Dispatched" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{(order as any).dispatchBy || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-center text-sm">{(order as any).cases || "-"}</TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{orderValue}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-xs whitespace-nowrap">
+                              {(order as any).estimatedDeliveryDate ? new Date((order as any).estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
+                            </TableCell>
+                          </>)}
+                          {/* Delivered */}
+                          {activeTab === "Delivered" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-xs whitespace-nowrap">
+                              {(order as any).dispatchDate ? new Date((order as any).dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{(order as any).dispatchBy || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-xs whitespace-nowrap">
+                              {(order as any).actualDeliveryDate ? new Date((order as any).actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
+                            </TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{orderValue}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-center text-sm">
+                              {(() => {
+                                const est = (order as any).estimatedDeliveryDate;
+                                const act = (order as any).actualDeliveryDate;
+                                if (!est || !act) return <span className="text-muted-foreground">-</span>;
+                                const estD = new Date(est); estD.setHours(0, 0, 0, 0);
+                                const actD = new Date(act); actD.setHours(0, 0, 0, 0);
+                                if (actD < estD) return <span className="text-green-600 font-medium">Early</span>;
+                                if (actD.getTime() === estD.getTime()) return <span className="text-blue-600 font-medium">On Time</span>;
+                                return <span className="text-red-600 font-medium">Late</span>;
+                              })()}
+                            </TableCell>
+                          </>)}
+                          {/* POD Received */}
+                          {activeTab === "PODReceived" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell text-xs whitespace-nowrap">
+                              {(order as any).actualDeliveryDate ? new Date((order as any).actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-xs whitespace-nowrap">
+                              {(order as any).podStatus === "Digital Received"
+                                ? <span className="text-blue-600 font-medium">Digital</span>
+                                : <span className="text-green-600 font-medium">Yes</span>}
+                              {(order as any).podTimestamp && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({new Date((order as any).podTimestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })})
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency((order as any).actualOrderValue || order.total)}</TableCell>
+                          </>)}
+                          {/* Cancelled */}
+                          {activeTab === "Cancelled" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(order.total)}</TableCell>
+                          </>)}
+                          {/* All */}
+                          {activeTab === "All" && (<>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateShort}</TableCell>
+                            <TableCell>
+                              <Badge className={`text-xs ${STATUS_BADGE[order.status] || ""}`}>
+                                {order.status === "PODReceived" ? "POD Received" : order.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-sm">{order.brand || "-"}</TableCell>
+                            <TableCell><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{createdBy}</TableCell>
+                            <TableCell className="hidden md:table-cell text-sm">{order.invoiceNumber || "-"}</TableCell>
+                            <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency((order as any).actualOrderValue || order.total)}</TableCell>
+                          </>)}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
