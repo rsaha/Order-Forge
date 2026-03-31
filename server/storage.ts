@@ -855,10 +855,9 @@ export class DatabaseStorage implements IStorage {
 
   async getCustomerOrders(userId: string, partyName?: string | null): Promise<(Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[]> {
     const creatorUser = alias(users, 'creatorUser');
-    // If customer has a partyName, restrict to their party only (userId AND partyName)
-    // Otherwise fall back to userId only
+    // Show orders owned by this customer OR orders placed under their party name
     const condition = partyName
-      ? and(eq(orders.userId, userId), eq(orders.partyName, partyName))
+      ? or(eq(orders.userId, userId), eq(orders.partyName, partyName))
       : eq(orders.userId, userId);
 
     return db.select({
