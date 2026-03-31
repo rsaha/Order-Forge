@@ -38,41 +38,47 @@ export default function Header({
           </Button>
         </Link>
 
-        {/* My Orders — all logged-in users */}
-        <Link href="/sales-orders">
-          <Button
-            variant={location === "/sales-orders" ? "secondary" : "ghost"}
-            size="sm"
-            data-testid="tab-sales-orders"
-          >
-            <ShoppingBag className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">My Orders</span>
-          </Button>
-        </Link>
+        {/* My Orders — non-admin users only (BrandAdmin, User, Customer) */}
+        {!isAdmin && (
+          <Link href="/sales-orders">
+            <Button
+              variant={location === "/sales-orders" ? "secondary" : "ghost"}
+              size="sm"
+              data-testid="tab-sales-orders"
+            >
+              <ShoppingBag className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">My Orders</span>
+            </Button>
+          </Link>
+        )}
 
-        {/* Inventory — all logged-in users */}
-        <Link href="/inventory">
-          <Button
-            variant={location === "/inventory" ? "secondary" : "ghost"}
-            size="sm"
-            data-testid="tab-inventory"
-          >
-            <Warehouse className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Inventory</span>
-          </Button>
-        </Link>
+        {/* Inventory — non-admin users only */}
+        {!isAdmin && (
+          <Link href="/inventory">
+            <Button
+              variant={location === "/inventory" ? "secondary" : "ghost"}
+              size="sm"
+              data-testid="tab-inventory"
+            >
+              <Warehouse className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Inventory</span>
+            </Button>
+          </Link>
+        )}
 
-        {/* Orders — hidden for now, route still exists at /orders */}
-        {/* <Link href="/orders">
-          <Button
-            variant={location === "/orders" ? "secondary" : "ghost"}
-            size="sm"
-            data-testid="tab-orders"
-          >
-            <ListOrdered className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Orders</span>
-          </Button>
-        </Link> */}
+        {/* Orders Management — admin only (full order management page) */}
+        {isAdmin && (
+          <Link href="/orders">
+            <Button
+              variant={location === "/orders" ? "secondary" : "ghost"}
+              size="sm"
+              data-testid="tab-orders"
+            >
+              <ListOrdered className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Orders Management</span>
+            </Button>
+          </Link>
+        )}
 
         {/* Analytics — admin only */}
         {isAdmin && (
