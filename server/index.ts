@@ -2,6 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { db } from "./db";
+import { orders, users } from "@shared/schema";
+import { eq, and, ne, sql } from "drizzle-orm";
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,9 +63,34 @@ app.use((req, res, next) => {
   next();
 });
 
+async function runStartupMigrations() {
+  try {
+    // Auto-approve "Created" orders that belong to non-Customer users.
+    // These should have been auto-approved at creation time but weren't
+    // (before the Customer approval workflow was introduced).
+    const result = await db.execute(sql`
+      UPDATE orders
+      SET status = 'Approved'
+      WHERE status = 'Created'
+        AND user_id IN (
+          SELECT id FROM users
+          WHERE LOWER(role) NOT IN ('customer')
+        )
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) {
+      log(`Startup migration: auto-approved ${count} non-customer order(s) stuck in Created status`);
+    }
+  } catch (err) {
+    console.error("Startup migration error (non-fatal):", err);
+  }
+}
+
 (async () => {
   try {
     log("Starting server initialization...");
+
+    await runStartupMigrations();
     
     await registerRoutes(httpServer, app);
     log("Routes registered successfully");
