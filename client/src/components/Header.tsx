@@ -82,7 +82,7 @@ export default function Header({
             data-testid="tab-sales-orders"
           >
             <ShoppingBag className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Sales Orders</span>
+            <span className="hidden sm:inline">My Orders</span>
           </Button>
         </Link>
 
