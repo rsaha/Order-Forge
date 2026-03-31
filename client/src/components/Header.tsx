@@ -1,13 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, Boxes, ShoppingBag, Warehouse, ChevronDown } from "lucide-react";
+import { ShoppingCart, Package, FileText, ClipboardList, ListOrdered, Users, BarChart3, ShoppingBag, Warehouse } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   cartItemCount: number;
@@ -130,36 +124,32 @@ export default function Header({
           </Link>
         )}
 
-        {/* Admin dropdown — admin only */}
+        {/* Products — admin only */}
         {isAdmin && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" data-testid="dropdown-admin">
-                <span className="hidden sm:inline mr-1">Admin</span>
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <Link href="/products">
-                <DropdownMenuItem data-testid="admin-menu-products" className="cursor-pointer">
-                  <Package className="w-4 h-4 mr-2" />
-                  Products
-                </DropdownMenuItem>
-              </Link>
-              <Link href="/users">
-                <DropdownMenuItem data-testid="admin-menu-users" className="cursor-pointer">
-                  <Users className="w-4 h-4 mr-2" />
-                  Users
-                </DropdownMenuItem>
-              </Link>
-              <Link href="/stock">
-                <DropdownMenuItem data-testid="admin-menu-stock" className="cursor-pointer">
-                  <Boxes className="w-4 h-4 mr-2" />
-                  Stock Forecast
-                </DropdownMenuItem>
-              </Link>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Link href="/products">
+            <Button
+              variant={location === "/products" ? "secondary" : "ghost"}
+              size="sm"
+              data-testid="tab-products"
+            >
+              <Package className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Products</span>
+            </Button>
+          </Link>
+        )}
+
+        {/* Users — admin only */}
+        {isAdmin && (
+          <Link href="/users">
+            <Button
+              variant={location === "/users" ? "secondary" : "ghost"}
+              size="sm"
+              data-testid="tab-users"
+            >
+              <Users className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+          </Link>
         )}
       </nav>
 
