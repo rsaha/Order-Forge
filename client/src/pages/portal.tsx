@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,6 +16,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, ChevronDown, ChevronRight, Package, ListOrdered, AlertTriangle, CalendarDays, Tag } from "lucide-react";
 import Header from "@/components/Header";
 import type { Order, OrderItem } from "@shared/schema";
+
+function getDefaultDates() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const toStr = (d: Date) => d.toISOString().split("T")[0];
+  return { startDate: toStr(firstDay), endDate: toStr(now) };
+}
 
 const STATUS_COLORS: Record<string, string> = {
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -153,9 +162,19 @@ function OrdersSection() {
   const { toast } = useToast();
   const [statusTab, setStatusTab] = useState("Needs Approval");
   const [selectedOrder, setSelectedOrder] = useState<PortalOrder | null>(null);
+  const defaults = getDefaultDates();
+  const [startDate, setStartDate] = useState(defaults.startDate);
+  const [endDate, setEndDate] = useState(defaults.endDate);
+
+  const queryParams = new URLSearchParams({ startDate, endDate }).toString();
 
   const { data: orders = [], isLoading } = useQuery<PortalOrder[]>({
-    queryKey: ["/api/portal/orders"],
+    queryKey: ["/api/portal/orders", startDate, endDate],
+    queryFn: async () => {
+      const res = await fetch(`/api/portal/orders?${queryParams}`);
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      return res.json();
+    },
   });
 
   const approveMutation = useMutation({
@@ -181,6 +200,32 @@ function OrdersSection() {
 
   return (
     <div>
+      <div className="flex flex-wrap items-end gap-3 mb-4 pb-4 border-b">
+        <div className="flex items-end gap-2">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-8 text-sm w-36"
+              data-testid="input-start-date"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1 block">To</Label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-8 text-sm w-36"
+              data-testid="input-end-date"
+            />
+          </div>
+        </div>
+        <span className="text-xs text-muted-foreground pb-1">{orders.length} orders</span>
+      </div>
+
       <Tabs value={statusTab} onValueChange={setStatusTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="Needs Approval" data-testid="tab-needs-approval">
@@ -324,7 +369,7 @@ function StockSection() {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p>No brand access configured</p>
+        <p>No stock data available. Upload a stock file in the Forecast page to get started.</p>
       </div>
     );
   }

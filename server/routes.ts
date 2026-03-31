@@ -5840,14 +5840,20 @@ export async function registerRoutes(
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     try {
+      const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+      const dateFilters = {
+        ...(startDate ? { fromDate: new Date(startDate) } : {}),
+        ...(endDate ? { toDate: new Date(endDate + 'T23:59:59') } : {}),
+      };
+
       let allOrders: (Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[] = [];
 
       if (user.isAdmin) {
-        allOrders = await storage.getAllOrders({});
+        allOrders = await storage.getAllOrders(dateFilters);
       } else if (user.role === 'BrandAdmin') {
         const brandAccess = await storage.getUserBrandAccess(user.id);
         if (brandAccess.length > 0) {
-          allOrders = await storage.getOrdersByBrands(brandAccess, {});
+          allOrders = await storage.getOrdersByBrands(brandAccess, dateFilters);
         }
       } else if (user.role === 'User') {
         const [ownOrders, partyOrders, customerOrders] = await Promise.all([
