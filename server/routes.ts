@@ -5842,7 +5842,9 @@ export async function registerRoutes(
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     try {
-      const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+      const { startDate, endDate, brand: brandFilter, deliveryCompany: dcFilter } = req.query as {
+        startDate?: string; endDate?: string; brand?: string; deliveryCompany?: string;
+      };
       const dateFilters = {
         ...(startDate ? { fromDate: new Date(startDate) } : {}),
         ...(endDate ? { toDate: new Date(endDate + 'T23:59:59') } : {}),
@@ -5851,11 +5853,19 @@ export async function registerRoutes(
       let allOrders: (Order & { createdByName?: string | null; createdByEmail?: string | null; actualCreatorName?: string | null })[] = [];
 
       if (user.isAdmin) {
-        allOrders = await storage.getAllOrders(dateFilters);
+        const filters = {
+          ...dateFilters,
+          ...(brandFilter ? { brand: brandFilter } : {}),
+          ...(dcFilter ? { deliveryCompany: dcFilter } : {}),
+        };
+        allOrders = await storage.getAllOrders(filters);
       } else if (user.role === 'BrandAdmin') {
         const brandAccess = await storage.getUserBrandAccess(user.id);
-        if (brandAccess.length > 0) {
-          allOrders = await storage.getOrdersByBrands(brandAccess, dateFilters);
+        const brandsToQuery = brandFilter && brandAccess.includes(brandFilter)
+          ? [brandFilter]
+          : brandAccess;
+        if (brandsToQuery.length > 0) {
+          allOrders = await storage.getOrdersByBrands(brandsToQuery, dateFilters);
         }
       } else if (user.role === 'User') {
         const [ownOrders, partyOrders, customerOrders] = await Promise.all([
