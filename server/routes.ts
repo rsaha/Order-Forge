@@ -1474,8 +1474,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "All products must be from the same brand" });
       }
 
-      // Admins and BrandAdmins don't need approval — auto-approve their orders
-      const autoApprove = currentUser?.isAdmin || currentUser?.role === "BrandAdmin";
+      // Admins, BrandAdmins, and Sales users (User role) don't need approval — auto-approve their orders
+      // Only Customer-created orders stay in Created (Needs Approval) status
+      const autoApprove = currentUser?.isAdmin || currentUser?.role === "BrandAdmin" || currentUser?.role === "User";
 
       const order = await storage.createOrder({
         userId: orderOwnerUserId, // Order owner (sales user)

@@ -1616,7 +1616,7 @@ export default function OrdersPage() {
               }`}
               data-testid={`tab-status-${status.toLowerCase()}`}
             >
-              {status}
+              {status === "Created" ? "Needs Approval" : status === "PODReceived" ? "POD Received" : status}
               {statusCounts[status] > 0 && (
                 <Badge 
                   variant="secondary" 
