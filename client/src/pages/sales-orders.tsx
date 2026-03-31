@@ -61,8 +61,9 @@ function formatDate(iso: string | null | undefined) {
 }
 
 function formatCurrency(v: number | string | null | undefined) {
+  if (v === null || v === undefined || v === "") return "—";
   const n = Number(v);
-  if (!v || isNaN(n)) return "—";
+  if (isNaN(n)) return "—";
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
@@ -509,6 +510,25 @@ export default function SalesOrdersPage() {
                 <p>{searchQuery ? "No orders match your search" : "No orders in this category"}</p>
               </div>
             ) : (<>
+              {/* value summary bar */}
+              {(() => {
+                const useActual = ["Invoiced","Dispatched","Delivered","PODReceived"].includes(activeTab);
+                const orderTotal = filtered.reduce((s, o) => s + Number(o.total || 0), 0);
+                const actualTotal = useActual ? filtered.reduce((s, o) => s + Number((o as any).actualOrderValue || o.total || 0), 0) : null;
+                return (
+                  <div className="flex items-center gap-3 px-1 pb-3 text-xs text-muted-foreground flex-wrap">
+                    <span>{filtered.length} order{filtered.length !== 1 ? "s" : ""}</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>Order Total: <span className="font-semibold text-foreground">{formatCurrency(orderTotal)}</span></span>
+                    {actualTotal !== null && actualTotal !== orderTotal && (
+                      <>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span>Actual Value: <span className="font-semibold text-foreground">{formatCurrency(actualTotal)}</span></span>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               {/* ── Mobile card list (< sm) ── */}
               <div className="sm:hidden divide-y -mx-3 border-t">
                 {filtered.map((order) => {
