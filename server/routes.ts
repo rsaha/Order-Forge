@@ -1944,11 +1944,13 @@ export async function registerRoutes(
       }
 
       // Pre-compute per-order costs before opening transaction
+      // Add allocated cost to any existing delivery cost already recorded on the order
       const ordersWithCosts = validOrders.map(order => {
         const orderCases = order!.cases || 0;
         const allocatedCost = totalCases > 0 && orderCases > 0 ? (orderCases / totalCases) * totalCost : 0;
-        const rounded = Math.round(allocatedCost * 100) / 100;
-        return { id: order!.id, cases: orderCases, deliveryCost: String(rounded) };
+        const existingCost = Number(order!.deliveryCost) || 0;
+        const newTotal = Math.round((existingCost + allocatedCost) * 100) / 100;
+        return { id: order!.id, cases: orderCases, existingCost, allocatedCost: Math.round(allocatedCost * 100) / 100, deliveryCost: String(newTotal) };
       });
 
       // Apply all updates atomically — rolls back everything if any update fails

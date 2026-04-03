@@ -4563,24 +4563,28 @@ export default function OrdersPage() {
                         <tr>
                           <th className="text-left p-2 font-medium text-xs">Party / Brand</th>
                           <th className="text-right p-2 font-medium text-xs">Cases</th>
-                          <th className="text-right p-2 font-medium text-xs">Share %</th>
-                          <th className="text-right p-2 font-medium text-xs">Delivery Cost</th>
+                          <th className="text-right p-2 font-medium text-xs">Adding</th>
+                          <th className="text-right p-2 font-medium text-xs">New Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {selectedOrders.map(order => {
                           const cases = order.cases || 0;
-                          const share = totalCases > 0 ? (cases / totalCases) * 100 : 0;
-                          const cost = totalCases > 0 && cases > 0 ? (cases / totalCases) * totalCost : 0;
+                          const allocated = totalCases > 0 && cases > 0 ? (cases / totalCases) * totalCost : 0;
+                          const existing = Number((order as any).deliveryCost) || 0;
+                          const newTotal = existing + allocated;
                           return (
                             <tr key={order.id} className={cases === 0 ? "opacity-50" : ""}>
                               <td className="p-2">
-                                <div className="font-medium truncate max-w-[180px]">{order.partyName || "Unknown"}</div>
+                                <div className="font-medium truncate max-w-[160px]">{order.partyName || "Unknown"}</div>
                                 <div className="text-xs text-muted-foreground">{order.brand}</div>
+                                {existing > 0 && (
+                                  <div className="text-xs text-muted-foreground">existing: {formatINR(existing)}</div>
+                                )}
                               </td>
                               <td className="p-2 text-right">{cases > 0 ? cases : <span className="text-amber-600 dark:text-amber-400">0</span>}</td>
-                              <td className="p-2 text-right text-muted-foreground">{share.toFixed(1)}%</td>
-                              <td className="p-2 text-right font-medium">{formatINR(Math.round(cost * 100) / 100)}</td>
+                              <td className="p-2 text-right text-blue-600 dark:text-blue-400">+{formatINR(Math.round(allocated * 100) / 100)}</td>
+                              <td className="p-2 text-right font-medium">{formatINR(Math.round(newTotal * 100) / 100)}</td>
                             </tr>
                           );
                         })}
@@ -4589,8 +4593,8 @@ export default function OrdersPage() {
                         <tr>
                           <td className="p-2">Total</td>
                           <td className="p-2 text-right">{totalCases}</td>
-                          <td className="p-2 text-right">100%</td>
-                          <td className="p-2 text-right">{formatINR(totalCost)}</td>
+                          <td className="p-2 text-right text-blue-600 dark:text-blue-400">+{formatINR(totalCost)}</td>
+                          <td className="p-2 text-right">{formatINR(selectedOrders.reduce((s, o) => s + (Number((o as any).deliveryCost) || 0), 0) + totalCost)}</td>
                         </tr>
                       </tfoot>
                     </table>
