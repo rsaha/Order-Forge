@@ -625,14 +625,16 @@ export default function AnalyticsPage() {
     if (!dispatcher) return 'Unknown';
     const stripped = dispatcher.replace(/\s*\(.*?\)\s*/g, '').trim();
     const normalized = stripped || dispatcher.trim();
-    const lower = normalized.toLowerCase();
+    // Strip trailing hyphen+number suffix (e.g. "SMART SHIP COURIER-10503" → "SMART SHIP COURIER")
+    const withoutSuffix = normalized.replace(/-\s*\d+\s*$/, '').trim();
+    const lower = withoutSuffix.toLowerCase();
     if (lower.includes('dtdc')) return 'DTDC';
     if (lower.includes('universal')) return 'Universal';
     if (lower.includes('new ambika')) return 'NEW AMBIKA';
     if (lower.includes('ntc')) return 'NTC';
     // BL Courier: docket numbers like "BL 123456" or "BL123456" should all map to BL Courier
-    if (lower.includes('bl courier') || /^bl[\s\-]?\d+/i.test(normalized)) return 'BL Courier';
-    return normalized.toUpperCase();
+    if (lower.includes('bl courier') || /^bl[\s\-]?\d+/i.test(withoutSuffix)) return 'BL Courier';
+    return withoutSuffix.toUpperCase();
   }, []);
 
   // Delivery Cost by Dispatch By - filter and aggregate (summary totals by dispatcher)
