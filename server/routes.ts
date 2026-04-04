@@ -2069,7 +2069,7 @@ export async function registerRoutes(
     }
   });
 
-  // Create pending order from approved order (fork with out-of-stock items)
+  // Create a pending order from a Created or Approved order (copies all items)
   app.post('/api/orders/:id/pending', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -2098,7 +2098,7 @@ export async function registerRoutes(
 
       const result = await storage.createPendingOrder(order.id, order.userId);
       if (!result) {
-        return res.status(400).json({ message: "No out-of-stock items found. All items have sufficient stock." });
+        return res.status(400).json({ message: "Order has no items or is not in an eligible status (Created or Approved)." });
       }
 
       res.json({
