@@ -1704,21 +1704,8 @@ export class DatabaseStorage implements IStorage {
       return null;
     }
 
-    const productIds = originalItems.map(item => item.productId);
-    const productList = await db.select().from(products).where(inArray(products.id, productIds));
-    const productMap = new Map(productList.map(p => [p.id, p]));
-
-    const outOfStockItems = originalItems.filter(item => {
-      const product = productMap.get(item.productId);
-      return product && product.stock < item.quantity;
-    });
-
-    if (outOfStockItems.length === 0) {
-      return null;
-    }
-
     let pendingTotal = 0;
-    for (const item of outOfStockItems) {
+    for (const item of originalItems) {
       pendingTotal += parseFloat(item.unitPrice) * item.quantity;
     }
 
@@ -1739,7 +1726,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: "Pending",
     }).returning();
 
-    const pendingItemsData: InsertOrderItem[] = outOfStockItems.map(item => ({
+    const pendingItemsData: InsertOrderItem[] = originalItems.map(item => ({
       orderId: pendingOrder.id,
       productId: item.productId,
       quantity: item.quantity,

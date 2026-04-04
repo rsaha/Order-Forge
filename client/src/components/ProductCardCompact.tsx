@@ -117,8 +117,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
   }, [group.variants]);
 
   const handleQuantityChange = (value: number) => {
-    const maxStock = selectedVariant?.stock || 999;
-    const newQty = Math.max(1, Math.min(value, maxStock));
+    const newQty = Math.max(1, Math.min(value, 9999));
     setQuantity(newQty);
   };
 
@@ -224,7 +223,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
               <Input
                 type="number"
                 min={1}
-                max={selectedVariant.stock || 999}
+                max={9999}
                 value={quantity}
                 onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
                 onFocus={handleFocus}
