@@ -4391,6 +4391,33 @@ export async function registerRoutes(
     next();
   };
 
+  // Validate Email - Check if an email belongs to an allowed user
+  // Required: email query parameter
+  app.get('/api/users/validate-email', validateApiKey, async (req: any, res) => {
+    try {
+      const { email } = req.query;
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ message: "Valid email query parameter required" });
+      }
+      const normalizedEmail = email.trim().toLowerCase();
+      const allUsers = await storage.getAllUsers();
+      const match = allUsers.find(u => u.email?.toLowerCase() === normalizedEmail);
+      if (!match) {
+        return res.json({ allowed: false, email: normalizedEmail });
+      }
+      return res.json({
+        allowed: true,
+        email: normalizedEmail,
+        name: [match.firstName, match.lastName].filter(Boolean).join(' ') || null,
+        role: match.role || 'User',
+        isAdmin: !!match.isAdmin,
+      });
+    } catch (error) {
+      console.error("Error validating email:", error);
+      res.status(500).json({ message: "Failed to validate email" });
+    }
+  });
+
   // Get Dispatch Summary - Returns orders dispatched within a date range
   // Required: startDate and endDate (format: YYYY-MM-DD)
   // Optional: brand filter (case-insensitive partial match)
