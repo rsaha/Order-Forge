@@ -4392,19 +4392,38 @@ export async function registerRoutes(
   };
 
   // Resolve caller info from optional `user` email param (used by all external API endpoints)
-  const resolveApiCaller = async (email: string | undefined): Promise<{ email: string; name: string | null; role: string; isAdmin: boolean } | null> => {
+  // Also fetches brand access so endpoints can restrict results to the caller's allowed brands.
+  const resolveApiCaller = async (email: string | undefined): Promise<{
+    email: string;
+    name: string | null;
+    role: string;
+    isAdmin: boolean;
+    userId: string;
+    allowedBrands: string[] | null; // null = no restriction (admin); [] = no brands assigned
+  } | null> => {
     if (!email || typeof email !== 'string' || !email.includes('@')) return null;
     const normalized = email.trim().toLowerCase();
     const allUsers = await storage.getAllUsers();
     const match = allUsers.find(u => u.email?.toLowerCase() === normalized);
     if (!match) return null;
+    const allowedBrands = match.isAdmin ? null : await storage.getUserBrandAccess(match.id);
     return {
       email: normalized,
       name: [match.firstName, match.lastName].filter(Boolean).join(' ') || null,
       role: match.role || 'User',
       isAdmin: !!match.isAdmin,
+      userId: match.id,
+      allowedBrands,
     };
   };
+
+  // Helper: derive access-control filters from a resolved caller.
+  // callerBrands: string[] → only orders whose brand is in the list; null → no brand restriction
+  // callerUserId: string → only orders whose userId matches; null → no user restriction
+  const getCallerFilters = (caller: Awaited<ReturnType<typeof resolveApiCaller>>) => ({
+    callerBrands: caller && !caller.isAdmin ? caller.allowedBrands : null,
+    callerUserId: caller && !caller.isAdmin ? caller.userId : null,
+  });
 
   // Validate Email - Check if an email belongs to an allowed user
   // Required: email query parameter
@@ -4456,6 +4475,7 @@ export async function registerRoutes(
       }
 
       const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       // Get all orders with Dispatched status
       const allOrders = await storage.getAllOrders({ status: 'Dispatched' });
@@ -4470,8 +4490,13 @@ export async function registerRoutes(
         // Apply brand filter if provided (case-insensitive partial match)
         if (brand) {
           const brandFilter = String(brand).toLowerCase();
-          return order.brand?.toLowerCase().includes(brandFilter);
+          if (!order.brand?.toLowerCase().includes(brandFilter)) return false;
         }
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
+
         return true;
       });
       
@@ -4532,6 +4557,7 @@ export async function registerRoutes(
       }
 
       const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       // Get all orders with Delivered status
       const allOrders = await storage.getAllOrders({ status: 'Delivered' });
@@ -4546,8 +4572,13 @@ export async function registerRoutes(
         // Apply brand filter if provided (case-insensitive partial match)
         if (brand) {
           const brandFilter = String(brand).toLowerCase();
-          return order.brand?.toLowerCase().includes(brandFilter);
+          if (!order.brand?.toLowerCase().includes(brandFilter)) return false;
         }
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
+
         return true;
       });
       
@@ -4603,6 +4634,7 @@ export async function registerRoutes(
     try {
       const { startDate, endDate, brand, user: callerEmail } = req.query;
       const caller = await resolveApiCaller(callerEmail as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4632,8 +4664,13 @@ export async function registerRoutes(
         // Apply brand filter if provided (case-insensitive partial match)
         if (brand) {
           const brandFilter = String(brand).toLowerCase();
-          return order.brand?.toLowerCase().includes(brandFilter);
+          if (!order.brand?.toLowerCase().includes(brandFilter)) return false;
         }
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
+
         return true;
       });
       
@@ -4694,6 +4731,7 @@ export async function registerRoutes(
     try {
       const { startDate, endDate, brand, user: callerEmail } = req.query;
       const caller = await resolveApiCaller(callerEmail as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4723,8 +4761,13 @@ export async function registerRoutes(
         // Apply brand filter if provided (case-insensitive partial match)
         if (brand) {
           const brandFilter = String(brand).toLowerCase();
-          return order.brand?.toLowerCase().includes(brandFilter);
+          if (!order.brand?.toLowerCase().includes(brandFilter)) return false;
         }
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
+
         return true;
       });
       
@@ -4831,6 +4874,7 @@ export async function registerRoutes(
       }
 
       const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       // Get all orders - we'll filter by status
       const allOrders = await storage.getAllOrders({});
@@ -4848,8 +4892,13 @@ export async function registerRoutes(
         // Apply brand filter if provided (case-insensitive partial match)
         if (brand) {
           const brandFilter = String(brand).toLowerCase();
-          return order.brand?.toLowerCase().includes(brandFilter);
+          if (!order.brand?.toLowerCase().includes(brandFilter)) return false;
         }
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
+
         return true;
       });
       
@@ -4920,6 +4969,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
       }
       const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       const rangeStart = new Date(startDate);
       const rangeEnd = new Date(endDate);
@@ -4944,7 +4994,13 @@ export async function registerRoutes(
         if (order.partyName?.toLowerCase() !== decodedPartyName.toLowerCase()) return false;
         
         const createdDate = new Date(order.createdAt);
-        return createdDate >= rangeStart && createdDate < rangeEnd;
+        if (!(createdDate >= rangeStart && createdDate < rangeEnd)) return false;
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
+
+        return true;
       });
       
       // Calculate status breakdown
@@ -5010,6 +5066,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
       }
       const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       const rangeStart = new Date(startDate);
       const rangeEnd = new Date(endDate);
@@ -5020,6 +5077,13 @@ export async function registerRoutes(
       }
       
       const decodedBrandName = decodeURIComponent(brandName);
+
+      // Access control: if caller has brand restrictions, block access to brands not in their list
+      if (callerBrands !== null && !callerBrands.includes(decodedBrandName)) {
+        return res.status(403).json({
+          message: `Access denied: you do not have permission to view data for brand "${decodedBrandName}"`,
+        });
+      }
       
       // Get all orders
       const allOrders = await storage.getAllOrders({});
@@ -5034,7 +5098,12 @@ export async function registerRoutes(
         if (order.brand?.toLowerCase() !== decodedBrandName.toLowerCase()) return false;
         
         const createdDate = new Date(order.createdAt);
-        return createdDate >= rangeStart && createdDate < rangeEnd;
+        if (!(createdDate >= rangeStart && createdDate < rangeEnd)) return false;
+
+        // Access control: restrict to caller's orders
+        if (callerUserId && order.userId !== callerUserId) return false;
+
+        return true;
       });
       
       // Calculate totals by status
@@ -5088,6 +5157,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "startDate must be before or equal to endDate" });
       }
       const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands, callerUserId } = getCallerFilters(caller);
       
       const allOrders = await storage.getAllOrders({});
       
@@ -5101,6 +5171,10 @@ export async function registerRoutes(
         if (createdDate < rangeStart || createdDate >= rangeEnd) return false;
         
         if (brand && order.brand?.toLowerCase() !== brand.toLowerCase()) return false;
+
+        // Access control: restrict to caller's assigned brands and orders
+        if (callerBrands !== null && !callerBrands.includes(order.brand || '')) return false;
+        if (callerUserId && order.userId !== callerUserId) return false;
         
         return true;
       });
