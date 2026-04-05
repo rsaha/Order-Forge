@@ -4391,6 +4391,21 @@ export async function registerRoutes(
     next();
   };
 
+  // Resolve caller info from optional `user` email param (used by all external API endpoints)
+  const resolveApiCaller = async (email: string | undefined): Promise<{ email: string; name: string | null; role: string; isAdmin: boolean } | null> => {
+    if (!email || typeof email !== 'string' || !email.includes('@')) return null;
+    const normalized = email.trim().toLowerCase();
+    const allUsers = await storage.getAllUsers();
+    const match = allUsers.find(u => u.email?.toLowerCase() === normalized);
+    if (!match) return null;
+    return {
+      email: normalized,
+      name: [match.firstName, match.lastName].filter(Boolean).join(' ') || null,
+      role: match.role || 'User',
+      isAdmin: !!match.isAdmin,
+    };
+  };
+
   // Validate Email - Check if an email belongs to an allowed user
   // Required: email query parameter
   app.get('/api/users/validate-email', validateApiKey, async (req: any, res) => {
@@ -4423,7 +4438,7 @@ export async function registerRoutes(
   // Optional: brand filter (case-insensitive partial match)
   app.get('/api/dispatch/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { startDate, endDate, brand } = req.query;
+      const { startDate, endDate, brand, user } = req.query;
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4439,6 +4454,8 @@ export async function registerRoutes(
       if (rangeStart > rangeEnd) {
         return res.status(400).json({ message: "startDate must be before or equal to endDate" });
       }
+
+      const caller = await resolveApiCaller(user as string | undefined);
       
       // Get all orders with Dispatched status
       const allOrders = await storage.getAllOrders({ status: 'Dispatched' });
@@ -4484,6 +4501,7 @@ export async function registerRoutes(
         endDate,
         count: summary.length,
         orders: summary,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting dispatch summary:", error);
@@ -4496,7 +4514,7 @@ export async function registerRoutes(
   // Optional: brand filter (case-insensitive partial match)
   app.get('/api/delivery/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { startDate, endDate, brand } = req.query;
+      const { startDate, endDate, brand, user } = req.query;
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4512,6 +4530,8 @@ export async function registerRoutes(
       if (rangeStart > rangeEnd) {
         return res.status(400).json({ message: "startDate must be before or equal to endDate" });
       }
+
+      const caller = await resolveApiCaller(user as string | undefined);
       
       // Get all orders with Delivered status
       const allOrders = await storage.getAllOrders({ status: 'Delivered' });
@@ -4568,6 +4588,7 @@ export async function registerRoutes(
         onTimeCount,
         onTimePercentage: summary.length > 0 ? Math.round((onTimeCount / summary.length) * 100) : 0,
         orders: summary,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting delivery summary:", error);
@@ -4580,7 +4601,8 @@ export async function registerRoutes(
   // Optional: brand filter (case-insensitive partial match)
   app.get('/api/created/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { startDate, endDate, brand } = req.query;
+      const { startDate, endDate, brand, user: callerEmail } = req.query;
+      const caller = await resolveApiCaller(callerEmail as string | undefined);
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4657,6 +4679,7 @@ export async function registerRoutes(
         totalValue,
         statusCounts,
         orders: summary,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting created orders summary:", error);
@@ -4669,7 +4692,8 @@ export async function registerRoutes(
   // Optional: brand filter (case-insensitive partial match)
   app.get('/api/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { startDate, endDate, brand } = req.query;
+      const { startDate, endDate, brand, user: callerEmail } = req.query;
+      const caller = await resolveApiCaller(callerEmail as string | undefined);
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4771,6 +4795,7 @@ export async function registerRoutes(
         statusCounts,
         statusValues,
         ordersByStatus,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting orders summary:", error);
@@ -4788,7 +4813,7 @@ export async function registerRoutes(
   // Optional: brand filter (case-insensitive partial match)
   app.get('/api/sales/summary', validateApiKey, async (req: any, res) => {
     try {
-      const { startDate, endDate, brand } = req.query;
+      const { startDate, endDate, brand, user } = req.query;
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -4804,6 +4829,8 @@ export async function registerRoutes(
       if (rangeStart > rangeEnd) {
         return res.status(400).json({ message: "startDate must be before or equal to endDate" });
       }
+
+      const caller = await resolveApiCaller(user as string | undefined);
       
       // Get all orders - we'll filter by status
       const allOrders = await storage.getAllOrders({});
@@ -4867,6 +4894,7 @@ export async function registerRoutes(
         totalOrders,
         totalValue,
         byBrand,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting sales summary:", error);
@@ -4879,7 +4907,7 @@ export async function registerRoutes(
   app.get('/api/sales/party/:partyName', validateApiKey, async (req: any, res) => {
     try {
       const { partyName } = req.params;
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, user } = req.query;
       
       if (!partyName) {
         return res.status(400).json({ message: "Party name parameter required" });
@@ -4891,6 +4919,7 @@ export async function registerRoutes(
       if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
         return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
       }
+      const caller = await resolveApiCaller(user as string | undefined);
       
       const rangeStart = new Date(startDate);
       const rangeEnd = new Date(endDate);
@@ -4955,6 +4984,7 @@ export async function registerRoutes(
         totalValue,
         byStatus,
         orders: orders.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()),
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting party sales details:", error);
@@ -4967,7 +4997,7 @@ export async function registerRoutes(
   app.get('/api/sales/brand/:brandName', validateApiKey, async (req: any, res) => {
     try {
       const { brandName } = req.params;
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, user } = req.query;
       
       if (!brandName) {
         return res.status(400).json({ message: "Brand name parameter required" });
@@ -4979,6 +5009,7 @@ export async function registerRoutes(
       if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
         return res.status(400).json({ message: "Valid endDate parameter required (format: YYYY-MM-DD)" });
       }
+      const caller = await resolveApiCaller(user as string | undefined);
       
       const rangeStart = new Date(startDate);
       const rangeEnd = new Date(endDate);
@@ -5027,6 +5058,7 @@ export async function registerRoutes(
         orderCount: brandOrders.length,
         totalValue,
         byStatus,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error getting brand sales total:", error);
@@ -5039,7 +5071,7 @@ export async function registerRoutes(
   // Optional: brand (filter to specific brand)
   app.get('/api/sales/parties', validateApiKey, async (req: any, res) => {
     try {
-      const { startDate, endDate, brand } = req.query;
+      const { startDate, endDate, brand, user } = req.query;
       
       if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         return res.status(400).json({ message: "Valid startDate parameter required (format: YYYY-MM-DD)" });
@@ -5055,6 +5087,7 @@ export async function registerRoutes(
       if (rangeStart > rangeEnd) {
         return res.status(400).json({ message: "startDate must be before or equal to endDate" });
       }
+      const caller = await resolveApiCaller(user as string | undefined);
       
       const allOrders = await storage.getAllOrders({});
       
@@ -5128,6 +5161,7 @@ export async function registerRoutes(
       
       res.json({
         dateRange: { startDate, endDate },
+        requestedBy: caller,
         ...(brand && { brandFilter: brand }),
         totalParties: parties.length,
         totalOrders: totalOrderCount,
@@ -5171,7 +5205,9 @@ export async function registerRoutes(
         deliveryCompany,
         actualOrderValue,
         items,
+        user,
       } = req.body;
+      const caller = await resolveApiCaller(user as string | undefined);
 
       if (!brand || typeof brand !== 'string' || brand.trim() === '') {
         return res.status(400).json({ message: "brand is required" });
@@ -5336,6 +5372,7 @@ export async function registerRoutes(
           unitPrice: item.unitPrice,
         })),
         itemCount: orderItems.length,
+        requestedBy: caller,
       });
     } catch (error: any) {
       console.error("Error creating external order:", error);
