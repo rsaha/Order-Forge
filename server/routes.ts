@@ -5248,6 +5248,56 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/products/skus - Return all product SKUs for a brand
+  // Requires X-API-KEY header with CASHDESK_API_KEY
+  // Query: brand (required, exact match), user=email (optional, for access control)
+  app.get('/api/products/skus', validateApiKey, async (req: any, res) => {
+    try {
+      const { brand, user } = req.query;
+
+      if (!brand || typeof brand !== 'string' || brand.trim() === '') {
+        return res.status(400).json({ message: "brand query parameter is required" });
+      }
+
+      const caller = await resolveApiCaller(user as string | undefined);
+      const { callerBrands } = getCallerFilters(caller);
+
+      const requestedBrand = brand.trim();
+
+      // Access control: if caller has brand restrictions, block access to this brand
+      if (callerBrands !== null && !callerBrands.includes(requestedBrand)) {
+        return res.status(403).json({
+          message: `Access denied: you do not have permission to view products for brand "${requestedBrand}"`,
+        });
+      }
+
+      const brandProducts = await storage.getProductsByBrand(requestedBrand);
+
+      const skus = brandProducts.map(p => ({
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        brand: p.brand,
+        size: p.size || null,
+        hsn: p.hsn || null,
+        price: p.price,
+        distributorPrice: p.distributorPrice || null,
+        stock: p.stock,
+        category: p.category || null,
+      }));
+
+      res.json({
+        brand: requestedBrand,
+        count: skus.length,
+        products: skus,
+        requestedBy: caller,
+      });
+    } catch (error: any) {
+      console.error("Error fetching product SKUs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // POST /api/orders/external - Create order from external system
   // Requires X-API-KEY header with CASHDESK_API_KEY
   // Body: {
