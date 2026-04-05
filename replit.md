@@ -116,6 +116,8 @@ Creates an order from an external system. Items are matched by product `name` (c
 - `dispatchBy` (optional): Dispatch carrier/method
 - `cases` (optional): Number of cases
 - `specialNotes` (optional): Notes for the order
+- `deliveryNote` (optional): Delivery instructions/notes
+- `deliveryAddress` (optional): Full delivery address text
 - `deliveryCompany` (optional): Delivery company, default "Guided"
 - `actualOrderValue` (optional): Actual invoice value
 
