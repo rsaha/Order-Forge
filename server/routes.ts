@@ -2009,10 +2009,10 @@ export async function registerRoutes(
           return res.status(403).json({ message: `BrandAdmin cannot update: ${disallowedFields.join(', ')}` });
         }
 
-        // Status change restriction: only Created -> Approved
+        // Status change restriction: only Created/Online -> Approved
         if (req.body.status && req.body.status !== order.status) {
-          if (order.status !== 'Created' || req.body.status !== 'Approved') {
-            return res.status(403).json({ message: "BrandAdmin can only change status from Created to Approved" });
+          if (!['Created', 'Online'].includes(order.status) || req.body.status !== 'Approved') {
+            return res.status(403).json({ message: "BrandAdmin can only change status from Created or Online to Approved" });
           }
         }
       }
@@ -2084,8 +2084,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      if (!['Created', 'Approved'].includes(order.status)) {
-        return res.status(400).json({ message: "Can only create pending orders from Created or Approved orders" });
+      if (!['Online', 'Created', 'Approved'].includes(order.status)) {
+        return res.status(400).json({ message: "Can only create pending orders from Online, Created or Approved orders" });
       }
 
       // Check brand access for BrandAdmin
@@ -2125,7 +2125,7 @@ export async function registerRoutes(
       }
 
       // Check if order is editable (pre-invoice statuses)
-      if (!['Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
+      if (!['Online', 'Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
         return res.status(400).json({ 
           message: `Cannot modify order with status "${order.status}". Only pre-invoice orders can be modified.` 
         });
@@ -2224,7 +2224,7 @@ export async function registerRoutes(
       }
 
       // Check if order is editable (pre-invoice statuses)
-      if (!['Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
+      if (!['Online', 'Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
         return res.status(400).json({ 
           message: `Cannot modify order with status "${order.status}". Only pre-invoice orders can be modified.` 
         });
@@ -2299,7 +2299,7 @@ export async function registerRoutes(
       }
 
       // Check if order is editable (pre-invoice statuses)
-      if (!['Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
+      if (!['Online', 'Created', 'Approved', 'Pending', 'Backordered'].includes(order.status)) {
         return res.status(400).json({ 
           message: `Cannot modify order with status "${order.status}". Only pre-invoice orders can be modified.` 
         });
@@ -2363,10 +2363,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Order not found" });
       }
 
-      // Check if order can be deleted (Created status only)
-      if (order.status !== 'Created') {
+      // Check if order can be deleted (Online or Created status only)
+      if (!['Online', 'Created'].includes(order.status)) {
         return res.status(400).json({ 
-          message: `Cannot delete order with status "${order.status}". Only Created orders can be deleted.` 
+          message: `Cannot delete order with status "${order.status}". Only Online or Created orders can be deleted.` 
         });
       }
 
@@ -5352,8 +5352,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Brand "${brand}" is not valid or has been deactivated` });
       }
 
-      const validStatuses = ['Created', 'Approved', 'Backordered', 'Invoiced', 'Dispatched', 'Delivered'];
-      const orderStatus = status || 'Created';
+      const validStatuses = ['Online', 'Created', 'Approved', 'Backordered', 'Invoiced', 'Dispatched', 'Delivered'];
+      const orderStatus = status || 'Online';
       if (!validStatuses.includes(orderStatus)) {
         return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
       }
@@ -6119,7 +6119,7 @@ export async function registerRoutes(
     try {
       const order = await storage.getOrderById(orderId);
       if (!order) return res.status(404).json({ message: "Order not found" });
-      if (order.status !== 'Created') return res.status(400).json({ message: "Only Created orders can be approved" });
+      if (!['Created', 'Online'].includes(order.status)) return res.status(400).json({ message: "Only Created or Online orders can be approved" });
 
       if (user.isAdmin) {
         // Admins can approve any order — no further checks needed
@@ -6166,7 +6166,7 @@ export async function registerRoutes(
       if (order.userId !== userId) return res.status(403).json({ message: "Access denied" });
 
       // Can only cancel pre-invoice orders
-      const cancelableStatuses = ['Created', 'Approved', 'Pending', 'Backordered'];
+      const cancelableStatuses = ['Online', 'Created', 'Approved', 'Pending', 'Backordered'];
       if (!cancelableStatuses.includes(order.status)) {
         return res.status(400).json({ message: `Cannot cancel an order with status "${order.status}". Only pre-invoice orders can be cancelled.` });
       }

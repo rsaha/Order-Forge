@@ -72,6 +72,7 @@ import {
   FileSpreadsheet,
   ArrowRight,
   Calculator,
+  Globe,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -79,9 +80,10 @@ import type { Order, OrderStatus, Product } from "@shared/schema";
 import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
+  Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
@@ -94,6 +96,7 @@ const statusColors: Record<OrderStatus, string> = {
 };
 
 const tabColors: Record<OrderStatus, string> = {
+  Online: "border-cyan-500 text-cyan-700 dark:text-cyan-300",
   Created: "border-blue-500 text-blue-700 dark:text-blue-300",
   Approved: "border-green-500 text-green-700 dark:text-green-300",
   Backordered: "border-rose-500 text-rose-700 dark:text-rose-300",
@@ -106,6 +109,7 @@ const tabColors: Record<OrderStatus, string> = {
 };
 
 const tabBgColors: Record<OrderStatus, string> = {
+  Online: "bg-cyan-50 dark:bg-cyan-950",
   Created: "bg-blue-50 dark:bg-blue-950",
   Approved: "bg-green-50 dark:bg-green-950",
   Backordered: "bg-rose-50 dark:bg-rose-950",
@@ -118,6 +122,7 @@ const tabBgColors: Record<OrderStatus, string> = {
 };
 
 const statusIcons: Record<OrderStatus, typeof Package> = {
+  Online: Globe,
   Created: FileText,
   Approved: Clock,
   Backordered: Package,
@@ -985,7 +990,7 @@ export default function OrdersPage() {
   };
 
   const canDeleteOrder = (order: Order): boolean => {
-    if (order.status !== 'Created') return false;
+    if (!['Online', 'Created'].includes(order.status)) return false;
     if (isAdmin) return true;
     return order.userId === user?.id;
   };
@@ -1190,7 +1195,7 @@ export default function OrdersPage() {
   };
 
   const isOrderEditable = (order: Order) => {
-    return order.status === "Created" || order.status === "Approved" || order.status === "Pending";
+    return order.status === "Online" || order.status === "Created" || order.status === "Approved" || order.status === "Pending";
   };
 
   const filteredProducts = useMemo(() => {
@@ -1834,7 +1839,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
-                                {isAdmin && (order as any).ownerRole === "Customer" && (
+                                {isAdmin && (order.status === "Online" || (order as any).ownerRole === "Customer") && (
                                   <Button
                                     size="sm"
                                     variant="outline"

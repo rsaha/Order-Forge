@@ -33,7 +33,8 @@ Both methods share a PostgreSQL-backed session management system with a one-week
 -   **User Roles**: Differentiates between Regular Users (order creation, cart management), Brand Admins (order viewing for assigned brands, status changes), and Admin Users (full access including product/user management, all order statuses, and creating orders on behalf of sales users).
 -   **Admin Order Creation**: Admins can create orders for sales users, maintaining `userId` (owner) and `createdBy` (admin creator) for audit trails.
 -   **Single-Brand Order Enforcement**: Each order must contain products from a single brand, enforced at both frontend (cart) and backend (validation) levels.
--   **Orders Page**: Features status-based navigation via color-coded tabs (Created, Approved, Backordered, Pending, Invoiced, Dispatched, Delivered, POD Received, Cancelled) with status-specific table columns and client-side filtering. Pending tab includes a "Salesperson" column showing the order owner's name.
+-   **Orders Page**: Features status-based navigation via color-coded tabs (Online, Created, Approved, Backordered, Pending, Invoiced, Dispatched, Delivered, POD Received, Cancelled) with status-specific table columns and client-side filtering. Pending tab includes a "Salesperson" column showing the order owner's name.
+-   **Online Orders**: Orders created via the external API default to "Online" status (cyan color). They require admin approval before moving to "Approved". The approve button shows for all Online orders in the admin view. BrandAdmins can also approve Online → Approved. Online orders behave like "Created" for item editing, deletion, cancellation, and pending order creation.
 -   **POD (Proof of Delivery) Tracking**: Orders include a `podStatus`. Admins can mark POD as "Received," triggering a status change to "POD Received" and recording a timestamp.
 -   **Pending Orders**: Out-of-stock items from "Created" or "Approved" orders can be moved to a "Pending" order, linked to the original order via `parentOrderId`, and can be edited.
 -   **WhatsApp Sharing**: Generates and shares order details via WhatsApp with status-dependent messaging.
@@ -109,7 +110,7 @@ Creates an order from an external system. Items are matched by product `name` (c
 - `brand` (required): Brand name (must exist and be active)
 - `partyName` (required): Customer/party name
 - `items` (required): Array of `{ name: string, quantity: number, unitPrice?: number, freeQuantity?: number, size?: string }`
-- `status` (optional): Order status, default "Created". One of: Created, Approved, Backordered, Invoiced, Dispatched, Delivered
+- `status` (optional): Order status, default "Online". One of: Online, Created, Approved, Backordered, Invoiced, Dispatched, Delivered
 - `invoiceNumber` (optional): Invoice reference number
 - `invoiceDate` (optional): Invoice date in YYYY-MM-DD format
 - `dispatchDate` (optional): Dispatch date in YYYY-MM-DD format

@@ -90,6 +90,7 @@ interface TabConfig {
 }
 
 const ALL_TABS: TabConfig[] = [
+  { label: "Online Orders",  status: "Online",      badgeClass: "bg-cyan-100 text-cyan-800",     borderClass: "border-cyan-500 text-cyan-700" },
   { label: "Needs Approval", status: "Created",     badgeClass: "bg-blue-100 text-blue-800",     borderClass: "border-blue-500 text-blue-700" },
   { label: "Approved",       status: "Approved",    badgeClass: "bg-green-100 text-green-800",   borderClass: "border-green-500 text-green-700" },
   { label: "Backordered",    status: "Backordered", badgeClass: "bg-rose-100 text-rose-800",     borderClass: "border-rose-500 text-rose-700" },
@@ -102,7 +103,7 @@ const ALL_TABS: TabConfig[] = [
   { label: "All",            status: "All",         badgeClass: "bg-muted text-foreground",      borderClass: "border-foreground" },
 ];
 
-const CUSTOMER_STATUSES = new Set(["Created", "Pending", "Backordered", "Invoiced", "Dispatched", "Delivered", "Cancelled"]);
+const CUSTOMER_STATUSES = new Set(["Online", "Created", "Pending", "Backordered", "Invoiced", "Dispatched", "Delivered", "Cancelled"]);
 
 const CUSTOMER_TABS: TabConfig[] = [
   { label: "Created",    status: "Created",    badgeClass: "bg-blue-100 text-blue-800",     borderClass: "border-blue-500 text-blue-700" },
@@ -114,6 +115,7 @@ const CUSTOMER_TABS: TabConfig[] = [
 ];
 
 const STATUS_BADGE: Record<string, string> = {
+  Online:      "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
   Created:     "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   Approved:    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
@@ -253,7 +255,7 @@ export default function SalesOrdersPage() {
     },
   });
 
-  const PRE_INVOICE_STATUSES = ["Created", "Approved", "Pending", "Backordered"];
+  const PRE_INVOICE_STATUSES = ["Online", "Created", "Approved", "Pending", "Backordered"];
 
   /* bulk WA data */
   const { data: bulkSummary = [] } = useQuery<BulkGroup[]>({
@@ -617,7 +619,7 @@ export default function SalesOrdersPage() {
                       {extraLine && (
                         <div className="text-xs text-muted-foreground mt-0.5 truncate">{extraLine}</div>
                       )}
-                      {activeTab === "Created" && canApprove && (
+                      {(activeTab === "Created" || activeTab === "Online") && canApprove && (
                         <div className="mt-2" onClick={(e) => e.stopPropagation()}>
                           <Button size="sm" variant="outline" className="h-7 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
                             disabled={approveMutation.isPending}

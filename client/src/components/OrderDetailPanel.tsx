@@ -33,13 +33,14 @@ import * as XLSX from "xlsx";
 
 /* ─── constants ─── */
 const ORDER_STATUSES: OrderStatus[] = [
-  "Created", "Approved", "Backordered", "Pending", "Invoiced",
+  "Online", "Created", "Approved", "Backordered", "Pending", "Invoiced",
   "Dispatched", "Delivered", "PODReceived", "Cancelled",
 ];
 
 const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 
 const statusColors: Record<OrderStatus, string> = {
+  Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
   Created: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
@@ -400,7 +401,7 @@ export function OrderDetailPanel({
 
   /* ─── handlers ─── */
 
-  const PRE_INVOICE_STATUSES = ["Created", "Approved", "Pending", "Backordered"];
+  const PRE_INVOICE_STATUSES = ["Online", "Created", "Approved", "Pending", "Backordered"];
   const isOrderEditable = (o: Order) => PRE_INVOICE_STATUSES.includes(o.status);
 
   const handleSave = () => {
