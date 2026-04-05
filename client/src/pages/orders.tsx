@@ -540,6 +540,7 @@ export default function OrdersPage() {
   
   // Count orders by status for tab badges
   const statusCounts: Record<OrderStatus, number> = {
+    Online: allOrders.filter(o => o.status === "Online").length,
     Created: allOrders.filter(o => o.status === "Created").length,
     Approved: allOrders.filter(o => o.status === "Approved").length,
     Backordered: allOrders.filter(o => o.status === "Backordered").length,
@@ -1674,6 +1675,18 @@ export default function OrdersPage() {
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
+                    {/* Online Tab Headers */}
+                    {!searchQuery.trim() && statusFilter === "Online" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Notes</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
                     {/* Created Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Created" && (
                       <tr>
@@ -1818,6 +1831,35 @@ export default function OrdersPage() {
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                            </td>
+                          </>
+                        )}
+                        {/* Online Tab Cells */}
+                        {!searchQuery.trim() && statusFilter === "Online" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
+                            <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                {(isAdmin || isBrandAdmin) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50 mr-1"
+                                    disabled={updateMutation.isPending}
+                                    onClick={(e) => { e.stopPropagation(); updateMutation.mutate({ id: order.id, updates: { status: "Approved" } }); }}
+                                    data-testid={`button-approve-order-${order.id}`}
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                                  </Button>
+                                )}
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {canDeleteOrder(order) && <Button size="icon" variant="ghost" onClick={(e) => handleDeleteClick(order, e)} title="Delete Order" className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
+                              </div>
                             </td>
                           </>
                         )}
