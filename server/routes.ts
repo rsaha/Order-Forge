@@ -597,6 +597,8 @@ export async function registerRoutes(
         const sku = getValue(row, [/^(product\s*sku\s*id|sku\s*id|sku|product\s*sku)$/i]) || "";
         const size = getValue(row, [/^size$/i]) || "";
         const mrp = getValue(row, [/^(mrp|price|cost)$/i]);
+        const caseSizeRaw = getValue(row, [/^case\s*size$/i]);
+        const caseSize = caseSizeRaw ? Math.max(1, parseInt(caseSizeRaw) || 1) : 1;
         
         return {
           sku: sku.trim(),
@@ -605,6 +607,7 @@ export async function registerRoutes(
           size: size.trim() || null,
           price: mrp ? String(Number(mrp) || 0) : "0",
           stock: 0,
+          caseSize,
           category: null,
         };
       }).filter(p => p.sku && p.name && p.brand); // Filter out incomplete rows
@@ -1493,12 +1496,14 @@ export async function registerRoutes(
         status: autoApprove ? "Approved" : "Created",
       });
 
+      const productCaseSizeMap = new Map(orderedProducts.map(p => [p?.id, p?.caseSize || 1]));
       const orderItemsData = items.map((item: any) => ({
         orderId: order.id,
         productId: item.productId,
         quantity: item.quantity,
         freeQuantity: item.freeQuantity || 0,
         unitPrice: String(item.price || item.unitPrice || "0"),
+        caseSize: productCaseSizeMap.get(item.productId) || 1,
       }));
 
       await storage.createOrderItems(orderItemsData);
@@ -2823,13 +2828,17 @@ export async function registerRoutes(
           actualOrderValue: group.netAmount > 0 ? group.netAmount.toFixed(2) : null,
         });
 
-        // Create order items
+        // Create order items (fetch caseSize for each product)
+        const validProductIds = validItems.map(item => item.productId!);
+        const validProducts = await Promise.all(validProductIds.map(id => storage.getProduct(id)));
+        const importCaseSizeMap = new Map(validProducts.map(p => [p?.id, p?.caseSize || 1]));
         const orderItemsData = validItems.map(item => ({
           orderId: order.id,
           productId: item.productId!,
           quantity: item.quantity,
           freeQuantity: item.freeQuantity,
           unitPrice: item.unitPrice.toFixed(2),
+          caseSize: importCaseSizeMap.get(item.productId!) || 1,
         }));
 
         await storage.createOrderItems(orderItemsData);
@@ -5379,7 +5388,7 @@ export async function registerRoutes(
         nameMap.get(key)!.push(p);
       }
 
-      const resolvedItems: { productId: string; quantity: number; unitPrice: string; freeQuantity: number }[] = [];
+      const resolvedItems: { productId: string; quantity: number; unitPrice: string; freeQuantity: number; caseSize: number }[] = [];
       const notFound: string[] = [];
       const ambiguous: { name: string; sizes: string[] }[] = [];
 
@@ -5425,6 +5434,7 @@ export async function registerRoutes(
           quantity: qty,
           unitPrice: String(item.unitPrice ?? product.price ?? "0"),
           freeQuantity: freeQty,
+          caseSize: product.caseSize || 1,
         });
       }
 
@@ -5475,6 +5485,7 @@ export async function registerRoutes(
         quantity: item.quantity,
         freeQuantity: item.freeQuantity,
         unitPrice: item.unitPrice,
+        caseSize: item.caseSize,
       }));
 
       await storage.createOrderItems(orderItemsData);

@@ -61,6 +61,7 @@ export const products = pgTable("products", {
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   distributorPrice: numeric("distributor_price", { precision: 10, scale: 2 }),
   stock: integer("stock").notNull().default(0),
+  caseSize: integer("case_size").notNull().default(1),
   category: varchar("category"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -181,6 +182,7 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").notNull(),
   freeQuantity: integer("free_quantity").notNull().default(0),
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+  caseSize: integer("case_size").notNull().default(1),
 });
 
 // Relations
@@ -313,6 +315,7 @@ export const updateProductSchema = z.object({
   price: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
   distributorPrice: z.union([z.string(), z.number()]).transform(v => String(v)).nullable().optional(),
   stock: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? parseInt(v) || 0 : v).optional(),
+  caseSize: z.number().int().min(1).optional(),
   category: z.string().nullable().optional(),
 });
 export type UpdateProduct = z.infer<typeof updateProductSchema>;

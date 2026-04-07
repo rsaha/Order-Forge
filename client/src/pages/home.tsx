@@ -202,6 +202,7 @@ export default function Home() {
                 price: Number(product.price),
                 distributorPrice: product.distributorPrice ? Number(product.distributorPrice) : undefined,
                 stock: product.stock || 0,
+                caseSize: product.caseSize || 1,
               },
               quantity: stored.quantity,
               freeQuantity: stored.freeQuantity,
@@ -284,6 +285,7 @@ export default function Home() {
       price: Number(product.price),
       distributorPrice: product.distributorPrice ? Number(product.distributorPrice) : null,
       stock: product.stock,
+      caseSize: (product as any).caseSize || 1,
     };
     
     const clampedQuantity = Math.min(quantity, 9999);
@@ -589,6 +591,7 @@ export default function Home() {
                 price: Number(product.price),
                 distributorPrice: product.distributorPrice ? Number(product.distributorPrice) : null,
                 stock: product.stock,
+                caseSize: product.caseSize || 1,
               }, 
               quantity: item.quantity,
               freeQuantity: item.freeQuantity || 0
@@ -711,6 +714,7 @@ export default function Home() {
                 alias1: (p as any).alias1 || null,
                 alias2: (p as any).alias2 || null,
                 stock: p.stock,
+                caseSize: p.caseSize || 1,
               }))}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}

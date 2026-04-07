@@ -20,6 +20,7 @@ export interface Product {
   price: number;
   distributorPrice?: number | string | null;
   stock: number;
+  caseSize?: number;
   category?: string;
 }
 

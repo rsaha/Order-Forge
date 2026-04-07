@@ -59,8 +59,11 @@ function FullPageCartItem({
   onFreeQuantityChange: (productId: string, freeQuantity: number) => void;
   onRemove: (productId: string) => void;
 }) {
+  const [casesMode, setCasesMode] = useState(false);
   const effectivePrice = getEffectivePrice(item.product);
   const subtotal = effectivePrice * item.quantity;
+  const caseSize = item.product.caseSize && item.product.caseSize > 1 ? item.product.caseSize : null;
+  const displayValue = casesMode && caseSize ? Math.round(item.quantity / caseSize) : item.quantity;
 
   return (
     <Card className="p-4 space-y-4" data-testid={`fullpage-cart-item-${item.product.id}`}>
@@ -73,29 +76,57 @@ function FullPageCartItem({
         </p>
         <p className="text-sm text-muted-foreground">
           {item.product.distributorPrice && Number(item.product.distributorPrice) > 0 ? "PTS: " : "MRP: "}{formatINR(effectivePrice)} each
+          {caseSize && <span className="ml-1 text-muted-foreground/70">· 1 case = {caseSize} units</span>}
         </p>
       </div>
+
+      {caseSize && (
+        <div className="flex items-center gap-1 text-xs">
+          <button
+            className={`px-2 py-0.5 rounded-l border text-xs font-medium transition-colors ${!casesMode ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+            onClick={() => setCasesMode(false)}
+            data-testid={`fullpage-toggle-units-${item.product.id}`}
+          >Units</button>
+          <button
+            className={`px-2 py-0.5 rounded-r border-t border-b border-r text-xs font-medium transition-colors ${casesMode ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+            onClick={() => setCasesMode(true)}
+            data-testid={`fullpage-toggle-cases-${item.product.id}`}
+          >Cases</button>
+          {casesMode && <span className="text-muted-foreground ml-1">({item.quantity} units)</span>}
+        </div>
+      )}
       
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Quantity:</span>
+          <span className="text-sm font-medium">{casesMode ? "Cases:" : "Quantity:"}</span>
           <div className="flex items-center border rounded-md">
             <Button
               size="lg"
               variant="ghost"
               className="rounded-r-none h-12 w-12"
-              onClick={() => onQuantityChange(item.product.id, Math.max(0, item.quantity - 1))}
+              onClick={() => {
+                if (casesMode && caseSize) {
+                  const newCases = Math.max(0, Math.round(item.quantity / caseSize) - 1);
+                  onQuantityChange(item.product.id, newCases * caseSize);
+                } else {
+                  onQuantityChange(item.product.id, Math.max(0, item.quantity - 1));
+                }
+              }}
               data-testid={`fullpage-button-decrease-${item.product.id}`}
             >
               <Minus className="w-5 h-5" />
             </Button>
             <Input
               type="number"
-              value={item.quantity}
+              value={displayValue}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
                 if (!isNaN(val) && val >= 0) {
-                  onQuantityChange(item.product.id, val);
+                  if (casesMode && caseSize) {
+                    onQuantityChange(item.product.id, val * caseSize);
+                  } else {
+                    onQuantityChange(item.product.id, val);
+                  }
                 }
               }}
               onFocus={(e) => e.target.select()}
@@ -107,7 +138,14 @@ function FullPageCartItem({
               size="lg"
               variant="ghost"
               className="rounded-l-none h-12 w-12"
-              onClick={() => onQuantityChange(item.product.id, item.quantity + 1)}
+              onClick={() => {
+                if (casesMode && caseSize) {
+                  const newCases = Math.round(item.quantity / caseSize) + 1;
+                  onQuantityChange(item.product.id, newCases * caseSize);
+                } else {
+                  onQuantityChange(item.product.id, item.quantity + 1);
+                }
+              }}
               data-testid={`fullpage-button-increase-${item.product.id}`}
             >
               <Plus className="w-5 h-5" />

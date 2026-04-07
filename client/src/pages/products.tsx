@@ -208,7 +208,7 @@ export default function ProductsPage() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [editFormData, setEditFormData] = useState({
     name: "", brand: "", sku: "", size: "", alias1: "", alias2: "",
-    price: "", distributorPrice: "", stock: "",
+    price: "", distributorPrice: "", stock: "", caseSize: "1",
   });
 
   // ─── Stock management state ──────────────────────────────────────────────
@@ -466,6 +466,7 @@ export default function ProductsPage() {
       price: String(product.price),
       distributorPrice: (product as any).distributorPrice ? String((product as any).distributorPrice) : "",
       stock: String(product.stock),
+      caseSize: String(product.caseSize || 1),
     });
   }, []);
 
@@ -483,6 +484,7 @@ export default function ProductsPage() {
         price: editFormData.price,
         distributorPrice: editFormData.distributorPrice || null,
         stock: parseInt(editFormData.stock) || 0,
+        caseSize: Math.max(1, parseInt(editFormData.caseSize) || 1),
       },
     });
   }, [selectedProduct, editFormData, updateProductMutation]);
@@ -749,6 +751,7 @@ export default function ProductsPage() {
                             <th className="p-3 text-left font-medium text-muted-foreground">Name</th>
                             <th className="p-3 text-left font-medium text-muted-foreground">Brand</th>
                             <th className="p-3 text-left font-medium text-muted-foreground">Size</th>
+                            <th className="p-3 text-right font-medium text-muted-foreground">Case</th>
                             <th className="p-3 text-right font-medium text-muted-foreground">PTS</th>
                             <th className="p-3 text-right font-medium text-muted-foreground">MRP</th>
                             <th className="p-3 text-center font-medium text-muted-foreground">Actions</th>
@@ -770,6 +773,9 @@ export default function ProductsPage() {
                               </td>
                               <td className="p-3" data-testid={`text-brand-${product.id}`}>{product.brand}</td>
                               <td className="p-3" data-testid={`text-size-${product.id}`}>{product.size || "-"}</td>
+                              <td className="p-3 text-right text-muted-foreground" data-testid={`text-casesize-${product.id}`}>
+                                {product.caseSize && product.caseSize > 1 ? product.caseSize : "-"}
+                              </td>
                               <td className="p-3 text-right" data-testid={`text-pts-${product.id}`}>
                                 {(product as any).distributorPrice ? formatINR(Number((product as any).distributorPrice)) : "-"}
                               </td>
@@ -1515,7 +1521,7 @@ export default function ProductsPage() {
                 <Input id="edit-alias2" value={editFormData.alias2} onChange={(e) => setEditFormData(d => ({ ...d, alias2: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="edit-mrp">MRP</Label>
                 <Input id="edit-mrp" type="number" value={editFormData.price} onChange={(e) => setEditFormData(d => ({ ...d, price: e.target.value }))} />
@@ -1527,6 +1533,10 @@ export default function ProductsPage() {
               <div>
                 <Label htmlFor="edit-stock">Stock</Label>
                 <Input id="edit-stock" type="number" value={editFormData.stock} onChange={(e) => setEditFormData(d => ({ ...d, stock: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="edit-casesize">Case Size</Label>
+                <Input id="edit-casesize" type="number" min="1" value={editFormData.caseSize} onChange={(e) => setEditFormData(d => ({ ...d, caseSize: e.target.value }))} data-testid="input-edit-casesize" />
               </div>
             </div>
           </div>

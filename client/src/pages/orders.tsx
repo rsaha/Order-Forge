@@ -1310,11 +1310,12 @@ export default function OrdersPage() {
         );
 
         const wsData: any[][] = [
-          ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Free Qty", "Unit Price", "Line Total", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
+          ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Product", "Size", "Qty", "Cases", "Free Qty", "Unit Price", "Line Total", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
         ];
 
         ordersWithItems.forEach(({ order, items }) => {
           items.forEach((item: any, idx: number) => {
+            const cs = item.caseSize && item.caseSize > 1 ? item.caseSize : null;
             wsData.push([
               order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
               order.id,
@@ -1325,6 +1326,7 @@ export default function OrdersPage() {
               item.productName || "",
               item.size || "",
               item.quantity,
+              cs ? Math.ceil(item.quantity / cs) : "",
               item.freeQuantity || 0,
               Number(item.unitPrice) || 0,
               (item.quantity * Number(item.unitPrice)) || 0,
@@ -1349,7 +1351,7 @@ export default function OrdersPage() {
               order.brand || "",
               order.status,
               formatCreatedBy(order),
-              "", "", 0, 0, 0, 0,
+              "", "", 0, "", 0, 0, 0,
               Number(order.total) || 0,
               order.actualOrderValue ? Number(order.actualOrderValue) : "",
               order.cases || "",
