@@ -40,7 +40,7 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
   }, [cartQuantity]);
 
   const handleQuantityChange = (value: number) => {
-    const newQty = Math.max(1, Math.min(value, product.stock || 999));
+    const newQty = Math.max(1, Math.min(value, 9999));
     setQuantity(newQty);
   };
 
@@ -91,7 +91,7 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
           <Input
             type="number"
             min={1}
-            max={product.stock || 999}
+            max={9999}
             value={quantity}
             onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
             onFocus={handleFocus}

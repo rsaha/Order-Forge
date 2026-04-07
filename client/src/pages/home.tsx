@@ -286,7 +286,7 @@ export default function Home() {
       stock: product.stock,
     };
     
-    const clampedQuantity = Math.min(quantity, product.stock || 999);
+    const clampedQuantity = Math.min(quantity, 9999);
     
     setCart(prevCart => {
       const existingItem = prevCart.find(item => item.product.id === product.id);
