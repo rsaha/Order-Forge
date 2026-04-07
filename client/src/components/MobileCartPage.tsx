@@ -63,7 +63,7 @@ function FullPageCartItem({
   const effectivePrice = getEffectivePrice(item.product);
   const subtotal = effectivePrice * item.quantity;
   const caseSize = item.product.caseSize && item.product.caseSize > 1 ? item.product.caseSize : null;
-  const displayValue = casesMode && caseSize ? Math.round(item.quantity / caseSize) : item.quantity;
+  const displayValue = casesMode && caseSize ? Math.floor(item.quantity / caseSize) : item.quantity;
 
   return (
     <Card className="p-4 space-y-4" data-testid={`fullpage-cart-item-${item.product.id}`}>
@@ -106,7 +106,7 @@ function FullPageCartItem({
               className="rounded-r-none h-12 w-12"
               onClick={() => {
                 if (casesMode && caseSize) {
-                  const newCases = Math.max(0, Math.round(item.quantity / caseSize) - 1);
+                  const newCases = Math.max(0, Math.floor(item.quantity / caseSize) - 1);
                   onQuantityChange(item.product.id, newCases * caseSize);
                 } else {
                   onQuantityChange(item.product.id, Math.max(0, item.quantity - 1));
@@ -140,7 +140,7 @@ function FullPageCartItem({
               className="rounded-l-none h-12 w-12"
               onClick={() => {
                 if (casesMode && caseSize) {
-                  const newCases = Math.round(item.quantity / caseSize) + 1;
+                  const newCases = Math.floor(item.quantity / caseSize) + 1;
                   onQuantityChange(item.product.id, newCases * caseSize);
                 } else {
                   onQuantityChange(item.product.id, item.quantity + 1);

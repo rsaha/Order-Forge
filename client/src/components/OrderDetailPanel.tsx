@@ -837,7 +837,9 @@ export function OrderDetailPanel({
                           <div className="flex items-center gap-2">
                             {item.caseSize && item.caseSize > 1 ? (
                               <span className="text-muted-foreground text-sm">
-                                {(item.quantity / item.caseSize).toFixed(2)} cases
+                                {item.quantity % item.caseSize === 0
+                                  ? item.quantity / item.caseSize
+                                  : (item.quantity / item.caseSize).toFixed(2)} cases
                                 <span className="text-xs ml-1">(= {item.quantity} units)</span>
                               </span>
                             ) : (

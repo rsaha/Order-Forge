@@ -75,7 +75,7 @@ function MobileCartItem({
   const effectivePrice = getEffectivePrice(item.product);
   const subtotal = effectivePrice * item.quantity;
   const caseSize = item.product.caseSize && item.product.caseSize > 1 ? item.product.caseSize : null;
-  const displayValue = casesMode && caseSize ? Math.round(item.quantity / caseSize) : item.quantity;
+  const displayValue = casesMode && caseSize ? Math.floor(item.quantity / caseSize) : item.quantity;
 
   return (
     <div className="p-3 bg-muted/30 rounded-md space-y-3" data-testid={`mobile-cart-item-${item.product.id}`}>
@@ -129,7 +129,7 @@ function MobileCartItem({
               className="rounded-r-none"
               onClick={() => {
                 if (casesMode && caseSize) {
-                  const newCases = Math.max(0, Math.round(item.quantity / caseSize) - 1);
+                  const newCases = Math.max(0, Math.floor(item.quantity / caseSize) - 1);
                   onQuantityChange(item.product.id, newCases * caseSize);
                 } else {
                   onQuantityChange(item.product.id, Math.max(0, item.quantity - 1));
@@ -163,7 +163,7 @@ function MobileCartItem({
               className="rounded-l-none"
               onClick={() => {
                 if (casesMode && caseSize) {
-                  const newCases = Math.round(item.quantity / caseSize) + 1;
+                  const newCases = Math.floor(item.quantity / caseSize) + 1;
                   onQuantityChange(item.product.id, newCases * caseSize);
                 } else {
                   onQuantityChange(item.product.id, item.quantity + 1);
