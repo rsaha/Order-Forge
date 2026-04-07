@@ -25,6 +25,7 @@ export interface ProductVariant {
   alias1?: string | null;
   alias2?: string | null;
   stock: number;
+  caseSize?: number;
 }
 
 function getEffectivePrice(variant: ProductVariant): number {
@@ -89,11 +90,13 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     group.variants.length === 1 ? group.variants[0] : null
   );
+  const [casesMode, setCasesMode] = useState(false);
   
   const cartQuantity = selectedVariant ? cartQuantityMap[selectedVariant.id] : undefined;
   const isInCart = cartQuantity !== undefined && cartQuantity > 0;
+  const caseSize = selectedVariant?.caseSize && selectedVariant.caseSize > 1 ? selectedVariant.caseSize : null;
   
-  const [quantity, setQuantity] = useState(() => {
+  const [inputValue, setInputValue] = useState(() => {
     if (selectedVariant && cartQuantityMap[selectedVariant.id]) {
       return cartQuantityMap[selectedVariant.id];
     }
@@ -104,10 +107,15 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
     if (selectedVariant) {
       const cartQty = cartQuantityMap[selectedVariant.id];
       if (cartQty !== undefined && cartQty > 0) {
-        setQuantity(cartQty);
+        setInputValue(casesMode && caseSize ? Math.floor(cartQty / caseSize) : cartQty);
       }
     }
-  }, [selectedVariant, cartQuantityMap]);
+  }, [selectedVariant, cartQuantityMap, casesMode, caseSize]);
+
+  // reset cases mode when variant changes (different caseSize)
+  useEffect(() => {
+    setCasesMode(false);
+  }, [selectedVariant?.id]);
 
   const priceRange = useMemo(() => {
     const prices = group.variants.map(v => v.price);
@@ -116,9 +124,11 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
     return { min, max, isSame: min === max };
   }, [group.variants]);
 
+  const unitQty = casesMode && caseSize ? inputValue * caseSize : inputValue;
+
   const handleQuantityChange = (value: number) => {
-    const newQty = Math.max(1, Math.min(value, 9999));
-    setQuantity(newQty);
+    const max = casesMode && caseSize ? Math.floor(9999 / caseSize) : 9999;
+    setInputValue(Math.max(1, Math.min(value, max)));
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -127,21 +137,31 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
 
   const handleAdd = () => {
     if (selectedVariant) {
-      onAddToCart(selectedVariant, quantity);
+      onAddToCart(selectedVariant, unitQty);
     }
+  };
+
+  const handleToggleMode = (newCasesMode: boolean) => {
+    if (!caseSize) return;
+    if (newCasesMode) {
+      setInputValue(Math.max(1, Math.floor(inputValue / caseSize)));
+    } else {
+      setInputValue(Math.max(1, inputValue * caseSize));
+    }
+    setCasesMode(newCasesMode);
   };
 
   const handleSizeClick = (variant: ProductVariant) => {
     setSelectedVariant(variant);
     const cartQty = cartQuantityMap[variant.id];
     if (cartQty !== undefined && cartQty > 0) {
-      setQuantity(cartQty);
+      setInputValue(cartQty);
     } else {
-      setQuantity(1);
+      setInputValue(1);
     }
   };
 
-  const hasChanges = !isInCart || quantity !== cartQuantity;
+  const hasChanges = !isInCart || unitQty !== cartQuantity;
 
   return (
     <Card className="p-3 flex flex-col gap-2 overflow-hidden">
@@ -199,6 +219,9 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
                 PTS: {formatINR(getEffectivePrice(selectedVariant))}
               </span>
             )}
+            {caseSize && (
+              <span className="text-xs text-muted-foreground/70">1 case = {caseSize} units</span>
+            )}
           </>
         ) : priceRange.isSame ? (
           <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)}</span>
@@ -206,16 +229,36 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
           <span className="text-xs text-muted-foreground">MRP: {formatINR(priceRange.min)} - {formatINR(priceRange.max)}</span>
         )}
       </div>
+
+      {caseSize && selectedVariant && (
+        <div className="flex items-center gap-1 text-xs" data-testid={`toggle-mode-compact-${selectedVariant.id}`}>
+          <button
+            className={`px-1.5 py-0.5 rounded-l border text-xs font-medium transition-colors ${!casesMode ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+            onClick={() => handleToggleMode(false)}
+            data-testid={`button-units-compact-${selectedVariant.id}`}
+          >
+            Units
+          </button>
+          <button
+            className={`px-1.5 py-0.5 rounded-r border-t border-b border-r text-xs font-medium transition-colors ${casesMode ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+            onClick={() => handleToggleMode(true)}
+            data-testid={`button-cases-compact-${selectedVariant.id}`}
+          >
+            Cases
+          </button>
+        </div>
+      )}
       
-      <div className="flex items-center gap-1 justify-end mt-auto">
+      <div className="flex flex-col items-end gap-1 mt-auto">
+        <div className="flex items-center gap-1 w-full justify-end">
           {selectedVariant && (
             <>
               <Button
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                onClick={() => handleQuantityChange(quantity - 1)}
-                disabled={quantity <= 1}
+                onClick={() => handleQuantityChange(inputValue - 1)}
+                disabled={inputValue <= 1}
                 data-testid={`button-qty-minus-${selectedVariant.id}`}
               >
                 <Minus className="w-3 h-3" />
@@ -223,8 +266,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
               <Input
                 type="number"
                 min={1}
-                max={9999}
-                value={quantity}
+                value={inputValue}
                 onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
                 onFocus={handleFocus}
                 className="w-10 h-7 text-center text-xs p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -234,7 +276,7 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                onClick={() => handleQuantityChange(quantity + 1)}
+                onClick={() => handleQuantityChange(inputValue + 1)}
                 data-testid={`button-qty-plus-${selectedVariant.id}`}
               >
                 <Plus className="w-3 h-3" />
@@ -257,6 +299,12 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
               <ShoppingCart className="w-3 h-3" />
             )}
           </Button>
+        </div>
+        {casesMode && caseSize && selectedVariant && (
+          <span className="text-xs text-muted-foreground" data-testid={`text-unit-equiv-compact-${selectedVariant.id}`}>
+            = {unitQty} units
+          </span>
+        )}
       </div>
 
       {group.variants.length > 1 && !selectedVariant && (

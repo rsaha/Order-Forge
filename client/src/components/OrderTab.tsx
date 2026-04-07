@@ -20,6 +20,7 @@ interface Product {
   alias1?: string | null;
   alias2?: string | null;
   stock: number;
+  caseSize?: number;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -93,6 +94,7 @@ export default function OrderTab({
       alias1: p.alias1,
       alias2: p.alias2,
       stock: p.stock,
+      caseSize: p.caseSize,
     }));
     return groupProductsByName(variants);
   }, [filteredProducts]);
@@ -204,6 +206,7 @@ export default function OrderTab({
                         price: variant.price,
                         distributorPrice: variant.distributorPrice,
                         stock: variant.stock,
+                        caseSize: variant.caseSize,
                       }, qty)}
                     />
                   ))}
