@@ -540,6 +540,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.distributorPrice !== undefined) updateData.distributorPrice = updates.distributorPrice;
     if (updates.stock !== undefined) updateData.stock = updates.stock;
     if (updates.category !== undefined) updateData.category = updates.category;
+    if (updates.caseSize !== undefined) updateData.caseSize = Math.max(1, updates.caseSize);
 
     if (Object.keys(updateData).length === 0) {
       return this.getProduct(id);
