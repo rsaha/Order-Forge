@@ -5292,6 +5292,7 @@ export async function registerRoutes(
         price: p.price,
         distributorPrice: p.distributorPrice || null,
         stock: p.stock,
+        caseSize: p.caseSize || 1,
         category: p.category || null,
       }));
 
