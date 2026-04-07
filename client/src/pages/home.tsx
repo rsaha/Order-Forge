@@ -267,7 +267,7 @@ export default function Home() {
     return map;
   }, [cart]);
 
-  const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; distributorPrice?: string | number | null; stock: number }, quantity: number = 1) => {
+  const handleAddToCart = useCallback((product: { id: string; sku: string; name: string; brand: string; price: string | number; distributorPrice?: string | number | null; stock: number; caseSize?: number }, quantity: number = 1) => {
     if (cart.length > 0 && cart[0].product.brand !== product.brand) {
       toast({
         title: "Cannot mix brands",
@@ -285,7 +285,7 @@ export default function Home() {
       price: Number(product.price),
       distributorPrice: product.distributorPrice ? Number(product.distributorPrice) : null,
       stock: product.stock,
-      caseSize: (product as any).caseSize || 1,
+      caseSize: product.caseSize || 1,
     };
     
     const clampedQuantity = Math.min(quantity, 9999);

@@ -101,6 +101,7 @@ type OrderItem = {
   quantity: number;
   freeQuantity?: number;
   unitPrice: string;
+  caseSize?: number;
 };
 
 /* ─── props ─── */
@@ -834,11 +835,13 @@ export function OrderDetailPanel({
                         </div>
                         {!isEditing && (
                           <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">x{item.quantity}</span>
-                            {(item as any).caseSize && (item as any).caseSize > 1 && (
-                              <span className="text-xs text-blue-600 dark:text-blue-400">
-                                ({Math.ceil(item.quantity / (item as any).caseSize)} cs)
+                            {item.caseSize && item.caseSize > 1 ? (
+                              <span className="text-muted-foreground text-sm">
+                                {(item.quantity / item.caseSize).toFixed(2)} cases
+                                <span className="text-xs ml-1">(= {item.quantity} units)</span>
                               </span>
+                            ) : (
+                              <span className="text-muted-foreground">x{item.quantity}</span>
                             )}
                             {item.freeQuantity && item.freeQuantity > 0 && (
                               <span className="text-xs text-green-600 dark:text-green-400">+{item.freeQuantity} free</span>

@@ -1326,7 +1326,7 @@ export default function OrdersPage() {
               item.productName || "",
               item.size || "",
               item.quantity,
-              cs ? Math.ceil(item.quantity / cs) : "",
+              cs ? item.quantity / cs : "",
               item.freeQuantity || 0,
               Number(item.unitPrice) || 0,
               (item.quantity * Number(item.unitPrice)) || 0,
