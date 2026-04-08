@@ -74,6 +74,7 @@ import {
   ArrowRight,
   Calculator,
   Globe,
+  CreditCard,
 } from "lucide-react";
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
@@ -81,7 +82,7 @@ import type { Order, OrderStatus, Product } from "@shared/schema";
 import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -89,6 +90,7 @@ const statusColors: Record<OrderStatus, string> = {
   Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  PaymentPending: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200",
   Pending: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   Dispatched: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   Delivered: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
@@ -102,6 +104,7 @@ const tabColors: Record<OrderStatus, string> = {
   Approved: "border-green-500 text-green-700 dark:text-green-300",
   Backordered: "border-rose-500 text-rose-700 dark:text-rose-300",
   Invoiced: "border-purple-500 text-purple-700 dark:text-purple-300",
+  PaymentPending: "border-fuchsia-500 text-fuchsia-700 dark:text-fuchsia-300",
   Pending: "border-amber-500 text-amber-700 dark:text-amber-300",
   Dispatched: "border-orange-500 text-orange-700 dark:text-orange-300",
   Delivered: "border-teal-500 text-teal-700 dark:text-teal-300",
@@ -115,6 +118,7 @@ const tabBgColors: Record<OrderStatus, string> = {
   Approved: "bg-green-50 dark:bg-green-950",
   Backordered: "bg-rose-50 dark:bg-rose-950",
   Invoiced: "bg-purple-50 dark:bg-purple-950",
+  PaymentPending: "bg-fuchsia-50 dark:bg-fuchsia-950",
   Pending: "bg-amber-50 dark:bg-amber-950",
   Dispatched: "bg-orange-50 dark:bg-orange-950",
   Delivered: "bg-teal-50 dark:bg-teal-950",
@@ -128,6 +132,7 @@ const statusIcons: Record<OrderStatus, typeof Package> = {
   Approved: Clock,
   Backordered: Package,
   Invoiced: FileText,
+  PaymentPending: CreditCard,
   Pending: AlertCircle,
   Dispatched: Truck,
   Delivered: CheckCircle,
@@ -264,6 +269,7 @@ function getNextStatus(status: OrderStatus): OrderStatus | null {
     Backordered: "Invoiced",
     Pending: "Invoiced",
     Invoiced: "Dispatched",
+    PaymentPending: "Dispatched",
     Dispatched: "Delivered",
   };
   return transitions[status] ?? null;
@@ -554,6 +560,7 @@ export default function OrdersPage() {
     Approved: allOrders.filter(o => o.status === "Approved").length,
     Backordered: allOrders.filter(o => o.status === "Backordered").length,
     Invoiced: allOrders.filter(o => o.status === "Invoiced").length,
+    PaymentPending: allOrders.filter(o => o.status === "PaymentPending").length,
     Pending: allOrders.filter(o => o.status === "Pending").length,
     Dispatched: allOrders.filter(o => o.status === "Dispatched").length,
     Delivered: allOrders.filter(o => o.status === "Delivered").length,
@@ -851,7 +858,7 @@ export default function OrdersPage() {
       setAdvanceInvoiceDate("");
       setAdvanceActualValue("");
       setShowPartyVerifyDialog(true);
-    } else if (order.status === "Invoiced") {
+    } else if (order.status === "Invoiced" || order.status === "PaymentPending") {
       setDispatchOrder(order);
       setDispatchTransportStatus("loading");
       setDispatchTransportData(null);
@@ -1121,8 +1128,8 @@ export default function OrdersPage() {
   const handleSave = () => {
     if (!selectedOrder) return;
     
-    // Validate mandatory fields when status is Invoiced or Dispatched
-    if (editFormData.status === "Invoiced" || editFormData.status === "Dispatched") {
+    // Validate mandatory fields when status is Invoiced, PaymentPending, or Dispatched
+    if (editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") {
       const missingFields: string[] = [];
       if (!editFormData.invoiceNumber?.trim()) missingFields.push("Invoice Number");
       if (!editFormData.invoiceDate?.trim()) missingFields.push("Invoice Date");
@@ -1667,7 +1674,7 @@ export default function OrdersPage() {
               }`}
               data-testid={`tab-status-${status.toLowerCase()}`}
             >
-              {status === "Created" ? "Needs Approval" : status === "PODReceived" ? "POD Received" : status}
+              {status === "Created" ? "Needs Approval" : status === "PODReceived" ? "POD Received" : status === "PaymentPending" ? "Pmt. Pending" : status}
               {statusCounts[status] > 0 && (
                 <Badge 
                   variant="secondary" 
@@ -1716,6 +1723,39 @@ export default function OrdersPage() {
             </div>
           )}
           <AnnouncementBanner userBrands={userBrands} />
+          {/* Summary alert cards for Backordered and PaymentPending */}
+          {(statusCounts["Backordered"] > 0 || statusCounts["PaymentPending"] > 0) && !searchQuery.trim() && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {statusCounts["Backordered"] > 0 && (
+                <button
+                  onClick={() => { setStatusFilter("Backordered"); setShowTransportTab(false); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md border border-rose-200 bg-rose-50 dark:bg-rose-950/50 dark:border-rose-800 text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors text-sm"
+                  data-testid="card-summary-backordered"
+                >
+                  <Package className="w-4 h-4 text-rose-500" />
+                  <span className="font-semibold">{statusCounts["Backordered"]}</span>
+                  <span>Backordered</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-medium">
+                    {formatINR(allOrders.filter(o => o.status === "Backordered").reduce((s, o) => s + Number(o.total || 0), 0))}
+                  </span>
+                </button>
+              )}
+              {statusCounts["PaymentPending"] > 0 && (
+                <button
+                  onClick={() => { setStatusFilter("PaymentPending"); setShowTransportTab(false); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 dark:bg-fuchsia-950/50 dark:border-fuchsia-800 text-fuchsia-800 dark:text-fuchsia-200 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-900/50 transition-colors text-sm"
+                  data-testid="card-summary-payment-pending"
+                >
+                  <CreditCard className="w-4 h-4 text-fuchsia-500" />
+                  <span className="font-semibold">{statusCounts["PaymentPending"]}</span>
+                  <span>Payment Pending</span>
+                  <span className="text-fuchsia-600 dark:text-fuchsia-400 font-medium">
+                    {formatINR(allOrders.filter(o => o.status === "PaymentPending").reduce((s, o) => s + Number(o.total || 0), 0))}
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -1804,6 +1844,19 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Pending</th>
+                        <th className="text-center p-2 font-medium"></th>
+                      </tr>
+                    )}
+                    {/* PaymentPending Tab Headers */}
+                    {!searchQuery.trim() && statusFilter === "PaymentPending" && (
+                      <tr>
+                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
+                        <th className="text-left p-2 font-medium">Party</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
+                        <th className="text-left p-2 font-medium">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
+                        <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
@@ -2079,6 +2132,29 @@ export default function OrdersPage() {
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
                                 {isAdmin && (
                                   <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Invoiced" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                    <ArrowRight className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                        {/* PaymentPending Tab Cells */}
+                        {!searchQuery.trim() && statusFilter === "PaymentPending" && (
+                          <>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
+                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
+                            <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-0">
+                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
+                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
+                                {isAdmin && (
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Dispatched" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-fuchsia-600 dark:text-fuchsia-400 hover:text-fuchsia-700 hover:bg-fuchsia-50 dark:hover:bg-fuchsia-900/20">
                                     <ArrowRight className="w-4 h-4" />
                                   </Button>
                                 )}
@@ -2702,7 +2778,7 @@ export default function OrdersPage() {
                               : ORDER_STATUSES
                             ).map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status === "PODReceived" ? "POD Received" : status}
+                                {status === "PODReceived" ? "POD Received" : status === "PaymentPending" ? "Payment Pending" : status}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2757,7 +2833,7 @@ export default function OrdersPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label htmlFor="invoiceNumber">Invoice No {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
+                        <Label htmlFor="invoiceNumber">Invoice No {(editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="invoiceNumber"
                           value={editFormData.invoiceNumber}
@@ -2768,7 +2844,7 @@ export default function OrdersPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="invoiceDate">Invoice Date {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
+                        <Label htmlFor="invoiceDate">Invoice Date {(editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="invoiceDate"
                           type="date"
@@ -2779,7 +2855,7 @@ export default function OrdersPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="actualOrderValue">Actual Value {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
+                        <Label htmlFor="actualOrderValue">Actual Value {(editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") && <span className="text-destructive">*</span>}</Label>
                         <Input
                           id="actualOrderValue"
                           type="number"

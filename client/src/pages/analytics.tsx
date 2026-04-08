@@ -434,7 +434,7 @@ export default function AnalyticsPage() {
       const status = order.status.toLowerCase();
       if (status === "created" || status === "approved") metrics.created++;
       else if (status === "backordered") metrics.created++;
-      else if (status === "invoiced") metrics.invoiced++;
+      else if (status === "invoiced" || status === "paymentpending") metrics.invoiced++;
       else if (status === "dispatched") metrics.dispatched++;
       else if (status === "delivered" || status === "podreceived") metrics.delivered++;
       else if (status === "cancelled") metrics.cancelled++;
@@ -515,7 +515,7 @@ export default function AnalyticsPage() {
           blockers.stuckAtCreated.push(order);
         }
       }
-      if (status === "invoiced" && invoiceDate) {
+      if ((status === "invoiced" || status === "paymentpending") && invoiceDate) {
         const hoursStuck = differenceInHours(now, invoiceDate);
         if (hoursStuck > STUCK_THRESHOLDS.invoiced) {
           blockers.stuckAtInvoiced.push(order);
@@ -535,7 +535,7 @@ export default function AnalyticsPage() {
     if (total === 0) return [];
 
     const invoicedOrders = ordersData.filter(
-      (o) => ["invoiced", "dispatched", "delivered", "podreceived"].includes(o.status.toLowerCase())
+      (o) => ["invoiced", "paymentpending", "dispatched", "delivered", "podreceived"].includes(o.status.toLowerCase())
     ).length;
     const dispatchedOrders = ordersData.filter(
       (o) => ["dispatched", "delivered", "podreceived"].includes(o.status.toLowerCase())
@@ -553,7 +553,7 @@ export default function AnalyticsPage() {
   }, [ordersData]);
 
   const invoicedExcludingBiostige = useMemo(() => {
-    const invoicedStatuses = ["invoiced", "dispatched", "delivered", "podreceived"];
+    const invoicedStatuses = ["invoiced", "paymentpending", "dispatched", "delivered", "podreceived"];
     const filtered = ordersData.filter(o => 
       invoicedStatuses.includes(o.status.toLowerCase()) && o.brand?.toLowerCase() !== 'biostige'
     );

@@ -31,6 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
   Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   Backordered: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  PaymentPending: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200",
   Dispatched: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
   Delivered: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
   PODReceived: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",

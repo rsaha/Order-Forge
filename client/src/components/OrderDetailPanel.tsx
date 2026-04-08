@@ -34,7 +34,7 @@ import * as XLSX from "xlsx";
 /* ─── constants ─── */
 const ORDER_STATUSES: OrderStatus[] = [
   "Online", "Created", "Approved", "Backordered", "Pending", "Invoiced",
-  "Dispatched", "Delivered", "PODReceived", "Cancelled",
+  "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled",
 ];
 
 const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
@@ -45,6 +45,7 @@ const statusColors: Record<OrderStatus, string> = {
   Approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Backordered: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
   Invoiced: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  PaymentPending: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200",
   Pending: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   Dispatched: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   Delivered: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
@@ -406,7 +407,7 @@ export function OrderDetailPanel({
   const isOrderEditable = (o: Order) => PRE_INVOICE_STATUSES.includes(o.status);
 
   const handleSave = () => {
-    if (editFormData.status === "Invoiced" || editFormData.status === "Dispatched") {
+    if (editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") {
       const missingFields: string[] = [];
       if (!editFormData.invoiceNumber?.trim()) missingFields.push("Invoice Number");
       if (!editFormData.invoiceDate?.trim()) missingFields.push("Invoice Date");
@@ -966,7 +967,7 @@ export function OrderDetailPanel({
                         : ORDER_STATUSES
                       ).map((status) => (
                         <SelectItem key={status} value={status}>
-                          {status === "PODReceived" ? "POD Received" : status}
+                          {status === "PODReceived" ? "POD Received" : status === "PaymentPending" ? "Payment Pending" : status}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -977,7 +978,7 @@ export function OrderDetailPanel({
               <div>
                 <Label htmlFor="partyName">
                   Party Name{" "}
-                  {["Backordered", "Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(localOrder.status) && (
+                  {["Backordered", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived"].includes(localOrder.status) && (
                     <span className="text-xs text-muted-foreground">(locked)</span>
                   )}
                 </Label>
@@ -986,7 +987,7 @@ export function OrderDetailPanel({
                   value={editFormData.partyName}
                   onChange={(e) => setEditFormData({ ...editFormData, partyName: e.target.value })}
                   placeholder="Customer name"
-                  disabled={["Backordered", "Invoiced", "Dispatched", "Delivered", "PODReceived"].includes(localOrder.status)}
+                  disabled={["Backordered", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived"].includes(localOrder.status)}
                   data-testid="input-party-name"
                 />
               </div>
@@ -1026,7 +1027,7 @@ export function OrderDetailPanel({
                 <div>
                   <Label htmlFor="invoiceNumber">
                     Invoice No{" "}
-                    {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && (
+                    {(editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") && (
                       <span className="text-destructive">*</span>
                     )}
                   </Label>
@@ -1042,7 +1043,7 @@ export function OrderDetailPanel({
                 <div>
                   <Label htmlFor="invoiceDate">
                     Invoice Date{" "}
-                    {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && (
+                    {(editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") && (
                       <span className="text-destructive">*</span>
                     )}
                   </Label>
@@ -1057,7 +1058,7 @@ export function OrderDetailPanel({
                 <div>
                   <Label htmlFor="actualOrderValue">
                     Actual Value{" "}
-                    {(editFormData.status === "Invoiced" || editFormData.status === "Dispatched") && (
+                    {(editFormData.status === "Invoiced" || editFormData.status === "PaymentPending" || editFormData.status === "Dispatched") && (
                       <span className="text-destructive">*</span>
                     )}
                   </Label>

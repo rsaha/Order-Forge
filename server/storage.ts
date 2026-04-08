@@ -943,7 +943,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (filters?.includeActive && !filters?.status && (filters.fromDate || filters.toDate)) {
-      const activeStatuses = ['Created', 'Approved', 'Backordered', 'Invoiced', 'Dispatched'];
+      const activeStatuses = ['Created', 'Approved', 'Backordered', 'Invoiced', 'PaymentPending', 'Dispatched'];
       const dateConditions: any[] = [];
       
       if (filters.fromDate) {
@@ -1434,7 +1434,7 @@ export class DatabaseStorage implements IStorage {
       return buckets.get(dateKey)!;
     };
     
-    const invoicedStatuses = ['Invoiced', 'Dispatched', 'Delivered', 'PODReceived'];
+    const invoicedStatuses = ['Invoiced', 'PaymentPending', 'Dispatched', 'Delivered', 'PODReceived'];
     const dispatchedStatuses = ['Dispatched', 'Delivered', 'PODReceived'];
     const deliveredStatuses = ['Delivered', 'PODReceived'];
 
@@ -1458,6 +1458,7 @@ export class DatabaseStorage implements IStorage {
           approved.value += value;
           break;
         case 'Invoiced':
+        case 'PaymentPending':
           invoiced.count++;
           invoiced.value += value;
           break;
@@ -2090,7 +2091,7 @@ export class DatabaseStorage implements IStorage {
     fromDate: Date,
     toDate: Date,
   ): Promise<Array<{ productId: string; quantity: number; lastSaleDate: Date }>> {
-    const SOLD_STATUSES = ['Invoiced', 'Dispatched', 'Delivered', 'PODReceived'];
+    const SOLD_STATUSES = ['Invoiced', 'PaymentPending', 'Dispatched', 'Delivered', 'PODReceived'];
     const rows = await db
       .select({
         productId: orderItems.productId,
@@ -2116,7 +2117,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLastSaleDatesByProduct(brand: string, fromDate: Date, toDate: Date): Promise<Map<string, Date>> {
-    const SOLD_STATUSES = ['Invoiced', 'Dispatched', 'Delivered', 'PODReceived'];
+    const SOLD_STATUSES = ['Invoiced', 'PaymentPending', 'Dispatched', 'Delivered', 'PODReceived'];
     const rows = await db
       .select({
         productId: orderItems.productId,
