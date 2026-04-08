@@ -82,7 +82,7 @@ import type { Order, OrderStatus, Product } from "@shared/schema";
 import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
