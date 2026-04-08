@@ -82,7 +82,7 @@ import type { Order, OrderStatus, Product } from "@shared/schema";
 import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
@@ -553,7 +553,12 @@ export default function OrdersPage() {
         return partyMatch || invoiceMatch || createdByName || createdByEmail || dispatchByMatch;
       });
     }
-    return allOrders.filter(o => o.status === statusFilter);
+    // PaymentPending orders are folded into the Invoiced tab
+    return allOrders.filter(o =>
+      statusFilter === "Invoiced"
+        ? (o.status === "Invoiced" || o.status === "PaymentPending")
+        : o.status === statusFilter
+    );
   }, [allOrders, searchQuery, statusFilter, isAdmin]);
   
   // Count orders by status for tab badges
@@ -562,7 +567,7 @@ export default function OrdersPage() {
     Created: allOrders.filter(o => o.status === "Created").length,
     Approved: allOrders.filter(o => o.status === "Approved").length,
     Backordered: allOrders.filter(o => o.status === "Backordered").length,
-    Invoiced: allOrders.filter(o => o.status === "Invoiced").length,
+    Invoiced: allOrders.filter(o => o.status === "Invoiced" || o.status === "PaymentPending").length,
     PaymentPending: allOrders.filter(o => o.status === "PaymentPending").length,
     Pending: allOrders.filter(o => o.status === "Pending").length,
     Dispatched: allOrders.filter(o => o.status === "Dispatched").length,
@@ -1795,25 +1800,6 @@ export default function OrdersPage() {
             </div>
           )}
           <AnnouncementBanner userBrands={userBrands} />
-          {/* Summary alert card for PaymentPending */}
-          {statusCounts["PaymentPending"] > 0 && !searchQuery.trim() && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {statusCounts["PaymentPending"] > 0 && (
-                <button
-                  onClick={() => { setStatusFilter("PaymentPending"); setShowTransportTab(false); }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 dark:bg-fuchsia-950/50 dark:border-fuchsia-800 text-fuchsia-800 dark:text-fuchsia-200 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-900/50 transition-colors text-sm"
-                  data-testid="card-summary-payment-pending"
-                >
-                  <CreditCard className="w-4 h-4 text-fuchsia-500" />
-                  <span className="font-semibold">{statusCounts["PaymentPending"]}</span>
-                  <span>Payment Pending</span>
-                  <span className="text-fuchsia-600 dark:text-fuchsia-400 font-medium">
-                    {formatINR(allOrders.filter(o => o.status === "PaymentPending").reduce((s, o) => s + Number(o.total || 0), 0))}
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -1902,19 +1888,6 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Pending</th>
-                        <th className="text-center p-2 font-medium"></th>
-                      </tr>
-                    )}
-                    {/* PaymentPending Tab Headers */}
-                    {!searchQuery.trim() && statusFilter === "PaymentPending" && (
-                      <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
-                        <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
-                        <th className="text-left p-2 font-medium">Party</th>
-                        <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
-                        <th className="text-left p-2 font-medium">Invoice #</th>
-                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
-                        <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium"></th>
                       </tr>
                     )}
@@ -2151,12 +2124,19 @@ export default function OrdersPage() {
                             </td>
                           </>
                         )}
-                        {/* Invoiced Tab Cells */}
+                        {/* Invoiced Tab Cells (also covers PaymentPending orders folded in) */}
                         {!searchQuery.trim() && statusFilter === "Invoiced" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium text-sm">{order.partyName || "Unknown"}</span>
+                                {order.status === "PaymentPending" && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/50 dark:text-fuchsia-300 whitespace-nowrap">Pmt. Pending</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
@@ -2189,30 +2169,15 @@ export default function OrdersPage() {
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
                                 {isAdmin && (
-                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Invoiced" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
-                                    <ArrowRight className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
-                          </>
-                        )}
-                        {/* PaymentPending Tab Cells */}
-                        {!searchQuery.trim() && statusFilter === "PaymentPending" && (
-                          <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
-                            <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
-                            <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
-                            <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
-                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
-                            <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
-                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-center gap-0">
-                                <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
-                                {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
-                                {isAdmin && (
-                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)} title="Move to Dispatched" disabled={advanceMutation.isPending} data-testid={`button-advance-${order.id}`} className="text-fuchsia-600 dark:text-fuchsia-400 hover:text-fuchsia-700 hover:bg-fuchsia-50 dark:hover:bg-fuchsia-900/20">
+                                  <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)}
+                                    title={order.status === "PaymentPending" ? "Move to Dispatched" : "Move to Payment Pending"}
+                                    disabled={advanceMutation.isPending}
+                                    data-testid={`button-advance-${order.id}`}
+                                    className={order.status === "PaymentPending"
+                                      ? "text-fuchsia-600 dark:text-fuchsia-400 hover:text-fuchsia-700 hover:bg-fuchsia-50 dark:hover:bg-fuchsia-900/20"
+                                      : "text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                    }
+                                  >
                                     <ArrowRight className="w-4 h-4" />
                                   </Button>
                                 )}
