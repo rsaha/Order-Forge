@@ -6305,8 +6305,10 @@ export async function registerRoutes(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUser(userId);
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const parsed = insertTransportCarrierSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     try {
-      const carrier = await storage.updateTransportCarrier(req.params.id, req.body);
+      const carrier = await storage.updateTransportCarrier(req.params.id, parsed.data);
       if (!carrier) return res.status(404).json({ message: "Carrier not found" });
       res.json(carrier);
     } catch (e) {
@@ -6354,8 +6356,10 @@ export async function registerRoutes(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUser(userId);
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const parsed = insertTransportRateSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     try {
-      const rate = await storage.updateTransportRate(req.params.id, req.body);
+      const rate = await storage.updateTransportRate(req.params.id, parsed.data);
       if (!rate) return res.status(404).json({ message: "Rate not found" });
       res.json(rate);
     } catch (e) {
@@ -6409,23 +6413,6 @@ export async function registerRoutes(
     } catch (e) {
       console.error("Error assigning transport:", e);
       res.status(500).json({ message: "Failed to assign transport" });
-    }
-  });
-
-  // PATCH /api/transport/bulk-dispatch — move assigned orders to Dispatched (admin only)
-  app.patch("/api/transport/bulk-dispatch", isAuthenticated, async (req: any, res) => {
-    const userId = req.user?.claims?.sub;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const user = await storage.getUser(userId);
-    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
-    const { orderIds, dispatchDate } = req.body;
-    if (!Array.isArray(orderIds) || !dispatchDate) return res.status(400).json({ message: "orderIds array and dispatchDate are required" });
-    try {
-      const count = await storage.bulkDispatchOrders(orderIds, dispatchDate);
-      res.json({ dispatched: count });
-    } catch (e) {
-      console.error("Error bulk dispatching orders:", e);
-      res.status(500).json({ message: "Failed to dispatch orders" });
     }
   });
 

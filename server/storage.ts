@@ -171,7 +171,6 @@ export interface IStorage {
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
-  bulkDispatchOrders(orderIds: string[], dispatchDate: string): Promise<number>;
 }
 
 export interface StatusMetric {
@@ -2448,13 +2447,6 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount ?? 0;
   }
 
-  async bulkDispatchOrders(orderIds: string[], dispatchDate: string): Promise<number> {
-    if (orderIds.length === 0) return 0;
-    const result = await db.update(orders)
-      .set({ status: "Dispatched", dispatchDate: new Date(dispatchDate) })
-      .where(and(inArray(orders.id, orderIds), eq(orders.status, "Invoiced")));
-    return result.rowCount ?? 0;
-  }
 }
 
 export const storage = new DatabaseStorage();
