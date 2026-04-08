@@ -131,6 +131,7 @@ interface VelocityMetrics {
 
 interface BlockerMetrics {
   stuckAtCreated: Order[];
+  stuckAtBackordered: Order[];
   stuckAtInvoiced: Order[];
   stuckAtDispatched: Order[];
 }
@@ -499,6 +500,7 @@ export default function AnalyticsPage() {
 
     const blockers: BlockerMetrics = {
       stuckAtCreated: [],
+      stuckAtBackordered: [],
       stuckAtInvoiced: [],
       stuckAtDispatched: [],
     };
@@ -509,11 +511,14 @@ export default function AnalyticsPage() {
       const invoiceDate = order.invoiceDate ? new Date(order.invoiceDate) : null;
       const estimatedDelivery = order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate) : null;
 
-      if ((status === "created" || status === "approved" || status === "backordered") && createdAt) {
+      if ((status === "created" || status === "approved") && createdAt) {
         const hoursStuck = differenceInHours(now, createdAt);
         if (hoursStuck > STUCK_THRESHOLDS.created) {
           blockers.stuckAtCreated.push(order);
         }
+      }
+      if (status === "backordered" && createdAt) {
+        blockers.stuckAtBackordered.push(order);
       }
       if ((status === "invoiced" || status === "paymentpending") && invoiceDate) {
         const hoursStuck = differenceInHours(now, invoiceDate);
@@ -576,6 +581,7 @@ export default function AnalyticsPage() {
 
   const totalBlockers =
     blockerMetrics.stuckAtCreated.length +
+    blockerMetrics.stuckAtBackordered.length +
     blockerMetrics.stuckAtInvoiced.length +
     blockerMetrics.stuckAtDispatched.length;
 
@@ -1083,6 +1089,36 @@ export default function AnalyticsPage() {
                         <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
                           {blockerMetrics.stuckAtCreated.slice(0, 10).map((order) => (
                             <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-created-${order.id}`}>
+                              <span>{order.partyName || "Unknown"}</span>
+                              <span className="text-muted-foreground">
+                                {order.createdAt ? differenceInDays(new Date(), new Date(order.createdAt)) : 0}d ago
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
+                  {blockerMetrics.stuckAtBackordered.length > 0 && (
+                    <Card className="p-4 bg-rose-50/50 dark:bg-rose-950/20">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setExpandedBlocker(expandedBlocker === "backordered" ? null : "backordered")}
+                        data-testid="button-toggle-backordered-blockers"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-rose-500" />
+                          <Package className="w-5 h-5 text-rose-500" />
+                          <span className="font-medium">Backordered</span>
+                        </div>
+                        <span className="text-lg font-bold text-rose-600" data-testid="text-backordered-blockers-count">{blockerMetrics.stuckAtBackordered.length}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Awaiting stock replenishment</p>
+                      {expandedBlocker === "backordered" && (
+                        <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
+                          {blockerMetrics.stuckAtBackordered.slice(0, 10).map((order) => (
+                            <div key={order.id} className="text-sm p-2 bg-muted rounded flex justify-between" data-testid={`row-blocker-backordered-${order.id}`}>
                               <span>{order.partyName || "Unknown"}</span>
                               <span className="text-muted-foreground">
                                 {order.createdAt ? differenceInDays(new Date(), new Date(order.createdAt)) : 0}d ago
