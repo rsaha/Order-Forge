@@ -265,6 +265,47 @@ export const brandStockImports = pgTable("brand_stock_imports", {
   unmatched: jsonb("unmatched"),
 });
 
+// Transport carriers table
+export const transportCarriers = pgTable("transport_carriers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  type: varchar("type").notNull().default("flat_per_location"), // flat_per_location | per_parcel
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Transport rates table
+export const transportRates = pgTable("transport_rates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  carrierId: varchar("carrier_id").notNull().references(() => transportCarriers.id, { onDelete: "cascade" }),
+  location: varchar("location").notNull(),
+  rate: numeric("rate", { precision: 10, scale: 2 }),
+  minRate: numeric("min_rate", { precision: 10, scale: 2 }),
+  maxRate: numeric("max_rate", { precision: 10, scale: 2 }),
+  tat: varchar("tat"),
+  rateNote: varchar("rate_note"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const transportCarriersRelations = relations(transportCarriers, ({ many }) => ({
+  rates: many(transportRates),
+}));
+
+export const transportRatesRelations = relations(transportRates, ({ one }) => ({
+  carrier: one(transportCarriers, {
+    fields: [transportRates.carrierId],
+    references: [transportCarriers.id],
+  }),
+}));
+
+export type TransportCarrier = typeof transportCarriers.$inferSelect;
+export type TransportRate = typeof transportRates.$inferSelect;
+export const insertTransportCarrierSchema = createInsertSchema(transportCarriers).omit({ id: true, createdAt: true });
+export const insertTransportRateSchema = createInsertSchema(transportRates).omit({ id: true, createdAt: true });
+export type InsertTransportCarrier = z.infer<typeof insertTransportCarrierSchema>;
+export type InsertTransportRate = z.infer<typeof insertTransportRateSchema>;
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertUserBrandAccessSchema = createInsertSchema(userBrandAccess).omit({ id: true, createdAt: true });

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a productivity-focused order entry application designed for sales representatives and small businesses. Its primary purpose is to streamline the order creation and management process. Key capabilities include uploading product inventory via Excel/CSV, generating orders by searching and selecting products, and facilitating order communication through WhatsApp or email. The application prioritizes a mobile-first, touch-optimized user experience, adhering to Material Design principles for efficient data entry. The business vision is to empower sales teams and small businesses with a robust, intuitive tool that enhances sales efficiency and order fulfillment, tapping into a market segment seeking streamlined digital solutions for order management.
+This project is a productivity-focused order entry application designed for sales representatives and small businesses. Its primary purpose is to streamline the order creation and management process, from inventory upload to order generation and communication. Key capabilities include Excel/CSV inventory uploads, product search and selection for order creation, and order communication via WhatsApp or email. The application emphasizes a mobile-first, touch-optimized user experience, adhering to Material Design principles. The business vision is to empower sales teams and small businesses with an intuitive tool to enhance sales efficiency and order fulfillment, addressing a market need for streamlined digital order management.
 
 ## User Preferences
 
@@ -11,115 +11,53 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend is built with React 18 and TypeScript, using Wouter for routing and TanStack React Query for server state management. UI styling is managed with Tailwind CSS and the shadcn/ui component library, following the New York style. Vite is used as the build tool, including custom plugins for Replit integration. The architecture promotes a pages-based structure with a clear separation of reusable UI components and feature-specific components.
+The frontend uses React 18 with TypeScript, Wouter for routing, and TanStack React Query for server state management. Styling is handled with Tailwind CSS and shadcn/ui (New York style). Vite is the build tool, including custom Replit integration plugins. The architecture is pages-based, separating reusable UI components from feature-specific ones.
 
 ### Backend
-The backend utilizes Node.js with Express and TypeScript, employing ESM modules. It exposes a RESTful JSON API. Authentication is handled via Replit Auth (OpenID Connect) integrated with Passport.js, with session management backed by PostgreSQL using `connect-pg-simple`. File uploads for inventory are processed using Multer. The backend design emphasizes a clean separation between routes, storage logic, and authentication layers, with a storage interface for enhanced testability.
+The backend is built with Node.js, Express, and TypeScript (ESM modules), providing a RESTful JSON API. Authentication uses Replit Auth (OpenID Connect) via Passport.js, with session management backed by PostgreSQL using `connect-pg-simple`. Multer handles file uploads. The design cleanly separates routes, storage logic, and authentication.
 
 ### Data Storage
-PostgreSQL serves as the primary database, managed with Drizzle ORM. The database schema, defined in `shared/schema.ts`, is shared across both frontend and backend. Drizzle Kit is used for migrations. Key tables include `users`, `products`, `userProducts` (for user-specific catalogs), `orders`, `orderItems` (including `freeQuantity`), and `sessions`.
+PostgreSQL is the primary database, managed with Drizzle ORM and Drizzle Kit for migrations. The `shared/schema.ts` defines the schema, shared across frontend and backend, including tables for users, products, user-specific catalogs, orders, order items, and sessions.
 
 ### Authentication
-The application supports two authentication methods:
-1.  **Google OAuth 2.0**: Uses `passport-google-oauth20` for direct Google login. Users are matched by email to avoid duplicates when migrating from Replit OIDC. Admin status is determined by the `ADMIN_EMAILS` list in `server/replitAuth.ts`.
-2.  **Phone/Password Authentication**: Admin-created users log in with a phone number and a bcrypt-hashed password.
-Both methods share a PostgreSQL-backed session management system with a one-week TTL. A dev-mode bypass auto-logs in as an admin user when `NODE_ENV !== "production"`.
+Authentication supports Google OAuth 2.0 (`passport-google-oauth20`) and phone/password for admin-created users. Both use PostgreSQL-backed session management. Admin status is determined by `ADMIN_EMAILS`.
 
 ### Core Features
--   **File Processing (Admin)**: Supports Excel (.xlsx, .xls) uploads for product inventory. Required columns: Brand, Name, Product SKU ID, Size, with an optional MRP. Products are parsed server-side and assigned to the admin's catalog.
--   **Order Import (Text)**: Users can paste free-form text, which is parsed to match products against their catalog by SKU or name, allowing review and cart addition.
--   **Order Import (Excel - Admin)**: Admins can import orders from Excel files (Customer-wise sales summary format). The system extracts Invoice Number from "Entry No." column, Invoice Date from "Entry Date" column (Excel serial format), and Actual Invoice Value from customer's "Net Amount" column. Orders are created with "Invoiced" status automatically.
--   **Announcement System**: Admin-managed announcements stored in the database, with priority levels, brand targeting, expiration dates, and user dismissal functionality.
--   **User Roles**: Differentiates between Regular Users (order creation, cart management), Brand Admins (order viewing for assigned brands, status changes), and Admin Users (full access including product/user management, all order statuses, and creating orders on behalf of sales users).
--   **Admin Order Creation**: Admins can create orders for sales users, maintaining `userId` (owner) and `createdBy` (admin creator) for audit trails.
--   **Single-Brand Order Enforcement**: Each order must contain products from a single brand, enforced at both frontend (cart) and backend (validation) levels.
--   **Orders Page**: Features status-based navigation via color-coded tabs (Online, Created, Approved, Backordered, Pending, Invoiced, Dispatched, Delivered, POD Received, Cancelled) with status-specific table columns and client-side filtering. Pending tab includes a "Salesperson" column showing the order owner's name.
--   **Online Orders**: Orders created via the external API default to "Online" status (cyan color). They require admin approval before moving to "Approved". The approve button shows for all Online orders in the admin view. BrandAdmins can also approve Online → Approved. Online orders behave like "Created" for item editing, deletion, cancellation, and pending order creation.
--   **POD (Proof of Delivery) Tracking**: Orders include a `podStatus`. Admins can mark POD as "Received," triggering a status change to "POD Received" and recording a timestamp.
--   **Pending Orders**: Out-of-stock items from "Created" or "Approved" orders can be moved to a "Pending" order, linked to the original order via `parentOrderId`, and can be edited.
--   **WhatsApp Sharing**: Generates and shares order details via WhatsApp with status-dependent messaging.
--   **Party-Salesperson Linking**: Admins can link salespeople (User role) to customer parties via the `userPartyAccess` table. Linked salespeople can view and modify (add/edit/delete items) orders for their assigned parties when orders are in Created, Approved, or Pending status. The Users page provides a UI for managing these linkages with autocomplete suggestions from existing party names.
--   **Customer-Sales User Linking**: Customer users can be linked to sales users via the `linkedSalesUserId` field. When admins create customer users, they can select a sales user to manage that customer. Sales users can view all their linked customer users, and customer users can see their assigned sales user. This enables proper customer-salesperson relationship management.
--   **User Management UX**: Users page features search (by name/email/phone/party), role filter tabs (All/Admin/BrandAdmin/User/Customer) with counts, compact list rows, and a detail side sheet for viewing/editing user details. All editing (name, role, brands, party access, delivery companies, linked sales user, password reset) happens in the sheet. Add User uses the same sheet pattern.
--   **Account Merge**: Admins can merge duplicate user accounts from the user detail sheet. The merge flow includes target user selection with search, a preview step showing data to be transferred (orders, brand/delivery/party access, linked customers), and confirmation. The merge is transactional — all orders, access permissions, and linked customer relationships are transferred atomically, and the source user is deleted. Endpoints: `GET /api/admin/users/merge-preview`, `POST /api/admin/users/merge`.
--   **Analytics Dashboard**: Admin-only page with KPIs (Total Orders, Value Invoiced excl. Biostige/Ayouthveda CFA brands, Transport Cost, On-Time Delivery), Order Flow Funnel, velocity metrics, blocker detection, and delivery cost breakdown by dispatcher. Filters: date range, brand, delivery company, and order creator (filters by order owner/salesperson userId). Analytics endpoint uses in-memory caching with 2-minute TTL keyed on all filter params.
--   **Stock Forecast Dashboard**: Admin-only page (Step 1→4 flow). Per-brand settings (`brandForecastSettings` table). Auto-loading 90-day sales analysis with sortable columns (Name, Stock, Total 90d), rounded numbers, no "Smoothed" display column, "Save Snapshot" button (persists to `brandSalesSnapshots`), and snapshot history list. Two-phase stock upload: preview (parse file, show matches with editable searchable product dropdown + confidence badge) → confirm (commit to DB, save to `brandStockImports` import history). Forecast runs 3-month moving avg + ETS (α=0.3), defaults to "Reorder Needed" filter on results. New tables: `brandSalesSnapshots`, `brandStockImports`.
--   **Navigation by Role**: Admin sees Home → Orders Management (`/orders`) → Analytics → Products → Users. BrandAdmin/User/Customer see Home → My Orders (`/sales-orders`) → Inventory. Admin does not see My Orders or Inventory in the nav.
--   **My Orders Page** (`/sales-orders`): Unified order view for BrandAdmin, User, and Customer roles powered by `GET /api/portal/orders`. Features: status tabs (color-coded, role-filtered — BrandAdmin hides PODReceived, Customer sees limited tabs), search bar (party, invoice, brand, creator), date presets (Today/7d/30d/This Month/Last Month/All), brand filter (BrandAdmin: own brands only), delivery company filter. Approve button available for non-Customer users on Created orders. Order detail dialog shows item breakdown. Value summary bar shows order total and actual value per tab. API accepts `brand` and `deliveryCompany` query params for filtering at source.
--   **Orders Management Page** (`/orders`): Admin-only full order management page (previously "Orders"). Features all status tabs, bulk operations, export (XLSX), bulk WhatsApp, delivery cost split, order import from text/Excel, and full order editing.
--   **Portal Stock**: `GET /api/portal/stock` — per-brand stock view using latest uploaded data, showing active stock and a collapsible Non-Moving Stock section (items with 0 sales in 90 days), with last upload date and product count.
+-   **Inventory Management**: Admins can upload product inventory via Excel (XLSX, XLS) with required fields like Brand, Name, Product SKU ID, Size, and optional MRP. Products are assigned to the admin's catalog.
+-   **Order Creation**: Users can create orders by searching/selecting products, importing from text (parsing free-form text to match products), or admins importing from Excel (extracting invoice details).
+-   **Order Workflow & Statuses**: Orders progress through various color-coded statuses (Online, Created, Approved, Backordered, Pending, Invoiced, Dispatched, Delivered, POD Received, Cancelled). "Online" orders require admin approval. Out-of-stock items can be moved to "Pending" orders, linked to the original.
+-   **User Roles & Permissions**: Supports Regular Users, Brand Admins (view/change status for assigned brands), and Admin Users (full access, product/user management, create orders for sales users).
+-   **Sales & Customer Relationship Management**: Admins can link salespeople to customer parties (`userPartyAccess`) and customer users to sales users (`linkedSalesUserId`), enabling role-based viewing and modification of orders.
+-   **User Management**: Comprehensive admin interface for user search, filtering, role assignment, brand/party access management, password resets, and account merging. Account merging is transactional, transferring all related data and deleting the source user.
+-   **Communication**: Generates and shares order details via WhatsApp with status-dependent messaging.
+-   **Announcements**: Admin-managed, database-stored announcements with priority, brand targeting, expiration, and user dismissal.
+-   **Analytics Dashboard**: Admin-only view with KPIs (Total Orders, Value Invoiced, Transport Cost, On-Time Delivery), order flow funnel, velocity metrics, and delivery cost breakdown. Filters include date range, brand, delivery company, and order creator.
+-   **Stock Forecast Dashboard**: Admin-only feature for per-brand stock forecasting based on sales analysis (3-month moving average + ETS). Supports two-phase stock upload and snapshot history.
+-   **Role-Based Navigation**: Navigation adapts to user roles (Admin, BrandAdmin, User, Customer), showing relevant pages like "Orders Management," "My Orders," "Analytics," "Products," and "Inventory."
+-   **Transport Prediction**: Admin-only tab for dispatching invoiced orders, integrating with `transportCarriers` and `transportRates` tables. Predicts costs based on carrier types (flat per location, per parcel by zone). Allows bulk assignment and dispatch.
 
 ## External Dependencies
 
 ### Third-Party Services
--   **Google OAuth 2.0**: Direct Google login via `passport-google-oauth20`.
--   **PostgreSQL**: Database service provided through Replit.
+-   **Google OAuth 2.0**: Used for direct Google login.
+-   **PostgreSQL**: Primary database service.
 
 ### Key NPM Packages
 -   `drizzle-orm`, `drizzle-kit`: ORM for database interactions and migrations.
--   `xlsx`: Library for parsing Excel files.
--   `@tanstack/react-query`: For server state management in the frontend.
--   `passport`, `passport-google-oauth20`: Authentication middleware for Node.js with Google OAuth.
--   `express-session`, `connect-pg-simple`: For session management with PostgreSQL.
+-   `xlsx`: For parsing Excel files.
+-   `@tanstack/react-query`: For frontend server state management.
+-   `passport`, `passport-google-oauth20`: Authentication middleware for Node.js.
+-   `express-session`, `connect-pg-simple`: For session management.
 
 ### Environment Variables
 -   `DATABASE_URL`: PostgreSQL connection string.
--   `SESSION_SECRET`: Secret for session encryption.
--   `GOOGLE_CLIENT_ID`: Google OAuth 2.0 client ID.
--   `GOOGLE_CLIENT_SECRET`: Google OAuth 2.0 client secret.
+-   `SESSION_SECRET`: Session encryption secret.
+-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Google OAuth 2.0 credentials.
 -   `CASHDESK_API_KEY`: API key for external API authentication.
 
-## External API Endpoints
-
-All external API endpoints require authentication via `X-API-KEY` header using the `CASHDESK_API_KEY` secret.
-
-### GET /api/sales/summary
-Returns Invoiced, Dispatched, and Delivered orders grouped by brand within a date range.
-
-**Parameters:**
-- `startDate` (required): Start date in YYYY-MM-DD format
-- `endDate` (required): End date in YYYY-MM-DD format
-- `brand` (optional): Case-insensitive partial match filter for brand name
-
-**Response:** Total orders, total value, and breakdown by brand with status-level counts and values (Invoiced/Dispatched/Delivered).
-
-### GET /api/sales/party/:partyName
-Returns all Invoiced/Dispatched/Delivered orders for a specific party within a date range.
-
-**Parameters:**
-- `partyName` (required): URL-encoded party name
-- `startDate` (required): Start date in YYYY-MM-DD format
-- `endDate` (required): End date in YYYY-MM-DD format
-
-**Response:** Party name, order count, total value, status breakdown (Invoiced/Dispatched/Delivered counts and values), and list of orders.
-
-### GET /api/sales/brand/:brandName
-Returns total order value for a specific brand within a date range.
-
-**Parameters:**
-- `brandName` (required): URL-encoded brand name
-- `startDate` (required): Start date in YYYY-MM-DD format
-- `endDate` (required): End date in YYYY-MM-DD format
-
-**Response:** Brand name, order count, total value, and breakdown by status (Invoiced/Dispatched/Delivered counts and values).
-
-### POST /api/orders/external
-Creates an order from an external system. Items are matched by product `name` (case-insensitive) within the specified brand.
-
-**Body (JSON):**
-- `brand` (required): Brand name (must exist and be active)
-- `partyName` (required): Customer/party name
-- `items` (required): Array of `{ name: string, quantity: number, unitPrice?: number, freeQuantity?: number, size?: string }`
-- `status` (optional): Order status, default "Online". One of: Online, Created, Approved, Backordered, Invoiced, Dispatched, Delivered
-- `invoiceNumber` (optional): Invoice reference number
-- `invoiceDate` (optional): Invoice date in YYYY-MM-DD format
-- `dispatchDate` (optional): Dispatch date in YYYY-MM-DD format
-- `dispatchBy` (optional): Dispatch carrier/method
-- `cases` (optional): Number of cases
-- `specialNotes` (optional): Notes for the order
-- `deliveryNote` (optional): Delivery instructions/notes
-- `deliveryAddress` (optional): Full delivery address text
-- `deliveryCompany` (optional): Delivery company, default "Guided"
-- `actualOrderValue` (optional): Actual invoice value
-
-**Response:** Created order details with resolved items, item count.
+### External API Endpoints
+All external API endpoints require `X-API-KEY` header authentication using `CASHDESK_API_KEY`.
+-   `GET /api/sales/summary`: Retrieves summarized order data by brand within a date range.
+-   `GET /api/sales/party/:partyName`: Fetches detailed order information for a specific party within a date range.
+-   `GET /api/sales/brand/:brandName`: Provides total order value for a given brand within a date range.
+-   `POST /api/orders/external`: Creates an order from an external system, matching items by product name within a specified brand.

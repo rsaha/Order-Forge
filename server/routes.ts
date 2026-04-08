@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES, orders } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES, orders, insertTransportCarrierSchema, insertTransportRateSchema } from "@shared/schema";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import multer from "multer";
@@ -6259,6 +6259,173 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching portal stock:", error);
       res.status(500).json({ message: "Failed to fetch stock data" });
+    }
+  });
+
+  // ─── Transport Carrier & Prediction Routes ───────────────────────────────────
+
+  // Seed transport carriers on startup (idempotent)
+  storage.seedTransportCarriers().catch(e => console.error("Failed to seed transport carriers:", e));
+
+  // GET /api/transport/carriers — list all carriers with rates (admin only)
+  app.get("/api/transport/carriers", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const carriers = await storage.getTransportCarriers();
+      res.json(carriers);
+    } catch (e) {
+      console.error("Error fetching transport carriers:", e);
+      res.status(500).json({ message: "Failed to fetch carriers" });
+    }
+  });
+
+  // POST /api/transport/carriers — create carrier (admin only)
+  app.post("/api/transport/carriers", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const parsed = insertTransportCarrierSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+    try {
+      const carrier = await storage.createTransportCarrier(parsed.data);
+      res.json(carrier);
+    } catch (e) {
+      console.error("Error creating transport carrier:", e);
+      res.status(500).json({ message: "Failed to create carrier" });
+    }
+  });
+
+  // PATCH /api/transport/carriers/:id — update carrier (admin only)
+  app.patch("/api/transport/carriers/:id", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const carrier = await storage.updateTransportCarrier(req.params.id, req.body);
+      if (!carrier) return res.status(404).json({ message: "Carrier not found" });
+      res.json(carrier);
+    } catch (e) {
+      console.error("Error updating transport carrier:", e);
+      res.status(500).json({ message: "Failed to update carrier" });
+    }
+  });
+
+  // DELETE /api/transport/carriers/:id — delete carrier (admin only)
+  app.delete("/api/transport/carriers/:id", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const ok = await storage.deleteTransportCarrier(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Carrier not found" });
+      res.json({ success: true });
+    } catch (e) {
+      console.error("Error deleting transport carrier:", e);
+      res.status(500).json({ message: "Failed to delete carrier" });
+    }
+  });
+
+  // POST /api/transport/rates — create rate (admin only)
+  app.post("/api/transport/rates", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const parsed = insertTransportRateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+    try {
+      const rate = await storage.createTransportRate(parsed.data);
+      res.json(rate);
+    } catch (e) {
+      console.error("Error creating transport rate:", e);
+      res.status(500).json({ message: "Failed to create rate" });
+    }
+  });
+
+  // PATCH /api/transport/rates/:id — update rate (admin only)
+  app.patch("/api/transport/rates/:id", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const rate = await storage.updateTransportRate(req.params.id, req.body);
+      if (!rate) return res.status(404).json({ message: "Rate not found" });
+      res.json(rate);
+    } catch (e) {
+      console.error("Error updating transport rate:", e);
+      res.status(500).json({ message: "Failed to update rate" });
+    }
+  });
+
+  // DELETE /api/transport/rates/:id — delete rate (admin only)
+  app.delete("/api/transport/rates/:id", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const ok = await storage.deleteTransportRate(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Rate not found" });
+      res.json({ success: true });
+    } catch (e) {
+      console.error("Error deleting transport rate:", e);
+      res.status(500).json({ message: "Failed to delete rate" });
+    }
+  });
+
+  // GET /api/transport/predict — prediction data (admin only)
+  app.get("/api/transport/predict", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const data = await storage.getTransportPredict();
+      res.json(data);
+    } catch (e) {
+      console.error("Error fetching transport predictions:", e);
+      res.status(500).json({ message: "Failed to fetch predictions" });
+    }
+  });
+
+  // PATCH /api/transport/assign — set dispatchBy on list of orders (admin only)
+  app.patch("/api/transport/assign", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const { orderIds, dispatchBy } = req.body;
+    if (!Array.isArray(orderIds) || !dispatchBy) return res.status(400).json({ message: "orderIds array and dispatchBy are required" });
+    try {
+      const count = await storage.assignTransportToOrders(orderIds, dispatchBy);
+      res.json({ updated: count });
+    } catch (e) {
+      console.error("Error assigning transport:", e);
+      res.status(500).json({ message: "Failed to assign transport" });
+    }
+  });
+
+  // PATCH /api/transport/bulk-dispatch — move assigned orders to Dispatched (admin only)
+  app.patch("/api/transport/bulk-dispatch", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const { orderIds, dispatchDate } = req.body;
+    if (!Array.isArray(orderIds) || !dispatchDate) return res.status(400).json({ message: "orderIds array and dispatchDate are required" });
+    try {
+      const count = await storage.bulkDispatchOrders(orderIds, dispatchDate);
+      res.json({ dispatched: count });
+    } catch (e) {
+      console.error("Error bulk dispatching orders:", e);
+      res.status(500).json({ message: "Failed to dispatch orders" });
     }
   });
 

@@ -11,6 +11,8 @@ import {
   brandForecastSettings,
   brandSalesSnapshots,
   brandStockImports,
+  transportCarriers,
+  transportRates,
   type User,
   type UpsertUser,
   type Product,
@@ -32,6 +34,10 @@ import {
   type Announcement,
   type InsertAnnouncement,
   type BrandForecastSettings,
+  type TransportCarrier,
+  type TransportRate,
+  type InsertTransportCarrier,
+  type InsertTransportRate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
@@ -149,6 +155,23 @@ export interface IStorage {
   // Stock import history operations
   saveStockImport(brand: string, data: { updatedCount: number; unmatchedCount: number; updatedProducts: unknown[]; unmatched: unknown[] }): Promise<{ id: number; importedAt: Date }>;
   getStockImports(brand: string, limit?: number): Promise<Array<{ id: number; brand: string; importedAt: Date; updatedCount: number | null; unmatchedCount: number | null }>>;
+
+  // Transport carrier operations
+  getTransportCarriers(): Promise<(TransportCarrier & { rates: TransportRate[] })[]>;
+  createTransportCarrier(data: InsertTransportCarrier): Promise<TransportCarrier>;
+  updateTransportCarrier(id: string, data: Partial<InsertTransportCarrier>): Promise<TransportCarrier | undefined>;
+  deleteTransportCarrier(id: string): Promise<boolean>;
+  createTransportRate(data: InsertTransportRate): Promise<TransportRate>;
+  updateTransportRate(id: string, data: Partial<InsertTransportRate>): Promise<TransportRate | undefined>;
+  deleteTransportRate(id: string): Promise<boolean>;
+  seedTransportCarriers(): Promise<void>;
+  getTransportPredict(): Promise<{
+    carriers: (TransportCarrier & { rates: TransportRate[] })[];
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; caseSizes: number[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
+    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[] }>;
+  }>;
+  assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
+  bulkDispatchOrders(orderIds: string[], dispatchDate: string): Promise<number>;
 }
 
 export interface StatusMetric {
@@ -2158,6 +2181,247 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`${brandStockImports.importedAt} DESC`)
       .limit(limit);
     return rows.map(r => ({ ...r, importedAt: new Date(r.importedAt) }));
+  }
+
+  // Transport carrier operations
+  async getTransportCarriers(): Promise<(TransportCarrier & { rates: TransportRate[] })[]> {
+    const carriers = await db.select().from(transportCarriers).orderBy(transportCarriers.name);
+    const allRates = await db.select().from(transportRates).orderBy(transportRates.location);
+    return carriers.map(c => ({
+      ...c,
+      rates: allRates.filter(r => r.carrierId === c.id),
+    }));
+  }
+
+  async createTransportCarrier(data: InsertTransportCarrier): Promise<TransportCarrier> {
+    const [row] = await db.insert(transportCarriers).values(data).returning();
+    return row;
+  }
+
+  async updateTransportCarrier(id: string, data: Partial<InsertTransportCarrier>): Promise<TransportCarrier | undefined> {
+    const [row] = await db.update(transportCarriers).set(data).where(eq(transportCarriers.id, id)).returning();
+    return row;
+  }
+
+  async deleteTransportCarrier(id: string): Promise<boolean> {
+    const result = await db.delete(transportCarriers).where(eq(transportCarriers.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async createTransportRate(data: InsertTransportRate): Promise<TransportRate> {
+    const [row] = await db.insert(transportRates).values(data).returning();
+    return row;
+  }
+
+  async updateTransportRate(id: string, data: Partial<InsertTransportRate>): Promise<TransportRate | undefined> {
+    const [row] = await db.update(transportRates).set(data).where(eq(transportRates.id, id)).returning();
+    return row;
+  }
+
+  async deleteTransportRate(id: string): Promise<boolean> {
+    const result = await db.delete(transportRates).where(eq(transportRates.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async seedTransportCarriers(): Promise<void> {
+    const existing = await db.select().from(transportCarriers);
+    if (existing.length > 0) return; // Already seeded
+
+    // Seed Bapi da Toto
+    const [bapi] = await db.insert(transportCarriers).values({
+      name: "Bapi da Toto",
+      type: "flat_per_location",
+      notes: "Local auto/toto transport with flat per-location rates",
+      isActive: true,
+    }).returning();
+
+    const bapiRates = [
+      { location: "M.M ENTERPRISE", rate: "500" },
+      { location: "RIDDHI ENTERPRISE", rate: "400" },
+      { location: "GREEN CROSS", rate: "550" },
+      { location: "NILAY SURGICAL", rate: "750" },
+      { location: "GOPAL SPORTS", rate: "300" },
+      { location: "NEW KOLORAH", rate: "300" },
+      { location: "SHREE GANESH (LILUAH)", rate: "850" },
+      { location: "OLABIBITALA", rate: "950" },
+      { location: "MULLICK", rate: "300" },
+      { location: "KALPOLOK", rate: "350" },
+      { location: "ORTHOPEDIA", rate: "450" },
+      { location: "BAURIA", rate: "600" },
+      { location: "CHAMRAIL", rate: "900" },
+      { location: "UNITED ENTERPRISE", rate: "300" },
+      { location: "ARUN PHYSIO", rate: "300" },
+      { location: "MULLICK FATAK", rate: "700" },
+      { location: "APEX ENTERPRISE", rate: "600" },
+      { location: "SANKRAIL TO GKW", rate: "300" },
+    ];
+    await db.insert(transportRates).values(bapiRates.map(r => ({ carrierId: bapi.id, ...r })));
+
+    // Seed Smartship Courier
+    const [smartship] = await db.insert(transportCarriers).values({
+      name: "Smartship Courier",
+      type: "per_parcel",
+      notes: "Zone-based courier with 48-hour TAT",
+      isActive: true,
+    }).returning();
+
+    const smartshipZones = [
+      "HOOGHLY / HOWRAH",
+      "NORTH / SOUTH 24 PARGANAS",
+      "BANKURA, BIRBHUM, PURULIA",
+      "PURBO / PASCHIM BARDHAMAN",
+      "MURSHIDABAD / NADIA",
+      "KOLKATA",
+      "PURBO / PASCHIM MEDINIPUR",
+    ];
+    await db.insert(transportRates).values(
+      smartshipZones.map(zone => ({
+        carrierId: smartship.id,
+        location: zone,
+        minRate: "130",
+        maxRate: "170",
+        tat: "48 HRS",
+        rateNote: "130 standard / 170 large",
+      }))
+    );
+  }
+
+  async getTransportPredict(): Promise<{
+    carriers: (TransportCarrier & { rates: TransportRate[] })[];
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; caseSizes: number[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
+    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[] }>;
+  }> {
+    const carriers = await this.getTransportCarriers();
+    const activeCarriers = carriers.filter(c => c.isActive);
+
+    // Get all invoiced orders
+    const invoicedOrders = await db.select().from(orders).where(eq(orders.status, "Invoiced"));
+
+    // Get order items for case size info
+    const orderIdList = invoicedOrders.map(o => o.id);
+    const allItems = orderIdList.length > 0
+      ? await db.select().from(orderItems).where(inArray(orderItems.orderId, orderIdList))
+      : [];
+
+    // Build case sizes map: orderId -> unique case sizes
+    const orderCaseSizesMap = new Map<string, Set<number>>();
+    for (const item of allItems) {
+      if (!orderCaseSizesMap.has(item.orderId)) orderCaseSizesMap.set(item.orderId, new Set());
+      if (item.caseSize > 1) orderCaseSizesMap.get(item.orderId)!.add(item.caseSize);
+    }
+
+    // Helper: match partyName against rate locations (case-insensitive partial match)
+    function matchRate(partyName: string | null, rates: TransportRate[]): TransportRate | null {
+      if (!partyName) return null;
+      const pnLower = partyName.toLowerCase().trim();
+      // Check if any rate location is contained in partyName or vice versa
+      let best: TransportRate | null = null;
+      let bestLen = 0;
+      for (const rate of rates) {
+        const locLower = rate.location.toLowerCase().trim();
+        if (pnLower.includes(locLower) || locLower.includes(pnLower)) {
+          // Prefer longer match
+          if (rate.location.length > bestLen) {
+            bestLen = rate.location.length;
+            best = rate;
+          }
+        }
+      }
+      return best;
+    }
+
+    // Separate unassigned (no dispatchBy) and assigned (has dispatchBy)
+    const unassignedOrders = invoicedOrders.filter(o => !o.dispatchBy);
+    const assignedOrders = invoicedOrders.filter(o => !!o.dispatchBy);
+
+    // Group unassigned by partyName
+    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; caseSizes: Set<number> }>();
+    for (const order of unassignedOrders) {
+      const key = order.partyName || "(No Party)";
+      if (!unassignedGroups.has(key)) {
+        unassignedGroups.set(key, { orderIds: [], totalCases: 0, caseSizes: new Set() });
+      }
+      const grp = unassignedGroups.get(key)!;
+      grp.orderIds.push(order.id);
+      grp.totalCases += order.cases || 0;
+      for (const cs of (orderCaseSizesMap.get(order.id) || new Set())) {
+        grp.caseSizes.add(cs);
+      }
+    }
+
+    const unassigned = Array.from(unassignedGroups.entries()).map(([partyName, grp]) => {
+      const carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> = {};
+      for (const carrier of activeCarriers) {
+        if (carrier.type === "flat_per_location") {
+          const matched = matchRate(partyName, carrier.rates);
+          carrierCosts[carrier.id] = {
+            matched: !!matched,
+            rate: matched ? Number(matched.rate) : null,
+            minRate: null,
+            maxRate: null,
+            estimatedCost: matched ? Number(matched.rate) : null,
+            location: matched ? matched.location : null,
+          };
+        } else {
+          // per_parcel: estimate = minRate * orderCount (use first rate zone's min/max)
+          const firstRate = carrier.rates[0];
+          const minR = firstRate ? Number(firstRate.minRate) : null;
+          const maxR = firstRate ? Number(firstRate.maxRate) : null;
+          const orderCount = grp.orderIds.length;
+          carrierCosts[carrier.id] = {
+            matched: carrier.rates.length > 0,
+            rate: null,
+            minRate: minR,
+            maxRate: maxR,
+            estimatedCost: minR ? minR * orderCount : null,
+            location: null,
+          };
+        }
+      }
+      return {
+        partyName,
+        orderCount: grp.orderIds.length,
+        totalCases: grp.totalCases,
+        orderIds: grp.orderIds,
+        caseSizes: Array.from(grp.caseSizes).sort((a, b) => a - b),
+        carrierCosts,
+      };
+    }).sort((a, b) => a.partyName.localeCompare(b.partyName));
+
+    // Group assigned by dispatchBy
+    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number }>();
+    for (const order of assignedOrders) {
+      const key = order.dispatchBy!;
+      if (!assignedGroups.has(key)) assignedGroups.set(key, { orderIds: [], totalCases: 0 });
+      const grp = assignedGroups.get(key)!;
+      grp.orderIds.push(order.id);
+      grp.totalCases += order.cases || 0;
+    }
+
+    const assigned = Array.from(assignedGroups.entries()).map(([dispatchBy, grp]) => ({
+      dispatchBy,
+      orderCount: grp.orderIds.length,
+      totalCases: grp.totalCases,
+      orderIds: grp.orderIds,
+    })).sort((a, b) => a.dispatchBy.localeCompare(b.dispatchBy));
+
+    return { carriers: activeCarriers, unassigned, assigned };
+  }
+
+  async assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number> {
+    if (orderIds.length === 0) return 0;
+    const result = await db.update(orders)
+      .set({ dispatchBy })
+      .where(inArray(orders.id, orderIds));
+    return result.rowCount ?? 0;
+  }
+
+  async bulkDispatchOrders(orderIds: string[], dispatchDate: string): Promise<number> {
+    if (orderIds.length === 0) return 0;
+    const result = await db.update(orders)
+      .set({ status: "Dispatched", dispatchDate: new Date(dispatchDate) })
+      .where(and(inArray(orders.id, orderIds), eq(orders.status, "Invoiced")));
+    return result.rowCount ?? 0;
   }
 }
 

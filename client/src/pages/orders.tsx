@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
 import Header from "@/components/Header";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import TransportPredictionTab from "@/components/TransportPredictionTab";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -272,6 +273,7 @@ export default function OrdersPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const [showTransportTab, setShowTransportTab] = useState(false);
   const [statusFilter, setStatusFilter] = useState<OrderStatus>("Created");
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
@@ -1616,9 +1618,9 @@ export default function OrdersPage() {
           {ORDER_STATUSES.filter(status => status !== "PODReceived" || isAdmin).map((status) => (
             <button
               key={status}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => { setStatusFilter(status); setShowTransportTab(false); }}
               className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                statusFilter === status
+                !showTransportTab && statusFilter === status
                   ? `${tabColors[status]} ${tabBgColors[status]} border-b-2`
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
@@ -1628,17 +1630,40 @@ export default function OrdersPage() {
               {statusCounts[status] > 0 && (
                 <Badge 
                   variant="secondary" 
-                  className={`text-xs px-1.5 py-0 min-w-5 h-5 ${statusFilter === status ? statusColors[status] : ""}`}
+                  className={`text-xs px-1.5 py-0 min-w-5 h-5 ${!showTransportTab && statusFilter === status ? statusColors[status] : ""}`}
                 >
                   {statusCounts[status]}
                 </Badge>
               )}
             </button>
           ))}
+          {isAdmin && (
+            <button
+              onClick={() => setShowTransportTab(true)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ml-2 ${
+                showTransportTab
+                  ? "border-orange-500 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950 border-b-2"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
+              data-testid="tab-transport"
+            >
+              <span className="text-base leading-none">🚚</span>
+              Transport
+              {(statusCounts["Invoiced"] || 0) > 0 && (
+                <Badge variant="secondary" className={`text-xs px-1.5 py-0 min-w-5 h-5 ${showTransportTab ? "bg-orange-100 text-orange-800" : ""}`}>
+                  {statusCounts["Invoiced"]}
+                </Badge>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
+          {showTransportTab ? (
+            <TransportPredictionTab />
+          ) : (
+          <>
           {!searchQuery.trim() && orders.length > 0 && (
             <div className="flex items-center justify-between mb-3 px-1">
               <p className="text-sm text-muted-foreground" data-testid="text-status-total">
@@ -2156,6 +2181,8 @@ export default function OrdersPage() {
                 </table>
               </div>
             </div>
+          )}
+          </>
           )}
       </div>
 
