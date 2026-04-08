@@ -1694,6 +1694,7 @@ export default function OrdersPage() {
             {/* Main tabs: hide zero-count ones unless currently selected; never show archive statuses here */}
             {ORDER_STATUSES
               .filter(status => !ARCHIVE_STATUSES.includes(status))
+              .filter(status => status !== "PaymentPending")
               .filter(status => status !== "PODReceived" || isAdmin)
               .filter(status => statusCounts[status] > 0 || (!showTransportTab && statusFilter === status))
               .map((status) => (
