@@ -196,85 +196,82 @@ export default function TransportPredictionTab({ onDispatchGroup }: { onDispatch
                       <th className="text-center p-2 font-medium">Orders</th>
                       <th className="text-center p-2 font-medium">Cases</th>
                       <th className="text-left p-2 font-medium hidden md:table-cell">Case Sizes</th>
-                      {carriers.map(c => (
-                        <th key={c.id} className="text-right p-2 font-medium whitespace-nowrap hidden lg:table-cell">
-                          {c.name}
-                        </th>
-                      ))}
+                      <th className="text-left p-2 font-medium hidden sm:table-cell">Best Rate</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {unassigned.map(group => (
-                      <tr key={group.partyName} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-2">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="font-medium max-w-[180px] truncate">{group.partyName}</span>
-                          </div>
-                        </td>
-                        <td className="p-2 text-center">
-                          <Badge variant="outline">{group.orderCount}</Badge>
-                        </td>
-                        <td className="p-2 text-center">
-                          <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
-                            {group.totalCases || "-"}
-                          </span>
-                        </td>
-                        <td className="p-2 hidden md:table-cell">
-                          {group.caseSizes.length > 0 ? (
-                            <div className="flex gap-1 flex-wrap">
-                              {group.caseSizes.map(cs => (
-                                <Badge key={cs} variant="secondary" className="text-xs px-1.5 py-0">
-                                  <BoxesIcon className="w-2.5 h-2.5 mr-0.5" />{cs}
-                                </Badge>
-                              ))}
+                    {unassigned.map(group => {
+                      const matchedCarriers = carriers.filter(c => group.carrierCosts[c.id]?.matched);
+                      const costsWithValues = matchedCarriers
+                        .map(c => ({ carrier: c, cost: group.carrierCosts[c.id] }))
+                        .filter(x => x.cost.estimatedCost !== null)
+                        .sort((a, b) => (a.cost.estimatedCost ?? 0) - (b.cost.estimatedCost ?? 0));
+                      const bestOption = costsWithValues[0];
+                      return (
+                        <tr key={group.partyName} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-2">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="font-medium max-w-[180px] truncate">{group.partyName}</span>
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
-                        </td>
-                        {carriers.map(c => {
-                          const cost = group.carrierCosts[c.id];
-                          return (
-                            <td key={c.id} className="p-2 text-right hidden lg:table-cell">
-                              {cost?.matched ? (
-                                <div>
-                                  {cost.estimatedCost !== null ? (
-                                    <span className="font-medium text-green-700 dark:text-green-400">{formatINR(cost.estimatedCost)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">
-                                      {formatINR(cost.minRate)}-{formatINR(cost.maxRate)}
-                                      <span className="block text-muted-foreground">×{group.orderCount}</span>
-                                    </span>
-                                  )}
-                                  {cost.location && (
-                                    <div className="text-xs text-muted-foreground truncate max-w-[120px]">{cost.location}</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">No rate</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="p-2 text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 h-7 text-xs"
-                            onClick={() => {
-                              setAssignGroup(group);
-                              setAssignCarrier(carriers[0]?.name ?? "");
-                            }}
-                            data-testid={`button-assign-${group.partyName}`}
-                          >
-                            <Truck className="w-3 h-3" />
-                            Assign
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="p-2 text-center">
+                            <Badge variant="outline">{group.orderCount}</Badge>
+                          </td>
+                          <td className="p-2 text-center">
+                            <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
+                              {group.totalCases || "-"}
+                            </span>
+                          </td>
+                          <td className="p-2 hidden md:table-cell">
+                            {group.caseSizes.length > 0 ? (
+                              <div className="flex gap-1 flex-wrap">
+                                {group.caseSizes.map(cs => (
+                                  <Badge key={cs} variant="secondary" className="text-xs px-1.5 py-0">
+                                    <BoxesIcon className="w-2.5 h-2.5 mr-0.5" />{cs}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </td>
+                          <td className="p-2 hidden sm:table-cell">
+                            {bestOption ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium text-green-700 dark:text-green-400 text-xs">
+                                  {formatINR(bestOption.cost.estimatedCost)}
+                                </span>
+                                <span className="text-muted-foreground text-xs">via {bestOption.carrier.name}</span>
+                                {matchedCarriers.length > 1 && (
+                                  <span className="text-muted-foreground text-xs">+{matchedCarriers.length - 1} more</span>
+                                )}
+                              </div>
+                            ) : matchedCarriers.length > 0 ? (
+                              <span className="text-muted-foreground text-xs">{matchedCarriers.length} option{matchedCarriers.length !== 1 ? "s" : ""}</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">No rates</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 h-7 text-xs"
+                              onClick={() => {
+                                setAssignGroup(group);
+                                setAssignCarrier(carriers[0]?.name ?? "");
+                              }}
+                              data-testid={`button-assign-${group.partyName}`}
+                            >
+                              <Truck className="w-3 h-3" />
+                              Assign
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -362,55 +359,79 @@ export default function TransportPredictionTab({ onDispatchGroup }: { onDispatch
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Carrier comparison table */}
+            {assignGroup && carriers.length > 0 && (
+              <div className="rounded-md border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="text-left p-2 font-medium">Carrier</th>
+                      <th className="text-left p-2 font-medium text-muted-foreground">Type</th>
+                      <th className="text-right p-2 font-medium">Est. Cost</th>
+                      <th className="p-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {carriers.map(c => {
+                      const cost = assignGroup.carrierCosts[c.id];
+                      const isSelected = assignCarrier === c.name;
+                      return (
+                        <tr
+                          key={c.id}
+                          className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 dark:bg-primary/10" : "hover:bg-muted/30"}`}
+                          onClick={() => setAssignCarrier(c.name)}
+                        >
+                          <td className="p-2">
+                            <div className="flex items-center gap-2">
+                              <Truck className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                              <span className={`font-medium ${isSelected ? "text-primary" : ""}`}>{c.name}</span>
+                            </div>
+                          </td>
+                          <td className="p-2 text-muted-foreground text-xs capitalize">{c.type.replace(/_/g, " ")}</td>
+                          <td className="p-2 text-right">
+                            {cost?.matched ? (
+                              cost.estimatedCost !== null ? (
+                                <span className="font-semibold text-green-700 dark:text-green-400">{formatINR(cost.estimatedCost)}</span>
+                              ) : (cost.minRate && cost.maxRate) ? (
+                                <span className="text-xs text-muted-foreground">{formatINR(Number(cost.minRate) * assignGroup.orderCount)}–{formatINR(Number(cost.maxRate) * assignGroup.orderCount)}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Rate available</span>
+                              )
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No rate</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-right w-6">
+                            {isSelected && <Check className="w-4 h-4 text-primary" />}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Carrier / Dispatch By</Label>
-              <Select value={assignCarrier} onValueChange={setAssignCarrier}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select or type carrier name" />
-                </SelectTrigger>
-                <SelectContent>
-                  {carrierNames.map(n => (
-                    <SelectItem key={n} value={n}>{n}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={assignCarrier} onValueChange={setAssignCarrier}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select carrier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {carrierNames.map(n => (
+                      <SelectItem key={n} value={n}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Input
-                className="mt-2"
                 placeholder="Or type custom carrier name..."
                 value={assignCarrier}
                 onChange={e => setAssignCarrier(e.target.value)}
               />
             </div>
-
-            {/* Cost preview */}
-            {assignGroup && assignCarrier && (
-              <div className="rounded-md bg-muted p-3 text-sm space-y-1">
-                <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Cost Estimate</p>
-                {(() => {
-                  const carrier = carriers.find(c => c.name === assignCarrier);
-                  if (!carrier) return <p className="text-muted-foreground">No rate data available for custom carrier</p>;
-                  const cost = assignGroup.carrierCosts[carrier.id];
-                  if (!cost) return <p className="text-muted-foreground">No rate data</p>;
-                  if (cost.estimatedCost !== null) {
-                    return (
-                      <div className="flex justify-between">
-                        <span>{carrier.type === "flat_per_location" ? "Flat rate" : `${assignGroup.orderCount} orders × rate`}</span>
-                        <span className="font-semibold text-green-700 dark:text-green-400">{formatINR(cost.estimatedCost)}</span>
-                      </div>
-                    );
-                  }
-                  if (cost.minRate && cost.maxRate) {
-                    return (
-                      <div className="flex justify-between">
-                        <span>Est. ({assignGroup.orderCount} orders × rate)</span>
-                        <span className="font-semibold">{formatINR(Number(cost.minRate) * assignGroup.orderCount)} – {formatINR(Number(cost.maxRate) * assignGroup.orderCount)}</span>
-                      </div>
-                    );
-                  }
-                  return <p className="text-muted-foreground">No matching rate found</p>;
-                })()}
-              </div>
-            )}
 
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setAssignGroup(null)}>Cancel</Button>
