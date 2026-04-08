@@ -1748,6 +1748,17 @@ export async function registerRoutes(
     }
   });
 
+  // Returns distinct brand names that actually have orders - used to populate filter dropdowns
+  app.get('/api/orders/brands', isAuthenticated, async (req: any, res) => {
+    try {
+      const brandNames = await storage.getOrderBrands();
+      res.json(brandNames);
+    } catch (error: any) {
+      console.error("Error fetching order brands:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get single order with items for the user who owns it or has party access (salespeople)
   app.get('/api/orders/:id', isAuthenticated, async (req: any, res) => {
     try {
@@ -4038,17 +4049,6 @@ export async function registerRoutes(
       res.json(brandList);
     } catch (error: any) {
       console.error("Error fetching brands:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Returns distinct brand names that actually have orders - used to populate filter dropdowns
-  app.get('/api/orders/brands', isAuthenticated, async (req: any, res) => {
-    try {
-      const brandNames = await storage.getOrderBrands();
-      res.json(brandNames);
-    } catch (error: any) {
-      console.error("Error fetching order brands:", error);
       res.status(500).json({ message: error.message });
     }
   });
