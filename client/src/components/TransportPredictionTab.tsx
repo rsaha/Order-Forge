@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,7 @@ import {
   Settings,
   Check,
   ChevronRight,
+  ChevronDown,
   BoxesIcon,
   MapPin,
   RefreshCw,
@@ -86,19 +87,39 @@ interface PredictData {
   assigned: AssignedGroup[];
 }
 
+interface OrderSummary {
+  id: string;
+  partyName: string | null;
+  invoiceNumber: string | null;
+  brand: string | null;
+  actualOrderValue: string | null;
+  total: string | null;
+  cases: number | null;
+  status: string;
+}
+
 function formatINR(n: number | string | null | undefined) {
   if (n === null || n === undefined || n === "") return "-";
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(Number(n));
 }
 
-export default function TransportPredictionTab({ onDispatchGroup }: { onDispatchGroup: (group: AssignedGroup) => void }) {
+export default function TransportPredictionTab({ onDispatchGroup, orders = [] }: { onDispatchGroup: (group: AssignedGroup) => void; orders?: OrderSummary[] }) {
   const { toast } = useToast();
   const [subTab, setSubTab] = useState<"unassigned" | "assigned">("unassigned");
   const [showFlyout, setShowFlyout] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Assign dialog state
   const [assignGroup, setAssignGroup] = useState<UnassignedGroup | null>(null);
   const [assignCarrier, setAssignCarrier] = useState("");
+
+  function toggleGroup(key: string) {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
 
   const { data, isLoading, refetch, isFetching } = useQuery<PredictData>({
     queryKey: ["/api/transport/predict"],
@@ -303,44 +324,89 @@ export default function TransportPredictionTab({ onDispatchGroup }: { onDispatch
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {assigned.map(group => (
-                      <tr key={group.dispatchBy} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-2">
-                          <div className="flex items-center gap-1.5">
-                            <Truck className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                            <span className="font-medium">{group.dispatchBy}</span>
-                          </div>
-                        </td>
-                        <td className="p-2 text-center">
-                          <Badge variant="outline">{group.orderCount}</Badge>
-                        </td>
-                        <td className="p-2 text-center">
-                          <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
-                            {group.totalCases || "-"}
-                          </span>
-                        </td>
-                        <td className="p-2 text-right">
-                          {group.estimatedCost !== null ? (
-                            <span className="font-semibold text-green-700 dark:text-green-400">
-                              {formatINR(group.estimatedCost)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
-                        </td>
-                        <td className="p-2 text-right">
-                          <Button
-                            size="sm"
-                            className="gap-1 h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                            onClick={() => onDispatchGroup(group)}
-                            data-testid={`button-dispatch-${group.dispatchBy}`}
+                    {assigned.map(group => {
+                      const isExpanded = expandedGroups.has(group.dispatchBy);
+                      const groupOrders = orders.filter(o => group.orderIds.includes(o.id));
+                      return (
+                        <Fragment key={group.dispatchBy}>
+                          <tr className="hover:bg-muted/30 transition-colors cursor-pointer"
+                            onClick={() => toggleGroup(group.dispatchBy)}
                           >
-                            <ChevronRight className="w-3 h-3" />
-                            Dispatch All
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                            <td className="p-2">
+                              <div className="flex items-center gap-1.5">
+                                <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                  {isExpanded
+                                    ? <ChevronDown className="w-3.5 h-3.5" />
+                                    : <ChevronRight className="w-3.5 h-3.5" />}
+                                </button>
+                                <Truck className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                                <span className="font-medium">{group.dispatchBy}</span>
+                              </div>
+                            </td>
+                            <td className="p-2 text-center">
+                              <Badge variant="outline">{group.orderCount}</Badge>
+                            </td>
+                            <td className="p-2 text-center">
+                              <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
+                                {group.totalCases || "-"}
+                              </span>
+                            </td>
+                            <td className="p-2 text-right">
+                              {group.estimatedCost !== null ? (
+                                <span className="font-semibold text-green-700 dark:text-green-400">
+                                  {formatINR(group.estimatedCost)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-right" onClick={e => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                className="gap-1 h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                                onClick={() => onDispatchGroup(group)}
+                                data-testid={`button-dispatch-${group.dispatchBy}`}
+                              >
+                                <ChevronRight className="w-3 h-3" />
+                                Dispatch All
+                              </Button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr key={`${group.dispatchBy}-expanded`}>
+                              <td colSpan={5} className="px-2 pb-2 pt-0 bg-muted/20">
+                                {groupOrders.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground py-2 pl-8">No order details available</p>
+                                ) : (
+                                  <table className="w-full text-xs mt-1">
+                                    <thead>
+                                      <tr className="border-b border-border/50">
+                                        <th className="text-left py-1 pl-8 font-medium text-muted-foreground">Party</th>
+                                        <th className="text-left py-1 font-medium text-muted-foreground hidden sm:table-cell">Brand</th>
+                                        <th className="text-left py-1 font-medium text-muted-foreground">Invoice #</th>
+                                        <th className="text-center py-1 font-medium text-muted-foreground">Cases</th>
+                                        <th className="text-right py-1 pr-2 font-medium text-muted-foreground">Value</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/30">
+                                      {groupOrders.map(o => (
+                                        <tr key={o.id} className="hover:bg-muted/30">
+                                          <td className="py-1.5 pl-8">{o.partyName || "-"}</td>
+                                          <td className="py-1.5 hidden sm:table-cell text-muted-foreground">{o.brand || "-"}</td>
+                                          <td className="py-1.5 text-muted-foreground">{o.invoiceNumber || "-"}</td>
+                                          <td className="py-1.5 text-center">{o.cases ?? "-"}</td>
+                                          <td className="py-1.5 text-right pr-2 font-medium">{formatINR(o.actualOrderValue || o.total)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

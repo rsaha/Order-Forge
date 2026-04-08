@@ -1794,7 +1794,7 @@ export default function OrdersPage() {
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
           {showTransportTab ? (
-            <TransportPredictionTab onDispatchGroup={handleDispatchGroup} />
+            <TransportPredictionTab onDispatchGroup={handleDispatchGroup} orders={allOrders} />
           ) : (
           <>
           {!searchQuery.trim() && orders.length > 0 && (
