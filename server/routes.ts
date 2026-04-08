@@ -2008,6 +2008,14 @@ export async function registerRoutes(
         if (order.status === 'PODReceived') {
           return res.status(400).json({ message: "POD Received orders cannot be moved to another status" });
         }
+        // PaymentPending can only be set from Invoiced
+        if (req.body.status === 'PaymentPending' && order.status !== 'Invoiced') {
+          return res.status(400).json({ message: "Payment Pending status can only be set from Invoiced orders" });
+        }
+        // PaymentPending orders can only transition to Dispatched or Cancelled
+        if (order.status === 'PaymentPending' && !['Dispatched', 'Cancelled'].includes(req.body.status)) {
+          return res.status(400).json({ message: "Payment Pending orders can only be moved to Dispatched or Cancelled" });
+        }
       }
 
       if (!user.isAdmin && user.role === 'BrandAdmin') {

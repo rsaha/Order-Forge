@@ -2804,9 +2804,13 @@ export default function OrdersPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {(selectedOrder.status === "Dispatched"
+                            {(selectedOrder.status === "PaymentPending"
+                              ? (["PaymentPending", "Dispatched", "Cancelled"] as OrderStatus[])
+                              : selectedOrder.status === "Dispatched"
                               ? (["Invoiced", "Dispatched", "Delivered"] as OrderStatus[])
-                              : ORDER_STATUSES
+                              : selectedOrder.status === "Invoiced"
+                              ? ORDER_STATUSES
+                              : ORDER_STATUSES.filter(s => s !== "PaymentPending")
                             ).map((status) => (
                               <SelectItem key={status} value={status}>
                                 {status === "PODReceived" ? "POD Received" : status === "PaymentPending" ? "Payment Pending" : status}
