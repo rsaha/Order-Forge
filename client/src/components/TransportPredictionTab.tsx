@@ -76,6 +76,7 @@ interface AssignedGroup {
   orderCount: number;
   totalCases: number;
   orderIds: string[];
+  estimatedCost: number | null;
 }
 
 interface PredictData {
@@ -125,8 +126,17 @@ export default function TransportPredictionTab() {
   });
 
   const bulkDispatchMutation = useMutation({
-    mutationFn: ({ orderIds, dispatchDate }: { orderIds: string[]; dispatchDate: string }) =>
-      apiRequest("PATCH", "/api/transport/bulk-dispatch", { orderIds, dispatchDate }),
+    // Reuse the existing PATCH /api/admin/orders/:id advance flow for each order.
+    // This is the same endpoint used by the single-order advance dialog (advanceMutation),
+    // ensuring the same status transition logic is applied consistently.
+    mutationFn: async ({ orderIds, dispatchDate }: { orderIds: string[]; dispatchDate: string }) => {
+      const results = await Promise.all(
+        orderIds.map(id =>
+          apiRequest("PATCH", `/api/admin/orders/${id}`, { status: "Dispatched", dispatchDate })
+        )
+      );
+      return results;
+    },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport/predict"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
@@ -267,14 +277,7 @@ export default function TransportPredictionTab() {
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground text-xs">
-                                  {c.type === "per_parcel" && cost?.minRate ? (
-                                    <span className="text-blue-600 dark:text-blue-400">
-                                      {formatINR(Number(cost.minRate) * group.orderCount)}
-                                      <span className="text-muted-foreground block text-xs">est.</span>
-                                    </span>
-                                  ) : "No rate"}
-                                </span>
+                                <span className="text-muted-foreground text-xs">No rate</span>
                               )}
                             </td>
                           );
@@ -322,6 +325,7 @@ export default function TransportPredictionTab() {
                       <th className="text-left p-2 font-medium">Carrier / Dispatch By</th>
                       <th className="text-center p-2 font-medium">Orders</th>
                       <th className="text-center p-2 font-medium">Total Cases</th>
+                      <th className="text-right p-2 font-medium">Est. Cost</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
                   </thead>
@@ -341,6 +345,15 @@ export default function TransportPredictionTab() {
                           <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
                             {group.totalCases || "-"}
                           </span>
+                        </td>
+                        <td className="p-2 text-right">
+                          {group.estimatedCost !== null ? (
+                            <span className="font-semibold text-green-700 dark:text-green-400">
+                              {formatINR(group.estimatedCost)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </td>
                         <td className="p-2 text-right">
                           <Button
@@ -463,6 +476,12 @@ export default function TransportPredictionTab() {
                 <span className="text-muted-foreground">Carrier</span>
                 <span className="font-medium">{dispatchGroup?.dispatchBy}</span>
               </div>
+              {dispatchGroup?.estimatedCost !== null && dispatchGroup?.estimatedCost !== undefined && (
+                <div className="flex justify-between pt-1 border-t mt-1">
+                  <span className="text-muted-foreground">Estimated Cost</span>
+                  <span className="font-semibold text-green-700 dark:text-green-400">{formatINR(dispatchGroup.estimatedCost)}</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

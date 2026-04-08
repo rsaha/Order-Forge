@@ -168,7 +168,7 @@ export interface IStorage {
   getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
     unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; caseSizes: number[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
-    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[] }>;
+    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
   bulkDispatchOrders(orderIds: string[], dispatchDate: string): Promise<number>;
@@ -2289,7 +2289,7 @@ export class DatabaseStorage implements IStorage {
   async getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
     unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; caseSizes: number[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
-    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[] }>;
+    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }> {
     const carriers = await this.getTransportCarriers();
     const activeCarriers = carriers.filter(c => c.isActive);
@@ -2310,17 +2310,16 @@ export class DatabaseStorage implements IStorage {
       if (item.caseSize > 1) orderCaseSizesMap.get(item.orderId)!.add(item.caseSize);
     }
 
-    // Helper: match partyName against rate locations (case-insensitive partial match)
+    // Helper: match partyName against rate locations (case-insensitive partial match).
+    // Used for BOTH flat_per_location and per_parcel carriers.
     function matchRate(partyName: string | null, rates: TransportRate[]): TransportRate | null {
       if (!partyName) return null;
       const pnLower = partyName.toLowerCase().trim();
-      // Check if any rate location is contained in partyName or vice versa
       let best: TransportRate | null = null;
       let bestLen = 0;
       for (const rate of rates) {
         const locLower = rate.location.toLowerCase().trim();
         if (pnLower.includes(locLower) || locLower.includes(pnLower)) {
-          // Prefer longer match
           if (rate.location.length > bestLen) {
             bestLen = rate.location.length;
             best = rate;
@@ -2328,6 +2327,41 @@ export class DatabaseStorage implements IStorage {
         }
       }
       return best;
+    }
+
+    // Compute carrier cost for a party group (used for both unassigned and assigned)
+    function computeCarrierCost(
+      partyName: string,
+      orderCount: number,
+      carrier: TransportCarrier & { rates: TransportRate[] }
+    ): { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null } {
+      const matched = matchRate(partyName, carrier.rates);
+      if (!matched) {
+        return { matched: false, rate: null, minRate: null, maxRate: null, estimatedCost: null, location: null };
+      }
+      if (carrier.type === "flat_per_location") {
+        const rateVal = matched.rate ? Number(matched.rate) : null;
+        return {
+          matched: true,
+          rate: rateVal,
+          minRate: null,
+          maxRate: null,
+          estimatedCost: rateVal,
+          location: matched.location,
+        };
+      } else {
+        // per_parcel: matched zone rate * orderCount
+        const minR = matched.minRate ? Number(matched.minRate) : null;
+        const maxR = matched.maxRate ? Number(matched.maxRate) : null;
+        return {
+          matched: true,
+          rate: null,
+          minRate: minR,
+          maxRate: maxR,
+          estimatedCost: minR ? minR * orderCount : null,
+          location: matched.location,
+        };
+      }
     }
 
     // Separate unassigned (no dispatchBy) and assigned (has dispatchBy)
@@ -2352,31 +2386,7 @@ export class DatabaseStorage implements IStorage {
     const unassigned = Array.from(unassignedGroups.entries()).map(([partyName, grp]) => {
       const carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> = {};
       for (const carrier of activeCarriers) {
-        if (carrier.type === "flat_per_location") {
-          const matched = matchRate(partyName, carrier.rates);
-          carrierCosts[carrier.id] = {
-            matched: !!matched,
-            rate: matched ? Number(matched.rate) : null,
-            minRate: null,
-            maxRate: null,
-            estimatedCost: matched ? Number(matched.rate) : null,
-            location: matched ? matched.location : null,
-          };
-        } else {
-          // per_parcel: estimate = minRate * orderCount (use first rate zone's min/max)
-          const firstRate = carrier.rates[0];
-          const minR = firstRate ? Number(firstRate.minRate) : null;
-          const maxR = firstRate ? Number(firstRate.maxRate) : null;
-          const orderCount = grp.orderIds.length;
-          carrierCosts[carrier.id] = {
-            matched: carrier.rates.length > 0,
-            rate: null,
-            minRate: minR,
-            maxRate: maxR,
-            estimatedCost: minR ? minR * orderCount : null,
-            location: null,
-          };
-        }
+        carrierCosts[carrier.id] = computeCarrierCost(partyName, grp.orderIds.length, carrier);
       }
       return {
         partyName,
@@ -2388,22 +2398,43 @@ export class DatabaseStorage implements IStorage {
       };
     }).sort((a, b) => a.partyName.localeCompare(b.partyName));
 
-    // Group assigned by dispatchBy
-    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number }>();
+    // Group assigned by dispatchBy, computing per-party cost using matched carrier
+    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number; partyOrders: Map<string, number> }>();
     for (const order of assignedOrders) {
       const key = order.dispatchBy!;
-      if (!assignedGroups.has(key)) assignedGroups.set(key, { orderIds: [], totalCases: 0 });
+      if (!assignedGroups.has(key)) assignedGroups.set(key, { orderIds: [], totalCases: 0, partyOrders: new Map() });
       const grp = assignedGroups.get(key)!;
       grp.orderIds.push(order.id);
       grp.totalCases += order.cases || 0;
+      const pn = order.partyName || "(No Party)";
+      grp.partyOrders.set(pn, (grp.partyOrders.get(pn) || 0) + 1);
     }
 
-    const assigned = Array.from(assignedGroups.entries()).map(([dispatchBy, grp]) => ({
-      dispatchBy,
-      orderCount: grp.orderIds.length,
-      totalCases: grp.totalCases,
-      orderIds: grp.orderIds,
-    })).sort((a, b) => a.dispatchBy.localeCompare(b.dispatchBy));
+    const assigned = Array.from(assignedGroups.entries()).map(([dispatchBy, grp]) => {
+      // Find the carrier whose name matches dispatchBy
+      const carrier = activeCarriers.find(c => c.name.toLowerCase() === dispatchBy.toLowerCase());
+      let estimatedCost: number | null = null;
+      if (carrier) {
+        let total = 0;
+        let allMatched = true;
+        for (const [partyName, count] of grp.partyOrders.entries()) {
+          const cost = computeCarrierCost(partyName, count, carrier);
+          if (cost.estimatedCost !== null) {
+            total += cost.estimatedCost;
+          } else {
+            allMatched = false;
+          }
+        }
+        estimatedCost = allMatched ? total : null;
+      }
+      return {
+        dispatchBy,
+        orderCount: grp.orderIds.length,
+        totalCases: grp.totalCases,
+        orderIds: grp.orderIds,
+        estimatedCost,
+      };
+    }).sort((a, b) => a.dispatchBy.localeCompare(b.dispatchBy));
 
     return { carriers: activeCarriers, unassigned, assigned };
   }
