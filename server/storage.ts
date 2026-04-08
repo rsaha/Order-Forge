@@ -2224,65 +2224,66 @@ export class DatabaseStorage implements IStorage {
 
   async seedTransportCarriers(): Promise<void> {
     const existing = await db.select().from(transportCarriers);
-    if (existing.length > 0) return; // Already seeded
+    const existingNames = new Set(existing.map(c => c.name));
 
-    // Seed Bapi da Toto
-    const [bapi] = await db.insert(transportCarriers).values({
-      name: "Bapi da Toto",
-      type: "flat_per_location",
-      notes: "Local auto/toto transport with flat per-location rates",
-      isActive: true,
-    }).returning();
+    // Seed each carrier independently by name for idempotency
+    if (!existingNames.has("Bapi da Toto")) {
+      const [bapi] = await db.insert(transportCarriers).values({
+        name: "Bapi da Toto",
+        type: "flat_per_location",
+        notes: "Local auto/toto transport with flat per-location rates",
+        isActive: true,
+      }).returning();
+      const bapiRates = [
+        { location: "M.M ENTERPRISE", rate: "500" },
+        { location: "RIDDHI ENTERPRISE", rate: "400" },
+        { location: "GREEN CROSS", rate: "550" },
+        { location: "NILAY SURGICAL", rate: "750" },
+        { location: "GOPAL SPORTS", rate: "300" },
+        { location: "NEW KOLORAH", rate: "300" },
+        { location: "SHREE GANESH (LILUAH)", rate: "850" },
+        { location: "OLABIBITALA", rate: "950" },
+        { location: "MULLICK", rate: "300" },
+        { location: "KALPOLOK", rate: "350" },
+        { location: "ORTHOPEDIA", rate: "450" },
+        { location: "BAURIA", rate: "600" },
+        { location: "CHAMRAIL", rate: "900" },
+        { location: "UNITED ENTERPRISE", rate: "300" },
+        { location: "ARUN PHYSIO", rate: "300" },
+        { location: "MULLICK FATAK", rate: "700" },
+        { location: "APEX ENTERPRISE", rate: "600" },
+        { location: "SANKRAIL TO GKW", rate: "300" },
+      ];
+      await db.insert(transportRates).values(bapiRates.map(r => ({ carrierId: bapi.id, ...r })));
+    }
 
-    const bapiRates = [
-      { location: "M.M ENTERPRISE", rate: "500" },
-      { location: "RIDDHI ENTERPRISE", rate: "400" },
-      { location: "GREEN CROSS", rate: "550" },
-      { location: "NILAY SURGICAL", rate: "750" },
-      { location: "GOPAL SPORTS", rate: "300" },
-      { location: "NEW KOLORAH", rate: "300" },
-      { location: "SHREE GANESH (LILUAH)", rate: "850" },
-      { location: "OLABIBITALA", rate: "950" },
-      { location: "MULLICK", rate: "300" },
-      { location: "KALPOLOK", rate: "350" },
-      { location: "ORTHOPEDIA", rate: "450" },
-      { location: "BAURIA", rate: "600" },
-      { location: "CHAMRAIL", rate: "900" },
-      { location: "UNITED ENTERPRISE", rate: "300" },
-      { location: "ARUN PHYSIO", rate: "300" },
-      { location: "MULLICK FATAK", rate: "700" },
-      { location: "APEX ENTERPRISE", rate: "600" },
-      { location: "SANKRAIL TO GKW", rate: "300" },
-    ];
-    await db.insert(transportRates).values(bapiRates.map(r => ({ carrierId: bapi.id, ...r })));
-
-    // Seed Smartship Courier
-    const [smartship] = await db.insert(transportCarriers).values({
-      name: "Smartship Courier",
-      type: "per_parcel",
-      notes: "Zone-based courier with 48-hour TAT",
-      isActive: true,
-    }).returning();
-
-    const smartshipZones = [
-      "HOOGHLY / HOWRAH",
-      "NORTH / SOUTH 24 PARGANAS",
-      "BANKURA, BIRBHUM, PURULIA",
-      "PURBO / PASCHIM BARDHAMAN",
-      "MURSHIDABAD / NADIA",
-      "KOLKATA",
-      "PURBO / PASCHIM MEDINIPUR",
-    ];
-    await db.insert(transportRates).values(
-      smartshipZones.map(zone => ({
-        carrierId: smartship.id,
-        location: zone,
-        minRate: "130",
-        maxRate: "170",
-        tat: "48 HRS",
-        rateNote: "130 standard / 170 large",
-      }))
-    );
+    if (!existingNames.has("Smartship Courier")) {
+      const [smartship] = await db.insert(transportCarriers).values({
+        name: "Smartship Courier",
+        type: "per_parcel",
+        notes: "Zone-based courier with 48-hour TAT",
+        isActive: true,
+      }).returning();
+      const smartshipZones = [
+        "HOOGHLY / HOWRAH",
+        "NORTH / SOUTH 24 PARGANAS",
+        "BANKURA, BIRBHUM, PURULIA",
+        "PURBO / PASCHIM BARDHAMAN",
+        "MURSHIDABAD / NADIA",
+        "KOLKATA",
+        "PURBO / PASCHIM MEDINIPUR",
+      ];
+      await db.insert(transportRates).values(
+        smartshipZones.map(zone => ({
+          carrierId: smartship.id,
+          location: zone,
+          minRate: "130",
+          maxRate: "170",
+          tat: "48 HRS",
+          rateNote: "130 standard / 170 large",
+        }))
+      );
+    }
   }
 
   async getTransportPredict(): Promise<{
