@@ -4362,20 +4362,6 @@ export default function OrdersPage() {
                     data-testid="input-bd-dispatch-date"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Delivery Company</label>
-                  <select
-                    value={bdDeliveryCompany}
-                    onChange={e => setBdDeliveryCompany(e.target.value)}
-                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                    data-testid="select-bd-delivery-company"
-                  >
-                    <option value="">Select…</option>
-                    {DELIVERY_COMPANY_OPTIONS.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">Est. Delivery Date</label>
