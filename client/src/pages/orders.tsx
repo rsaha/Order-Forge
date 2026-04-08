@@ -269,7 +269,7 @@ function getNextStatus(status: OrderStatus): OrderStatus | null {
     Approved: "Invoiced",
     Backordered: "Invoiced",
     Pending: "Invoiced",
-    Invoiced: "Dispatched",
+    Invoiced: "PaymentPending",
     PaymentPending: "Dispatched",
     Dispatched: "Delivered",
   };
@@ -885,7 +885,7 @@ export default function OrdersPage() {
       setAdvanceInvoiceDate("");
       setAdvanceActualValue("");
       setShowPartyVerifyDialog(true);
-    } else if (order.status === "Invoiced" || order.status === "PaymentPending") {
+    } else if (order.status === "PaymentPending") {
       setDispatchOrder(order);
       setDispatchTransportStatus("loading");
       setDispatchTransportData(null);
