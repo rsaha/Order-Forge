@@ -112,6 +112,7 @@ export interface IStorage {
   // Brand operations
   getAllBrands(): Promise<BrandRecord[]>;
   getActiveBrands(): Promise<BrandRecord[]>;
+  getOrderBrands(): Promise<string[]>;
   getBrandByName(name: string): Promise<BrandRecord | undefined>;
   getBrandUsage(brandName: string): Promise<{ productCount: number; orderCount: number }>;
   createBrand(brand: InsertBrand): Promise<BrandRecord>;
@@ -1658,6 +1659,15 @@ export class DatabaseStorage implements IStorage {
 
   async getActiveBrands(): Promise<BrandRecord[]> {
     return db.select().from(brands).where(eq(brands.isActive, true)).orderBy(brands.name);
+  }
+
+  async getOrderBrands(): Promise<string[]> {
+    const rows = await db
+      .selectDistinct({ brand: orders.brand })
+      .from(orders)
+      .where(sql`${orders.brand} is not null and ${orders.brand} != ''`)
+      .orderBy(orders.brand);
+    return rows.map(r => r.brand as string);
   }
 
   async getBrandByName(name: string): Promise<BrandRecord | undefined> {

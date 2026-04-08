@@ -32,7 +32,7 @@ import {
   Package,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { BrandRecord, Order, User } from "@shared/schema";
+import type { Order, User } from "@shared/schema";
 import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import {
   LineChart,
@@ -337,9 +337,9 @@ export default function AnalyticsPage() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: brands = [] } = useQuery<BrandRecord[]>({
-    queryKey: ["/api/brands"],
-    staleTime: 10 * 60 * 1000, // 10 minutes - brands rarely change
+  const { data: orderBrands = [] } = useQuery<string[]>({
+    queryKey: ["/api/orders/brands"],
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -861,8 +861,8 @@ export default function AnalyticsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Brands</SelectItem>
-                  {brands.map((brand) => (
-                    <SelectItem key={brand.id} value={brand.name}>{brand.name}</SelectItem>
+                  {orderBrands.map((brand) => (
+                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

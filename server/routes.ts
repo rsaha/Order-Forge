@@ -4042,6 +4042,17 @@ export async function registerRoutes(
     }
   });
 
+  // Returns distinct brand names that actually have orders - used to populate filter dropdowns
+  app.get('/api/orders/brands', isAuthenticated, async (req: any, res) => {
+    try {
+      const brandNames = await storage.getOrderBrands();
+      res.json(brandNames);
+    } catch (error: any) {
+      console.error("Error fetching order brands:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get('/api/admin/brands', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);

@@ -538,6 +538,13 @@ export default function OrdersPage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: orderBrands = [] } = useQuery<string[]>({
+    queryKey: ["/api/orders/brands"],
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!user,
+  });
+
   // Filter orders by search query across all statuses (respecting all active filters),
   // or by current status tab. PODReceived orders are only visible to Admin users.
   const orders = useMemo(() => {
@@ -1658,7 +1665,7 @@ export default function OrdersPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Brands</SelectItem>
-              {BRANDS.map((brand) => (
+              {orderBrands.map((brand) => (
                 <SelectItem key={brand} value={brand}>
                   {brand}
                 </SelectItem>
@@ -3778,7 +3785,7 @@ export default function OrdersPage() {
               <label className="text-sm font-medium mb-1 block">Brands</label>
               <p className="text-xs text-muted-foreground mb-2">Leave all unchecked to include all brands.</p>
               <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
-                {BRANDS.map((brand) => {
+                {orderBrands.map((brand) => {
                   const checked = exportBrands.includes(brand);
                   return (
                     <label
@@ -3859,7 +3866,7 @@ export default function OrdersPage() {
                   <SelectValue placeholder="Select brand" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BRANDS.map((brand) => (
+                  {orderBrands.map((brand) => (
                     <SelectItem key={brand} value={brand}>
                       {brand}
                     </SelectItem>
