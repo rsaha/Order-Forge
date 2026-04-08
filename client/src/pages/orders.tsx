@@ -389,7 +389,6 @@ export default function OrdersPage() {
   const [transportBulkGroup, setTransportBulkGroup] = useState<TransportAssignedGroup | null>(null);
   const [bdDispatchBy, setBdDispatchBy] = useState("");
   const [bdDispatchDate, setBdDispatchDate] = useState("");
-  const [bdCases, setBdCases] = useState("");
   const [bdDeliveryCompany, setBdDeliveryCompany] = useState("");
   const [bdEstimatedDate, setBdEstimatedDate] = useState("");
 
@@ -806,14 +805,15 @@ export default function OrdersPage() {
   });
 
   const bulkTransportDispatchMutation = useMutation({
-    mutationFn: async ({ orderIds, dispatchByVal, dispatchDateVal, casesVal, deliveryCompanyVal, estimatedDeliveryDateVal }: {
+    // Cases are intentionally omitted: each order already has its own case count.
+    // Applying a single shared value would overwrite individual order data.
+    mutationFn: async ({ orderIds, dispatchByVal, dispatchDateVal, deliveryCompanyVal, estimatedDeliveryDateVal }: {
       orderIds: string[]; dispatchByVal: string; dispatchDateVal: string;
-      casesVal: string; deliveryCompanyVal: string; estimatedDeliveryDateVal: string;
+      deliveryCompanyVal: string; estimatedDeliveryDateVal: string;
     }) => {
       const payload: Record<string, unknown> = { status: "Dispatched" };
       if (dispatchByVal) payload.dispatchBy = dispatchByVal;
       if (dispatchDateVal) payload.dispatchDate = dispatchDateVal;
-      if (casesVal) payload.cases = parseInt(casesVal);
       if (deliveryCompanyVal) payload.deliveryCompany = deliveryCompanyVal;
       if (estimatedDeliveryDateVal) payload.estimatedDeliveryDate = estimatedDeliveryDateVal;
       return Promise.all(orderIds.map(id => apiRequest("PATCH", `/api/admin/orders/${id}`, payload)));
@@ -834,7 +834,6 @@ export default function OrdersPage() {
     setTransportBulkGroup(group);
     setBdDispatchBy(group.dispatchBy);
     setBdDispatchDate(new Date().toISOString().split("T")[0]);
-    setBdCases(group.totalCases > 0 ? String(group.totalCases) : "");
     setBdDeliveryCompany("");
     setBdEstimatedDate("");
   }
@@ -4253,18 +4252,6 @@ export default function OrdersPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Cases <span className="text-red-500">*</span></label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={bdCases}
-                    onChange={e => setBdCases(e.target.value)}
-                    placeholder="No. of cases"
-                    className="h-8 text-sm"
-                    data-testid="input-bd-cases"
-                  />
-                </div>
-                <div className="space-y-1">
                   <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
                   <select
                     value={bdDeliveryCompany}
@@ -4295,14 +4282,13 @@ export default function OrdersPage() {
               <Button
                 size="sm"
                 className="bg-orange-500 hover:bg-orange-600 text-white"
-                disabled={!bdDispatchBy.trim() || !bdDispatchDate || !bdCases || !bdDeliveryCompany || bulkTransportDispatchMutation.isPending}
+                disabled={!bdDispatchBy.trim() || !bdDispatchDate || !bdDeliveryCompany || bulkTransportDispatchMutation.isPending}
                 onClick={() => {
                   if (!transportBulkGroup) return;
                   bulkTransportDispatchMutation.mutate({
                     orderIds: transportBulkGroup.orderIds,
                     dispatchByVal: bdDispatchBy.trim(),
                     dispatchDateVal: bdDispatchDate,
-                    casesVal: bdCases,
                     deliveryCompanyVal: bdDeliveryCompany,
                     estimatedDeliveryDateVal: bdEstimatedDate || "",
                   });
