@@ -83,7 +83,7 @@ import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
-const ARCHIVE_STATUSES: OrderStatus[] = ["Backordered", "Delivered", "PODReceived", "Cancelled"];
+const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -281,7 +281,7 @@ export default function OrdersPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [showTransportTab, setShowTransportTab] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<OrderStatus>("Created");
+  const [statusFilter, setStatusFilter] = useState<OrderStatus>("Approved");
   const [showArchiveDropdown, setShowArchiveDropdown] = useState(false);
   const archiveDropdownRef = useRef<HTMLDivElement>(null);
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
