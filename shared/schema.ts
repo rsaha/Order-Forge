@@ -301,7 +301,10 @@ export const transportRatesRelations = relations(transportRates, ({ one }) => ({
 
 export type TransportCarrier = typeof transportCarriers.$inferSelect;
 export type TransportRate = typeof transportRates.$inferSelect;
-export const insertTransportCarrierSchema = createInsertSchema(transportCarriers).omit({ id: true, createdAt: true });
+export const TRANSPORT_CARRIER_TYPES = ["flat_per_location", "per_parcel"] as const;
+export const insertTransportCarrierSchema = createInsertSchema(transportCarriers).omit({ id: true, createdAt: true }).extend({
+  type: z.enum(TRANSPORT_CARRIER_TYPES),
+});
 export const insertTransportRateSchema = createInsertSchema(transportRates).omit({ id: true, createdAt: true });
 export type InsertTransportCarrier = z.infer<typeof insertTransportCarrierSchema>;
 export type InsertTransportRate = z.infer<typeof insertTransportRateSchema>;

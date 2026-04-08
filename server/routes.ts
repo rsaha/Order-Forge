@@ -6405,10 +6405,14 @@ export async function registerRoutes(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUser(userId);
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
-    const { orderIds, dispatchBy } = req.body;
-    if (!Array.isArray(orderIds) || !dispatchBy) return res.status(400).json({ message: "orderIds array and dispatchBy are required" });
+    const assignSchema = z.object({
+      orderIds: z.array(z.string()).min(1, "At least one order ID required"),
+      dispatchBy: z.string().trim().min(1, "dispatchBy is required"),
+    });
+    const parsed = assignSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     try {
-      const count = await storage.assignTransportToOrders(orderIds, dispatchBy);
+      const count = await storage.assignTransportToOrders(parsed.data.orderIds, parsed.data.dispatchBy);
       res.json({ updated: count });
     } catch (e) {
       console.error("Error assigning transport:", e);
