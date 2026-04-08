@@ -4363,7 +4363,7 @@ export default function OrdersPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-medium">Delivery Company</label>
                   <select
                     value={bdDeliveryCompany}
                     onChange={e => setBdDeliveryCompany(e.target.value)}
@@ -4393,7 +4393,7 @@ export default function OrdersPage() {
               <Button
                 size="sm"
                 className="bg-orange-500 hover:bg-orange-600 text-white"
-                disabled={!bdDispatchBy.trim() || !bdDispatchDate || !bdDeliveryCompany || bulkTransportDispatchMutation.isPending}
+                disabled={!bdDispatchBy.trim() || !bdDispatchDate || bulkTransportDispatchMutation.isPending}
                 onClick={() => {
                   if (!transportBulkGroup) return;
                   bulkTransportDispatchMutation.mutate({
