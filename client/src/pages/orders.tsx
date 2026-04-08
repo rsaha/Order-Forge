@@ -83,6 +83,7 @@ import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
+const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -281,6 +282,8 @@ export default function OrdersPage() {
   const [, navigate] = useLocation();
   const [showTransportTab, setShowTransportTab] = useState(false);
   const [statusFilter, setStatusFilter] = useState<OrderStatus>("Created");
+  const [showArchiveDropdown, setShowArchiveDropdown] = useState(false);
+  const archiveDropdownRef = useRef<HTMLDivElement>(null);
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -568,6 +571,8 @@ export default function OrdersPage() {
     Cancelled: allOrders.filter(o => o.status === "Cancelled").length,
   };
 
+  const archiveTotal = ARCHIVE_STATUSES.reduce((sum, s) => sum + (statusCounts[s] || 0), 0);
+
   // Create a lookup map: parentOrderId -> pending order (for showing pending indicators)
   const pendingOrderLookup = useMemo(() => {
     const lookup = new Map<string, Order>();
@@ -657,6 +662,16 @@ export default function OrdersPage() {
   // Initial lookup (dialog just opened with prefilled name) fires immediately; subsequent
   // keystrokes are debounced 500ms to avoid hammering the API.
   const advanceIsFirstLookupRef = useRef(true);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (archiveDropdownRef.current && !archiveDropdownRef.current.contains(e.target as Node)) {
+        setShowArchiveDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   useEffect(() => {
     if (!showPartyVerifyDialog) {
       advanceIsFirstLookupRef.current = true;
@@ -1661,33 +1676,89 @@ export default function OrdersPage() {
           </Select>
         </div>
         
-        {/* Status Tabs - PODReceived only visible to Admin */}
-        <div className="flex gap-1 overflow-x-auto pb-1 -mx-4 px-4">
-          {ORDER_STATUSES.filter(status => status !== "PODReceived" || isAdmin).map((status) => (
+        {/* Status Tabs */}
+        <div className="flex gap-1 overflow-x-auto pb-1 -mx-4 px-4 items-center">
+          {/* Main tabs: hide zero-count ones unless currently selected; never show archive statuses here */}
+          {ORDER_STATUSES
+            .filter(status => !ARCHIVE_STATUSES.includes(status))
+            .filter(status => status !== "PODReceived" || isAdmin)
+            .filter(status => statusCounts[status] > 0 || (!showTransportTab && statusFilter === status))
+            .map((status) => (
+              <button
+                key={status}
+                onClick={() => { setStatusFilter(status); setShowTransportTab(false); setShowArchiveDropdown(false); }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                  !showTransportTab && statusFilter === status
+                    ? `${tabColors[status]} ${tabBgColors[status]} border-b-2`
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+                data-testid={`tab-status-${status.toLowerCase()}`}
+              >
+                {status === "Created" ? "Needs Approval" : status === "PaymentPending" ? "Pmt. Pending" : status}
+                {statusCounts[status] > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className={`text-xs px-1.5 py-0 min-w-5 h-5 ${!showTransportTab && statusFilter === status ? statusColors[status] : ""}`}
+                  >
+                    {statusCounts[status]}
+                  </Badge>
+                )}
+              </button>
+            ))}
+
+          {/* Archive dropdown: Delivered / POD Received / Cancelled */}
+          <div className="relative" ref={archiveDropdownRef}>
             <button
-              key={status}
-              onClick={() => { setStatusFilter(status); setShowTransportTab(false); }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                !showTransportTab && statusFilter === status
-                  ? `${tabColors[status]} ${tabBgColors[status]} border-b-2`
+              onClick={() => setShowArchiveDropdown(prev => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                !showTransportTab && ARCHIVE_STATUSES.includes(statusFilter)
+                  ? "border-slate-500 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
-              data-testid={`tab-status-${status.toLowerCase()}`}
+              data-testid="tab-archive-dropdown"
             >
-              {status === "Created" ? "Needs Approval" : status === "PODReceived" ? "POD Received" : status === "PaymentPending" ? "Pmt. Pending" : status}
-              {statusCounts[status] > 0 && (
-                <Badge 
-                  variant="secondary" 
-                  className={`text-xs px-1.5 py-0 min-w-5 h-5 ${!showTransportTab && statusFilter === status ? statusColors[status] : ""}`}
-                >
-                  {statusCounts[status]}
+              Archive
+              {archiveTotal > 0 && (
+                <Badge variant="secondary" className={`text-xs px-1.5 py-0 min-w-5 h-5 ${!showTransportTab && ARCHIVE_STATUSES.includes(statusFilter) ? "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300" : ""}`}>
+                  {archiveTotal}
                 </Badge>
               )}
+              <ChevronDown className={`w-3 h-3 transition-transform ${showArchiveDropdown ? "rotate-180" : ""}`} />
             </button>
-          ))}
+            {showArchiveDropdown && (
+              <div className="absolute top-full left-0 mt-1 bg-popover border rounded-md shadow-lg z-50 min-w-[168px] py-1">
+                {ARCHIVE_STATUSES
+                  .filter(status => status !== "PODReceived" || isAdmin)
+                  .map(status => (
+                    <button
+                      key={status}
+                      onClick={() => { setStatusFilter(status); setShowTransportTab(false); setShowArchiveDropdown(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/60 transition-colors ${
+                        !showTransportTab && statusFilter === status
+                          ? `${tabColors[status]} font-medium`
+                          : "text-foreground"
+                      }`}
+                      data-testid={`tab-archive-${status.toLowerCase()}`}
+                    >
+                      <span>{status === "PODReceived" ? "POD Received" : status}</span>
+                      {statusCounts[status] > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs px-1.5 py-0 min-w-5 h-5 ml-2 ${!showTransportTab && statusFilter === status ? statusColors[status] : ""}`}
+                        >
+                          {statusCounts[status]}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Transport tab — admin only */}
           {isAdmin && (
             <button
-              onClick={() => setShowTransportTab(true)}
+              onClick={() => { setShowTransportTab(true); setShowArchiveDropdown(false); }}
               className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ml-2 ${
                 showTransportTab
                   ? "border-orange-500 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950 border-b-2"
