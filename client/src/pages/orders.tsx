@@ -83,7 +83,7 @@ import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
 import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
-const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
+const ARCHIVE_STATUSES: OrderStatus[] = ["Backordered", "Delivered", "PODReceived", "Cancelled"];
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -1794,23 +1794,9 @@ export default function OrdersPage() {
             </div>
           )}
           <AnnouncementBanner userBrands={userBrands} />
-          {/* Summary alert cards for Backordered and PaymentPending */}
-          {(statusCounts["Backordered"] > 0 || statusCounts["PaymentPending"] > 0) && !searchQuery.trim() && (
+          {/* Summary alert card for PaymentPending */}
+          {statusCounts["PaymentPending"] > 0 && !searchQuery.trim() && (
             <div className="flex flex-wrap gap-2 mb-3">
-              {statusCounts["Backordered"] > 0 && (
-                <button
-                  onClick={() => { setStatusFilter("Backordered"); setShowTransportTab(false); }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-md border border-rose-200 bg-rose-50 dark:bg-rose-950/50 dark:border-rose-800 text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors text-sm"
-                  data-testid="card-summary-backordered"
-                >
-                  <Package className="w-4 h-4 text-rose-500" />
-                  <span className="font-semibold">{statusCounts["Backordered"]}</span>
-                  <span>Backordered</span>
-                  <span className="text-rose-600 dark:text-rose-400 font-medium">
-                    {formatINR(allOrders.filter(o => o.status === "Backordered").reduce((s, o) => s + Number(o.total || 0), 0))}
-                  </span>
-                </button>
-              )}
               {statusCounts["PaymentPending"] > 0 && (
                 <button
                   onClick={() => { setStatusFilter("PaymentPending"); setShowTransportTab(false); }}
