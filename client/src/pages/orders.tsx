@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
 import Header from "@/components/Header";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
-import TransportPredictionTab from "@/components/TransportPredictionTab";
+import TransportPredictionTab, { AssignedGroup as TransportAssignedGroup } from "@/components/TransportPredictionTab";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -384,6 +384,14 @@ export default function OrdersPage() {
   const [dispatchCases, setDispatchCases] = useState("");
   const [dispatchDeliveryCompany, setDispatchDeliveryCompany] = useState("");
   const [dispatchEstimatedDate, setDispatchEstimatedDate] = useState("");
+
+  // Bulk transport dispatch dialog (Transport tab → Dispatch All)
+  const [transportBulkGroup, setTransportBulkGroup] = useState<TransportAssignedGroup | null>(null);
+  const [bdDispatchBy, setBdDispatchBy] = useState("");
+  const [bdDispatchDate, setBdDispatchDate] = useState("");
+  const [bdCases, setBdCases] = useState("");
+  const [bdDeliveryCompany, setBdDeliveryCompany] = useState("");
+  const [bdEstimatedDate, setBdEstimatedDate] = useState("");
 
   // Dispatched→Delivered dialog
   const [showDeliveredDialog, setShowDeliveredDialog] = useState(false);
@@ -796,6 +804,40 @@ export default function OrdersPage() {
       toast({ title: "Failed to advance order", description: error.message, variant: "destructive" });
     },
   });
+
+  const bulkTransportDispatchMutation = useMutation({
+    mutationFn: async ({ orderIds, dispatchByVal, dispatchDateVal, casesVal, deliveryCompanyVal, estimatedDeliveryDateVal }: {
+      orderIds: string[]; dispatchByVal: string; dispatchDateVal: string;
+      casesVal: string; deliveryCompanyVal: string; estimatedDeliveryDateVal: string;
+    }) => {
+      const payload: Record<string, unknown> = { status: "Dispatched" };
+      if (dispatchByVal) payload.dispatchBy = dispatchByVal;
+      if (dispatchDateVal) payload.dispatchDate = dispatchDateVal;
+      if (casesVal) payload.cases = parseInt(casesVal);
+      if (deliveryCompanyVal) payload.deliveryCompany = deliveryCompanyVal;
+      if (estimatedDeliveryDateVal) payload.estimatedDeliveryDate = estimatedDeliveryDateVal;
+      return Promise.all(orderIds.map(id => apiRequest("PATCH", `/api/admin/orders/${id}`, payload)));
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport/predict"] });
+      setTransportBulkGroup(null);
+      toast({ title: `Dispatched ${vars.orderIds.length} order(s) successfully` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to dispatch orders", description: error.message, variant: "destructive" });
+    },
+  });
+
+  function handleDispatchGroup(group: TransportAssignedGroup) {
+    setTransportBulkGroup(group);
+    setBdDispatchBy(group.dispatchBy);
+    setBdDispatchDate(new Date().toISOString().split("T")[0]);
+    setBdCases(group.totalCases > 0 ? String(group.totalCases) : "");
+    setBdDeliveryCompany("");
+    setBdEstimatedDate("");
+  }
 
   function handleAdvanceClick(order: Order, e: React.MouseEvent) {
     e.stopPropagation();
@@ -1661,7 +1703,7 @@ export default function OrdersPage() {
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
           {showTransportTab ? (
-            <TransportPredictionTab />
+            <TransportPredictionTab onDispatchGroup={handleDispatchGroup} />
           ) : (
           <>
           {!searchQuery.trim() && orders.length > 0 && (
@@ -4149,6 +4191,132 @@ export default function OrdersPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Transport Dispatch Dialog (Transport tab → Dispatch All) */}
+      <Dialog open={!!transportBulkGroup} onOpenChange={(open) => {
+        if (!open) setTransportBulkGroup(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="w-5 h-5" />
+              Confirm Bulk Dispatch
+            </DialogTitle>
+            <DialogDescription>
+              Move <strong>{transportBulkGroup?.orderCount} order{transportBulkGroup?.orderCount !== 1 ? "s" : ""}</strong> via <strong>{transportBulkGroup?.dispatchBy}</strong> to "Dispatched" status.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            {/* Summary */}
+            <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Orders</span>
+                <span className="font-medium">{transportBulkGroup?.orderCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Cases</span>
+                <span className="font-medium">{transportBulkGroup?.totalCases || "-"}</span>
+              </div>
+              {transportBulkGroup?.estimatedCost != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Estimated Cost</span>
+                  <span className="font-semibold text-green-700 dark:text-green-400">
+                    {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(transportBulkGroup.estimatedCost)}
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* Same required fields as single-order dispatch */}
+            <div className="border-t pt-3 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dispatch Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Dispatch By <span className="text-red-500">*</span></label>
+                  <Input
+                    value={bdDispatchBy}
+                    onChange={e => setBdDispatchBy(e.target.value)}
+                    placeholder="Carrier / person"
+                    className="h-8 text-sm"
+                    data-testid="input-bd-dispatch-by"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Dispatch Date <span className="text-red-500">*</span></label>
+                  <Input
+                    type="date"
+                    value={bdDispatchDate}
+                    onChange={e => setBdDispatchDate(e.target.value)}
+                    className="h-8 text-sm"
+                    data-testid="input-bd-dispatch-date"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Cases <span className="text-red-500">*</span></label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={bdCases}
+                    onChange={e => setBdCases(e.target.value)}
+                    placeholder="No. of cases"
+                    className="h-8 text-sm"
+                    data-testid="input-bd-cases"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
+                  <select
+                    value={bdDeliveryCompany}
+                    onChange={e => setBdDeliveryCompany(e.target.value)}
+                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    data-testid="select-bd-delivery-company"
+                  >
+                    <option value="">Select…</option>
+                    {DELIVERY_COMPANY_OPTIONS.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Est. Delivery Date</label>
+                <Input
+                  type="date"
+                  value={bdEstimatedDate}
+                  onChange={e => setBdEstimatedDate(e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-bd-estimated-date"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={() => setTransportBulkGroup(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                disabled={!bdDispatchBy.trim() || !bdDispatchDate || !bdCases || !bdDeliveryCompany || bulkTransportDispatchMutation.isPending}
+                onClick={() => {
+                  if (!transportBulkGroup) return;
+                  bulkTransportDispatchMutation.mutate({
+                    orderIds: transportBulkGroup.orderIds,
+                    dispatchByVal: bdDispatchBy.trim(),
+                    dispatchDateVal: bdDispatchDate,
+                    casesVal: bdCases,
+                    deliveryCompanyVal: bdDeliveryCompany,
+                    estimatedDeliveryDateVal: bdEstimatedDate || "",
+                  });
+                }}
+                data-testid="button-bd-confirm"
+              >
+                {bulkTransportDispatchMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Dispatching…</>
+                ) : (
+                  <>Dispatch {transportBulkGroup?.orderCount} Order{transportBulkGroup?.orderCount !== 1 ? "s" : ""}</>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

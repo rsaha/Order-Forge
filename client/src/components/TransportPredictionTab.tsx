@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,7 @@ interface UnassignedGroup {
   carrierCosts: Record<string, CarrierCost>;
 }
 
-interface AssignedGroup {
+export interface AssignedGroup {
   dispatchBy: string;
   orderCount: number;
   totalCases: number;
@@ -90,7 +91,7 @@ function formatINR(n: number | string | null | undefined) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(Number(n));
 }
 
-export default function TransportPredictionTab() {
+export default function TransportPredictionTab({ onDispatchGroup }: { onDispatchGroup: (group: AssignedGroup) => void }) {
   const { toast } = useToast();
   const [subTab, setSubTab] = useState<"unassigned" | "assigned">("unassigned");
   const [showFlyout, setShowFlyout] = useState(false);
@@ -98,10 +99,6 @@ export default function TransportPredictionTab() {
   // Assign dialog state
   const [assignGroup, setAssignGroup] = useState<UnassignedGroup | null>(null);
   const [assignCarrier, setAssignCarrier] = useState("");
-
-  // Bulk dispatch dialog state
-  const [dispatchGroup, setDispatchGroup] = useState<AssignedGroup | null>(null);
-  const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().split("T")[0]);
 
   const { data, isLoading, refetch, isFetching } = useQuery<PredictData>({
     queryKey: ["/api/transport/predict"],
@@ -123,27 +120,6 @@ export default function TransportPredictionTab() {
       setAssignCarrier("");
     },
     onError: (e: Error) => toast({ title: "Failed to assign", description: e.message, variant: "destructive" }),
-  });
-
-  const bulkDispatchMutation = useMutation({
-    // Reuse the existing PATCH /api/admin/orders/:id advance flow for each order.
-    // This is the same endpoint used by the single-order advance dialog (advanceMutation),
-    // ensuring the same status transition logic is applied consistently.
-    mutationFn: async ({ orderIds, dispatchDate }: { orderIds: string[]; dispatchDate: string }) => {
-      const results = await Promise.all(
-        orderIds.map(id =>
-          apiRequest("PATCH", `/api/admin/orders/${id}`, { status: "Dispatched", dispatchDate })
-        )
-      );
-      return results;
-    },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/transport/predict"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
-      toast({ title: `Dispatched ${vars.orderIds.length} order(s)` });
-      setDispatchGroup(null);
-    },
-    onError: (e: Error) => toast({ title: "Failed to dispatch", description: e.message, variant: "destructive" }),
   });
 
   // Get carrier name options for assign dialog (carrier names + custom input)
@@ -359,10 +335,7 @@ export default function TransportPredictionTab() {
                           <Button
                             size="sm"
                             className="gap-1 h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                            onClick={() => {
-                              setDispatchGroup(group);
-                              setDispatchDate(new Date().toISOString().split("T")[0]);
-                            }}
+                            onClick={() => onDispatchGroup(group)}
                             data-testid={`button-dispatch-${group.dispatchBy}`}
                           >
                             <ChevronRight className="w-3 h-3" />
@@ -447,57 +420,6 @@ export default function TransportPredictionTab() {
               >
                 {assignMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
                 Assign to {assignGroup?.orderCount} order{assignGroup?.orderCount !== 1 ? "s" : ""}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Dispatch Dialog */}
-      <Dialog open={!!dispatchGroup} onOpenChange={v => !v && setDispatchGroup(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Dispatch Orders</DialogTitle>
-            <DialogDescription>
-              Move <strong>{dispatchGroup?.orderCount} order{dispatchGroup?.orderCount !== 1 ? "s" : ""}</strong> dispatched via <strong>{dispatchGroup?.dispatchBy}</strong> to "Dispatched" status.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Orders</span>
-                <span className="font-medium">{dispatchGroup?.orderCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Cases</span>
-                <span className="font-medium">{dispatchGroup?.totalCases || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Carrier</span>
-                <span className="font-medium">{dispatchGroup?.dispatchBy}</span>
-              </div>
-              {dispatchGroup?.estimatedCost !== null && dispatchGroup?.estimatedCost !== undefined && (
-                <div className="flex justify-between pt-1 border-t mt-1">
-                  <span className="text-muted-foreground">Estimated Cost</span>
-                  <span className="font-semibold text-green-700 dark:text-green-400">{formatINR(dispatchGroup.estimatedCost)}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Dispatch Date</Label>
-              <Input type="date" value={dispatchDate} onChange={e => setDispatchDate(e.target.value)} />
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setDispatchGroup(null)}>Cancel</Button>
-              <Button
-                disabled={!dispatchDate || bulkDispatchMutation.isPending}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => dispatchGroup && bulkDispatchMutation.mutate({ orderIds: dispatchGroup.orderIds, dispatchDate })}
-              >
-                {bulkDispatchMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Truck className="w-4 h-4 mr-2" />}
-                Dispatch {dispatchGroup?.orderCount} Order{dispatchGroup?.orderCount !== 1 ? "s" : ""}
               </Button>
             </div>
           </div>
