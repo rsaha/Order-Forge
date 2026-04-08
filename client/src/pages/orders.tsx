@@ -269,7 +269,7 @@ function getNextStatus(status: OrderStatus): OrderStatus | null {
     Approved: "Invoiced",
     Backordered: "Invoiced",
     Pending: "Invoiced",
-    Invoiced: "PaymentPending",
+    Invoiced: "Dispatched",
     PaymentPending: "Dispatched",
     Dispatched: "Delivered",
   };
@@ -885,7 +885,7 @@ export default function OrdersPage() {
       setAdvanceInvoiceDate("");
       setAdvanceActualValue("");
       setShowPartyVerifyDialog(true);
-    } else if (order.status === "PaymentPending") {
+    } else if (order.status === "Invoiced" || order.status === "PaymentPending") {
       setDispatchOrder(order);
       setDispatchTransportStatus("loading");
       setDispatchTransportData(null);
@@ -2177,7 +2177,7 @@ export default function OrdersPage() {
                                 {hasAdminAccess && <Button size="icon" variant="ghost" onClick={(e) => handleDownloadXLS(order, e)}><Download className="w-4 h-4" /></Button>}
                                 {isAdmin && (
                                   <Button size="icon" variant="ghost" onClick={(e) => handleAdvanceClick(order, e)}
-                                    title={order.status === "PaymentPending" ? "Move to Dispatched" : "Move to Payment Pending"}
+                                    title={order.status === "PaymentPending" ? "Move to Dispatched (Pmt. Pending)" : "Move to Dispatched"}
                                     disabled={advanceMutation.isPending}
                                     data-testid={`button-advance-${order.id}`}
                                     className={order.status === "PaymentPending"
