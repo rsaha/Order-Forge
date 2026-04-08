@@ -2441,9 +2441,10 @@ export class DatabaseStorage implements IStorage {
 
   async assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number> {
     if (orderIds.length === 0) return 0;
+    // Only assign transport to Invoiced orders to prevent accidental modification of other statuses
     const result = await db.update(orders)
       .set({ dispatchBy })
-      .where(inArray(orders.id, orderIds));
+      .where(and(inArray(orders.id, orderIds), eq(orders.status, "Invoiced")));
     return result.rowCount ?? 0;
   }
 
