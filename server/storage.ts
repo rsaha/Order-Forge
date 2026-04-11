@@ -168,7 +168,7 @@ export interface IStorage {
   seedTransportCarriers(): Promise<void>;
   getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: number[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
@@ -2300,7 +2300,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: number[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }> {
     const carriers = await this.getTransportCarriers();
@@ -2370,7 +2370,7 @@ export class DatabaseStorage implements IStorage {
     const assignedOrders = invoicedOrders.filter(o => !!o.dispatchBy);
 
     // Group unassigned by partyName
-    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; cartonSizes: Set<number> }>();
+    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; cartonSizes: Set<string> }>();
     for (const order of unassignedOrders) {
       const key = order.partyName || "(No Party)";
       if (!unassignedGroups.has(key)) {
@@ -2379,7 +2379,7 @@ export class DatabaseStorage implements IStorage {
       const grp = unassignedGroups.get(key)!;
       grp.orderIds.push(order.id);
       grp.totalCases += order.cases || 0;
-      if (order.cartonSize && order.cartonSize > 0) grp.cartonSizes.add(order.cartonSize);
+      if (order.cartonSize) grp.cartonSizes.add(order.cartonSize);
     }
 
     const unassigned = Array.from(unassignedGroups.entries()).map(([partyName, grp]) => {
@@ -2392,7 +2392,7 @@ export class DatabaseStorage implements IStorage {
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
         orderIds: grp.orderIds,
-        cartonSizes: Array.from(grp.cartonSizes).sort((a, b) => a - b),
+        cartonSizes: Array.from(grp.cartonSizes),
         carrierCosts,
       };
     }).sort((a, b) => a.partyName.localeCompare(b.partyName));

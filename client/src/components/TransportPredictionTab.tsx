@@ -69,7 +69,7 @@ interface UnassignedGroup {
   orderCount: number;
   totalCases: number;
   orderIds: string[];
-  cartonSizes: number[];
+  cartonSizes: string[];
   carrierCosts: Record<string, CarrierCost>;
 }
 
@@ -215,7 +215,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                     <tr>
                       <th className="text-left p-2 font-medium">Party</th>
                       <th className="text-center p-2 font-medium">Orders</th>
-                      <th className="text-center p-2 font-medium">Cases</th>
+                      <th className="text-center p-2 font-medium">Cartons</th>
                       <th className="text-left p-2 font-medium hidden md:table-cell">Carton Size</th>
                       <th className="text-left p-2 font-medium hidden sm:table-cell">Best Rate</th>
                       <th className="text-right p-2 font-medium">Action</th>
@@ -318,7 +318,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                     <tr>
                       <th className="text-left p-2 font-medium">Carrier / Dispatch By</th>
                       <th className="text-center p-2 font-medium">Orders</th>
-                      <th className="text-center p-2 font-medium">Total Cases</th>
+                      <th className="text-center p-2 font-medium">Total Cartons</th>
                       <th className="text-right p-2 font-medium">Est. Cost</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
@@ -384,7 +384,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                                         <th className="text-left py-1 pl-8 font-medium text-muted-foreground">Party</th>
                                         <th className="text-left py-1 font-medium text-muted-foreground hidden sm:table-cell">Brand</th>
                                         <th className="text-left py-1 font-medium text-muted-foreground">Invoice #</th>
-                                        <th className="text-center py-1 font-medium text-muted-foreground">Cases</th>
+                                        <th className="text-center py-1 font-medium text-muted-foreground">Cartons</th>
                                         <th className="text-right py-1 pr-2 font-medium text-muted-foreground">Value</th>
                                       </tr>
                                     </thead>

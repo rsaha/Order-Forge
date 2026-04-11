@@ -84,6 +84,7 @@ import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
+const CARTON_SIZE_OPTIONS = ["Small", "Medium", "Large"];
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -645,7 +646,7 @@ export default function OrdersPage() {
       if (updates.dispatchDate !== undefined) payload.dispatchDate = updates.dispatchDate || null;
       if (updates.dispatchBy !== undefined) payload.dispatchBy = updates.dispatchBy || null;
       if (updates.cases !== undefined) payload.cases = updates.cases ? parseInt(updates.cases) : null;
-      if (updates.cartonSize !== undefined) payload.cartonSize = updates.cartonSize ? parseInt(updates.cartonSize) : null;
+      if (updates.cartonSize !== undefined) payload.cartonSize = updates.cartonSize || null;
       if (updates.specialNotes !== undefined) payload.specialNotes = updates.specialNotes || null;
       if (updates.estimatedDeliveryDate !== undefined) payload.estimatedDeliveryDate = updates.estimatedDeliveryDate || null;
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
@@ -818,7 +819,7 @@ export default function OrdersPage() {
       if (dispatchByVal) payload.dispatchBy = dispatchByVal;
       if (dispatchDateVal) payload.dispatchDate = dispatchDateVal;
       if (casesVal) payload.cases = parseInt(casesVal);
-      if (cartonSizeVal) payload.cartonSize = parseInt(cartonSizeVal);
+      if (cartonSizeVal) payload.cartonSize = cartonSizeVal;
       if (deliveryCompanyVal) payload.deliveryCompany = deliveryCompanyVal;
       if (estimatedDeliveryDateVal) payload.estimatedDeliveryDate = estimatedDeliveryDateVal;
       if (actualDeliveryDateVal) payload.actualDeliveryDate = actualDeliveryDateVal;
@@ -2937,7 +2938,7 @@ export default function OrdersPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label htmlFor="cases">Cases</Label>
+                        <Label htmlFor="cases">Cartons</Label>
                         <Input
                           id="cases"
                           type="number"
@@ -2950,15 +2951,19 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <Label htmlFor="cartonSize">Carton Size</Label>
-                        <Input
+                        <select
                           id="cartonSize"
-                          type="number"
                           value={editFormData.cartonSize}
                           onChange={(e) => setEditFormData({ ...editFormData, cartonSize: e.target.value })}
-                          placeholder="e.g. 12"
                           disabled={selectedOrder.status === "PODReceived"}
-                          data-testid="input-carton-size"
-                        />
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          data-testid="select-carton-size"
+                        >
+                          <option value="">Select size…</option>
+                          {CARTON_SIZE_OPTIONS.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
                       </div>
                       {isAdmin && (
                         <div>
@@ -4242,26 +4247,28 @@ export default function OrdersPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Cases <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-medium">Cartons <span className="text-red-500">*</span></label>
                     <Input
                       type="number"
                       min="1"
                       value={dispatchCases}
                       onChange={e => setDispatchCases(e.target.value)}
-                      placeholder="No. of cases"
+                      placeholder="No. of cartons"
                       className="h-8 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Carton Size</label>
-                    <Input
-                      type="number"
-                      min="1"
+                    <select
                       value={dispatchCartonSize}
                       onChange={e => setDispatchCartonSize(e.target.value)}
-                      placeholder="Units per carton"
-                      className="h-8 text-sm"
-                    />
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    >
+                      <option value="">Select size…</option>
+                      {CARTON_SIZE_OPTIONS.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
