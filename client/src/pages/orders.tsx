@@ -178,6 +178,7 @@ interface OrderEditFormData {
   dispatchDate: string;
   dispatchBy: string;
   cases: string;
+  cartonSize: string;
   specialNotes: string;
   estimatedDeliveryDate: string;
   actualDeliveryDate: string;
@@ -302,6 +303,7 @@ export default function OrdersPage() {
     dispatchDate: "",
     dispatchBy: "",
     cases: "",
+    cartonSize: "",
     specialNotes: "",
     estimatedDeliveryDate: "",
     actualDeliveryDate: "",
@@ -391,6 +393,7 @@ export default function OrdersPage() {
   const [dispatchBy, setDispatchBy] = useState("");
   const [dispatchDate, setDispatchDate] = useState("");
   const [dispatchCases, setDispatchCases] = useState("");
+  const [dispatchCartonSize, setDispatchCartonSize] = useState("");
   const [dispatchDeliveryCompany, setDispatchDeliveryCompany] = useState("");
   const [dispatchEstimatedDate, setDispatchEstimatedDate] = useState("");
 
@@ -642,6 +645,7 @@ export default function OrdersPage() {
       if (updates.dispatchDate !== undefined) payload.dispatchDate = updates.dispatchDate || null;
       if (updates.dispatchBy !== undefined) payload.dispatchBy = updates.dispatchBy || null;
       if (updates.cases !== undefined) payload.cases = updates.cases ? parseInt(updates.cases) : null;
+      if (updates.cartonSize !== undefined) payload.cartonSize = updates.cartonSize ? parseInt(updates.cartonSize) : null;
       if (updates.specialNotes !== undefined) payload.specialNotes = updates.specialNotes || null;
       if (updates.estimatedDeliveryDate !== undefined) payload.estimatedDeliveryDate = updates.estimatedDeliveryDate || null;
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
@@ -800,10 +804,10 @@ export default function OrdersPage() {
   });
 
   const advanceMutation = useMutation({
-    mutationFn: async ({ id, status, partyName, invoiceNumber, invoiceDate, actualOrderValue, dispatchByVal, dispatchDateVal, casesVal, deliveryCompanyVal, estimatedDeliveryDateVal, actualDeliveryDateVal }: {
+    mutationFn: async ({ id, status, partyName, invoiceNumber, invoiceDate, actualOrderValue, dispatchByVal, dispatchDateVal, casesVal, cartonSizeVal, deliveryCompanyVal, estimatedDeliveryDateVal, actualDeliveryDateVal }: {
       id: string; status: string; partyName?: string;
       invoiceNumber?: string; invoiceDate?: string; actualOrderValue?: string;
-      dispatchByVal?: string; dispatchDateVal?: string; casesVal?: string; deliveryCompanyVal?: string; estimatedDeliveryDateVal?: string;
+      dispatchByVal?: string; dispatchDateVal?: string; casesVal?: string; cartonSizeVal?: string; deliveryCompanyVal?: string; estimatedDeliveryDateVal?: string;
       actualDeliveryDateVal?: string;
     }) => {
       const payload: Record<string, unknown> = { status };
@@ -814,6 +818,7 @@ export default function OrdersPage() {
       if (dispatchByVal) payload.dispatchBy = dispatchByVal;
       if (dispatchDateVal) payload.dispatchDate = dispatchDateVal;
       if (casesVal) payload.cases = parseInt(casesVal);
+      if (cartonSizeVal) payload.cartonSize = parseInt(cartonSizeVal);
       if (deliveryCompanyVal) payload.deliveryCompany = deliveryCompanyVal;
       if (estimatedDeliveryDateVal) payload.estimatedDeliveryDate = estimatedDeliveryDateVal;
       if (actualDeliveryDateVal) payload.actualDeliveryDate = actualDeliveryDateVal;
@@ -892,6 +897,7 @@ export default function OrdersPage() {
       setDispatchBy("");
       setDispatchDate("");
       setDispatchCases("");
+      setDispatchCartonSize(order.cartonSize?.toString() || "");
       setDispatchDeliveryCompany(order.deliveryCompany || "");
       setDispatchEstimatedDate("");
       setShowDispatchDialog(true);
@@ -1097,6 +1103,7 @@ export default function OrdersPage() {
       dispatchDate: order.dispatchDate ? new Date(order.dispatchDate).toISOString().split("T")[0] : "",
       dispatchBy: order.dispatchBy || "",
       cases: order.cases?.toString() || "",
+      cartonSize: order.cartonSize?.toString() || "",
       specialNotes: order.specialNotes || "",
       estimatedDeliveryDate: order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toISOString().split("T")[0] : "",
       actualDeliveryDate: order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toISOString().split("T")[0] : "",
@@ -2928,7 +2935,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
                         <Label htmlFor="cases">Cases</Label>
                         <Input
@@ -2939,6 +2946,18 @@ export default function OrdersPage() {
                           placeholder="0"
                           disabled={selectedOrder.status === "PODReceived"}
                           data-testid="input-cases"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="cartonSize">Carton Size</Label>
+                        <Input
+                          id="cartonSize"
+                          type="number"
+                          value={editFormData.cartonSize}
+                          onChange={(e) => setEditFormData({ ...editFormData, cartonSize: e.target.value })}
+                          placeholder="e.g. 12"
+                          disabled={selectedOrder.status === "PODReceived"}
+                          data-testid="input-carton-size"
                         />
                       </div>
                       {isAdmin && (
@@ -4234,6 +4253,17 @@ export default function OrdersPage() {
                     />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-xs font-medium">Carton Size</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={dispatchCartonSize}
+                      onChange={e => setDispatchCartonSize(e.target.value)}
+                      placeholder="Units per carton"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
                     <select
                       value={dispatchDeliveryCompany}
@@ -4283,6 +4313,7 @@ export default function OrdersPage() {
                       dispatchByVal: dispatchBy.trim(),
                       dispatchDateVal: dispatchDate,
                       casesVal: dispatchCases,
+                      cartonSizeVal: dispatchCartonSize || undefined,
                       deliveryCompanyVal: dispatchDeliveryCompany,
                       estimatedDeliveryDateVal: dispatchEstimatedDate || undefined,
                     });

@@ -69,7 +69,7 @@ interface UnassignedGroup {
   orderCount: number;
   totalCases: number;
   orderIds: string[];
-  caseSizes: number[];
+  cartonSizes: number[];
   carrierCosts: Record<string, CarrierCost>;
 }
 
@@ -216,7 +216,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                       <th className="text-left p-2 font-medium">Party</th>
                       <th className="text-center p-2 font-medium">Orders</th>
                       <th className="text-center p-2 font-medium">Cases</th>
-                      <th className="text-left p-2 font-medium hidden md:table-cell">Case Sizes</th>
+                      <th className="text-left p-2 font-medium hidden md:table-cell">Carton Size</th>
                       <th className="text-left p-2 font-medium hidden sm:table-cell">Best Rate</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
@@ -246,9 +246,9 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                             </span>
                           </td>
                           <td className="p-2 hidden md:table-cell">
-                            {group.caseSizes.length > 0 ? (
+                            {group.cartonSizes.length > 0 ? (
                               <div className="flex gap-1 flex-wrap">
-                                {group.caseSizes.map(cs => (
+                                {group.cartonSizes.map(cs => (
                                   <Badge key={cs} variant="secondary" className="text-xs px-1.5 py-0">
                                     <BoxesIcon className="w-2.5 h-2.5 mr-0.5" />{cs}
                                   </Badge>
