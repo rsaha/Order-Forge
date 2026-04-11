@@ -2376,7 +2376,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Separate unassigned (no dispatchBy) and assigned (has dispatchBy)
-    const unassignedOrders = invoicedOrders.filter(o => !o.dispatchBy);
+    const TRANSPORT_EXCLUDED_BRANDS = ["Elmeric", "Biostige"];
+    const unassignedOrders = invoicedOrders.filter(o => !o.dispatchBy && !TRANSPORT_EXCLUDED_BRANDS.includes(o.brand || ""));
     const assignedOrders = invoicedOrders.filter(o => !!o.dispatchBy);
 
     // Group unassigned by partyName
