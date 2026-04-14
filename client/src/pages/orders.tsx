@@ -4341,7 +4341,7 @@ export default function OrdersPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Cartons <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-medium">Cartons</label>
                     <Input
                       type="number"
                       min="1"
@@ -4405,7 +4405,7 @@ export default function OrdersPage() {
                 </Button>
                 <Button
                   size="sm"
-                  disabled={advanceMutation.isPending || dispatchTransportStatus === "loading" || !dispatchBy.trim() || !dispatchDate || !dispatchCases || !dispatchDeliveryCompany}
+                  disabled={advanceMutation.isPending || dispatchTransportStatus === "loading" || !dispatchBy.trim() || !dispatchDate || !dispatchDeliveryCompany}
                   onClick={() => {
                     if (!dispatchOrder) return;
                     advanceMutation.mutate({
