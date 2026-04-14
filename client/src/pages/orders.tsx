@@ -1871,7 +1871,7 @@ export default function OrdersPage() {
             <TransportPredictionTab onDispatchGroup={handleDispatchGroup} orders={allOrders} />
           ) : (
           <>
-          {!searchQuery.trim() && orders.length > 0 && (
+          {orders.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
               <p className="text-sm text-muted-foreground" data-testid="text-status-total">
                 {orders.length} orders — Total Value: <span className="font-semibold text-foreground">{formatINR(orders.reduce((sum, o) => sum + Number(o.total || 0), 0))}</span>
