@@ -72,6 +72,9 @@ import {
   ClipboardCheck,
   FileSpreadsheet,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   Calculator,
   Globe,
   CreditCard,
@@ -85,6 +88,52 @@ import * as XLSX from "xlsx";
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
 const CARTON_SIZE_OPTIONS = ["Small", "Medium", "Large"];
+
+const STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
+  Online: 1,
+  Created: 2,
+  Approved: 3,
+  Backordered: 7,
+  Pending: 7,
+  Invoiced: 3,
+  PaymentPending: 5,
+  Delivered: 3,
+};
+
+function getOverdueDays(order: Order): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysDiff = (base: string | null | undefined) => {
+    if (!base) return 0;
+    const d = new Date(base);
+    d.setHours(0, 0, 0, 0);
+    const diff = Math.floor((today.getTime() - d.getTime()) / 86400000);
+    return diff;
+  };
+  const status = order.status as OrderStatus;
+  if (status === "Dispatched") {
+    if (order.estimatedDeliveryDate) {
+      const est = new Date(order.estimatedDeliveryDate);
+      est.setHours(0, 0, 0, 0);
+      return today > est ? Math.floor((today.getTime() - est.getTime()) / 86400000) : 0;
+    }
+    return 0;
+  }
+  const sla = STATUS_SLA_DAYS[status];
+  if (!sla) return 0;
+  let base: string | null | undefined;
+  if (status === "Online" || status === "Created" || status === "Backordered" || status === "Pending") {
+    base = order.createdAt as unknown as string;
+  } else if (status === "Approved") {
+    base = (order as any).approvedAt || order.createdAt as unknown as string;
+  } else if (status === "Invoiced" || status === "PaymentPending") {
+    base = order.invoiceDate || order.createdAt as unknown as string;
+  } else if (status === "Delivered") {
+    base = order.actualDeliveryDate || order.dispatchDate || order.createdAt as unknown as string;
+  }
+  const age = daysDiff(base);
+  return age > sla ? age - sla : 0;
+}
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -284,6 +333,8 @@ export default function OrdersPage() {
   const [, navigate] = useLocation();
   const [showTransportTab, setShowTransportTab] = useState(false);
   const [statusFilter, setStatusFilter] = useState<OrderStatus>("Approved");
+  const [sortField, setSortField] = useState<"createdAt" | "invoiceDate" | "estimatedDeliveryDate">("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [showArchiveDropdown, setShowArchiveDropdown] = useState(false);
   const archiveDropdownRef = useRef<HTMLDivElement>(null);
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState<string>("all");
@@ -477,7 +528,7 @@ export default function OrdersPage() {
         const data: Order[] = await res.json();
         
         return data.sort((a, b) => 
-          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
         );
       } else {
         const res = await fetch("/api/orders", { credentials: "include" });
@@ -485,7 +536,7 @@ export default function OrdersPage() {
         const data: Order[] = await res.json();
         
         let sorted = data.sort((a, b) => 
-          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
         );
         
         if (deliveryCompanyFilter !== "all") {
@@ -571,7 +622,20 @@ export default function OrdersPage() {
         : o.status === statusFilter
     );
   }, [allOrders, searchQuery, statusFilter, isAdmin]);
-  
+
+  const sortedOrders = useMemo(() => {
+    const getValue = (o: Order): number => {
+      let v: string | null | undefined;
+      if (sortField === "invoiceDate") v = o.invoiceDate;
+      else if (sortField === "estimatedDeliveryDate") v = o.estimatedDeliveryDate;
+      else v = o.createdAt as unknown as string;
+      return v ? new Date(v).getTime() : (sortDir === "asc" ? Infinity : -Infinity);
+    };
+    return [...orders].sort((a, b) =>
+      sortDir === "asc" ? getValue(a) - getValue(b) : getValue(b) - getValue(a)
+    );
+  }, [orders, sortField, sortDir]);
+
   // Count orders by status for tab badges
   const statusCounts: Record<OrderStatus, number> = {
     Online: allOrders.filter(o => o.status === "Online").length,
@@ -1806,13 +1870,36 @@ export default function OrdersPage() {
           ) : (
           <>
           {!searchQuery.trim() && orders.length > 0 && (
-            <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
               <p className="text-sm text-muted-foreground" data-testid="text-status-total">
                 {orders.length} orders — Total Value: <span className="font-semibold text-foreground">{formatINR(orders.reduce((sum, o) => sum + Number(o.total || 0), 0))}</span>
                 {orders.some(o => o.actualOrderValue) && (
                   <span> | Actual Value: <span className="font-semibold text-foreground">{formatINR(orders.reduce((sum, o) => sum + Number(o.actualOrderValue || o.total || 0), 0))}</span></span>
                 )}
               </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground mr-0.5">Sort:</span>
+                {(["createdAt", "invoiceDate", "estimatedDeliveryDate"] as const).map(field => (
+                  <button
+                    key={field}
+                    onClick={() => {
+                      if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+                      else { setSortField(field); setSortDir("asc"); }
+                    }}
+                    className={`h-7 px-2 text-xs rounded border transition-colors flex items-center gap-1 ${
+                      sortField === field
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-foreground border-input hover:bg-muted"
+                    }`}
+                    data-testid={`button-sort-${field}`}
+                  >
+                    {field === "createdAt" ? "Created" : field === "invoiceDate" ? "Invoice Date" : "Est. Delivery"}
+                    {sortField === field
+                      ? (sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+                      : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <AnnouncementBanner userBrands={userBrands} />
@@ -1976,10 +2063,15 @@ export default function OrdersPage() {
                     )}
                   </thead>
                   <tbody className="divide-y">
-                    {orders.map((order) => (
+                    {sortedOrders.map((order) => {
+                      const overdueDays = getOverdueDays(order);
+                      const overdueIcon = overdueDays > 0
+                        ? <Clock className="inline w-3.5 h-3.5 text-amber-500 mr-1 flex-shrink-0 align-text-bottom" title={`${overdueDays} day${overdueDays > 1 ? "s" : ""} overdue`} />
+                        : null;
+                      return (
                       <tr
                         key={order.id}
-                        className="hover-elevate cursor-pointer"
+                        className={`hover-elevate cursor-pointer${overdueDays > 0 ? " bg-amber-50 dark:bg-amber-950/20" : ""}`}
                         onClick={() => handleOrderClick(order)}
                         data-testid={`row-order-${order.id}`}
                       >
@@ -1993,7 +2085,7 @@ export default function OrdersPage() {
                               </Badge>
                             </td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
@@ -2007,7 +2099,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
@@ -2037,7 +2129,7 @@ export default function OrdersPage() {
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2">
-                              <div className="font-medium text-sm">{order.partyName || "Unknown"}</div>
+                              <div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div>
                               {(order as any).ownerRole === "Customer" && (
                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-0.5">
                                   Needs Approval
@@ -2088,7 +2180,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.approvedBy || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
@@ -2123,7 +2215,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.specialNotes || ""}>{order.specialNotes || "-"}</div></td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
@@ -2147,7 +2239,7 @@ export default function OrdersPage() {
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-medium text-sm">{order.partyName || "Unknown"}</span>
+                                <span className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</span>
                                 {order.status === "PaymentPending" && (
                                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/50 dark:text-fuchsia-300 whitespace-nowrap">Pmt. Pending</span>
                                 )}
@@ -2206,7 +2298,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.parentOrderId ? `#${order.parentOrderId.slice(-6)}` : "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.specialNotes || ""}>{order.specialNotes || "-"}</div></td>
@@ -2229,7 +2321,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
@@ -2254,7 +2346,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.dispatchDate ? new Date(order.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
@@ -2291,7 +2383,7 @@ export default function OrdersPage() {
                         {!searchQuery.trim() && statusFilter === "PODReceived" && (
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">
@@ -2320,7 +2412,7 @@ export default function OrdersPage() {
                           <>
                             <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
-                            <td className="p-2"><div className="font-medium text-sm">{order.partyName || "Unknown"}</div></td>
+                            <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.total)}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -2332,7 +2424,7 @@ export default function OrdersPage() {
                           </>
                         )}
                       </tr>
-                    ))}
+                    ); })}
                   </tbody>
                 </table>
               </div>
