@@ -103,12 +103,12 @@ const STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
 function getOverdueDays(order: Order): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const daysDiff = (base: string | null | undefined) => {
+  const daysSince = (base: Date | string | null | undefined): number => {
     if (!base) return 0;
     const d = new Date(base);
+    if (isNaN(d.getTime())) return 0;
     d.setHours(0, 0, 0, 0);
-    const diff = Math.floor((today.getTime() - d.getTime()) / 86400000);
-    return diff;
+    return Math.floor((today.getTime() - d.getTime()) / 86400000);
   };
   const status = order.status as OrderStatus;
   if (status === "Dispatched") {
@@ -121,17 +121,17 @@ function getOverdueDays(order: Order): number {
   }
   const sla = STATUS_SLA_DAYS[status];
   if (!sla) return 0;
-  let base: string | null | undefined;
+  let base: Date | string | null | undefined;
   if (status === "Online" || status === "Created" || status === "Backordered" || status === "Pending") {
-    base = order.createdAt as unknown as string;
+    base = order.createdAt;
   } else if (status === "Approved") {
-    base = (order as any).approvedAt || order.createdAt as unknown as string;
+    base = order.approvedAt ?? order.createdAt;
   } else if (status === "Invoiced" || status === "PaymentPending") {
-    base = order.invoiceDate || order.createdAt as unknown as string;
+    base = order.invoiceDate ?? order.createdAt;
   } else if (status === "Delivered") {
-    base = order.actualDeliveryDate || order.dispatchDate || order.createdAt as unknown as string;
+    base = order.actualDeliveryDate ?? order.dispatchDate ?? order.createdAt;
   }
-  const age = daysDiff(base);
+  const age = daysSince(base);
   return age > sla ? age - sla : 0;
 }
 
@@ -625,11 +625,13 @@ export default function OrdersPage() {
 
   const sortedOrders = useMemo(() => {
     const getValue = (o: Order): number => {
-      let v: string | null | undefined;
+      let v: Date | string | null | undefined;
       if (sortField === "invoiceDate") v = o.invoiceDate;
       else if (sortField === "estimatedDeliveryDate") v = o.estimatedDeliveryDate;
-      else v = o.createdAt as unknown as string;
-      return v ? new Date(v).getTime() : (sortDir === "asc" ? Infinity : -Infinity);
+      else v = o.createdAt;
+      if (!v) return sortDir === "asc" ? Infinity : -Infinity;
+      const t = new Date(v).getTime();
+      return isNaN(t) ? (sortDir === "asc" ? Infinity : -Infinity) : t;
     };
     return [...orders].sort((a, b) =>
       sortDir === "asc" ? getValue(a) - getValue(b) : getValue(b) - getValue(a)
