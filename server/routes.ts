@@ -4216,12 +4216,18 @@ export async function registerRoutes(
       
       const { title, message, priority, targetBrands, expiresAt, isActive } = parseResult.data;
       
+      let expiresAtDate: Date | null = null;
+      if (expiresAt) {
+        expiresAtDate = new Date(expiresAt);
+        expiresAtDate.setUTCHours(23, 59, 59, 999);
+      }
+      
       const announcement = await storage.createAnnouncement({
         title,
         message,
         priority,
         targetBrands,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        expiresAt: expiresAtDate,
         isActive,
         createdBy: user.id,
       });
@@ -4262,7 +4268,15 @@ export async function registerRoutes(
       if (message !== undefined) updates.message = message;
       if (priority !== undefined) updates.priority = priority;
       if (targetBrands !== undefined) updates.targetBrands = targetBrands;
-      if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+      if (expiresAt !== undefined) {
+        if (expiresAt) {
+          const d = new Date(expiresAt);
+          d.setUTCHours(23, 59, 59, 999);
+          updates.expiresAt = d;
+        } else {
+          updates.expiresAt = null;
+        }
+      }
       if (isActive !== undefined) updates.isActive = isActive;
       
       const announcement = await storage.updateAnnouncement(id, updates);
