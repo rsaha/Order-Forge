@@ -1527,10 +1527,18 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Sort buckets by date
-    const sortedTimeSeries = Array.from(buckets.values()).sort((a, b) => 
-      a.date.localeCompare(b.date)
-    );
+    // Sort buckets by date, filtering out any that fall outside the effective range.
+    // Event-date buckets (invoiceDate, dispatchDate, actualDeliveryDate) can be set
+    // to future dates for in-progress orders, which would otherwise appear as stray
+    // last points on the x-axis.
+    const sortedTimeSeries = Array.from(buckets.values())
+      .filter(b => {
+        const d = new Date(b.date);
+        if (fromDate && d < fromDate) return false;
+        if (d > toDate) return false;
+        return true;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
     
     // Build creator series - track order counts by creator over time
     const creatorBuckets = new Map<string, Map<string, number>>(); // date -> (creatorName -> count)
