@@ -1930,7 +1930,7 @@ export default function OrdersPage() {
                     {/* Search Results Headers */}
                     {searchQuery.trim() && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium">Status</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
@@ -1943,7 +1943,7 @@ export default function OrdersPage() {
                     {/* Online Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Online" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -1955,7 +1955,7 @@ export default function OrdersPage() {
                     {/* Created Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Created" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -1967,7 +1967,7 @@ export default function OrdersPage() {
                     {/* Approved Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Approved" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -1981,7 +1981,7 @@ export default function OrdersPage() {
                     {/* Backordered Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Backordered" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -1993,7 +1993,7 @@ export default function OrdersPage() {
                     {/* Invoiced Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Invoiced" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -2007,7 +2007,7 @@ export default function OrdersPage() {
                     {/* Pending Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Pending" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -2020,7 +2020,7 @@ export default function OrdersPage() {
                     {/* Dispatched Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Dispatched" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -2035,7 +2035,7 @@ export default function OrdersPage() {
                     {/* Delivered Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Delivered" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -2051,7 +2051,7 @@ export default function OrdersPage() {
                     {/* PODReceived Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "PODReceived" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Delivered On</th>
@@ -2063,7 +2063,7 @@ export default function OrdersPage() {
                     {/* Cancelled Tab Headers */}
                     {!searchQuery.trim() && statusFilter === "Cancelled" && (
                       <tr>
-                        <th className="text-left p-2 font-medium text-xs">Date</th>
+                        <th className="text-left p-2 font-medium text-xs">{sortField === "invoiceDate" ? "Invoice Date" : sortField === "estimatedDeliveryDate" ? "Est. Delivery" : "Created"}</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Brand</th>
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
@@ -2076,6 +2076,10 @@ export default function OrdersPage() {
                     {sortedOrders.map((order) => {
                       const overdueDays = getOverdueDays(order);
                       const isDeliveredLate = (order.status === "Delivered" || order.status === "PODReceived") && overdueDays > 0;
+                      const activeDate = sortField === "invoiceDate" ? order.invoiceDate
+                        : sortField === "estimatedDeliveryDate" ? order.estimatedDeliveryDate
+                        : order.createdAt;
+                      const activeDateStr = activeDate ? new Date(activeDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-";
                       const overdueIcon = overdueDays > 0
                         ? <Clock className="inline w-3.5 h-3.5 text-amber-500 mr-1 flex-shrink-0 align-text-bottom" title={isDeliveredLate ? `Delivered ${overdueDays} day${overdueDays > 1 ? "s" : ""} late` : `${overdueDays} day${overdueDays > 1 ? "s" : ""} overdue`} />
                         : null;
@@ -2089,7 +2093,7 @@ export default function OrdersPage() {
                         {/* Search Results Cells */}
                         {searchQuery.trim() && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2">
                               <Badge className={statusColors[order.status as OrderStatus]}>
                                 {order.status === "PODReceived" ? "POD" : order.status}
@@ -2108,7 +2112,7 @@ export default function OrdersPage() {
                         {/* Online Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Online" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
@@ -2137,7 +2141,7 @@ export default function OrdersPage() {
                         {/* Created Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Created" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2">
                               <div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div>
@@ -2189,7 +2193,7 @@ export default function OrdersPage() {
                         {/* Approved Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Approved" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
@@ -2224,7 +2228,7 @@ export default function OrdersPage() {
                         {/* Backordered Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Backordered" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
@@ -2246,7 +2250,7 @@ export default function OrdersPage() {
                         {/* Invoiced Tab Cells (also covers PaymentPending orders folded in) */}
                         {!searchQuery.trim() && statusFilter === "Invoiced" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2">
                               <div className="flex items-center gap-1.5">
@@ -2307,7 +2311,7 @@ export default function OrdersPage() {
                         {/* Pending Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Pending" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{(order as any).createdByName || (order as any).createdByEmail || "-"}</td>
@@ -2330,7 +2334,7 @@ export default function OrdersPage() {
                         {/* Dispatched Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Dispatched" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
@@ -2355,7 +2359,7 @@ export default function OrdersPage() {
                         {/* Delivered Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Delivered" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
@@ -2393,7 +2397,7 @@ export default function OrdersPage() {
                         {/* PODReceived Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "PODReceived" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
@@ -2421,7 +2425,7 @@ export default function OrdersPage() {
                         {/* Cancelled Tab Cells */}
                         {!searchQuery.trim() && statusFilter === "Cancelled" && (
                           <>
-                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{activeDateStr}</td>
                             <td className="p-2 hidden lg:table-cell text-sm">{order.brand || "-"}</td>
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
