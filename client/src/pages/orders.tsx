@@ -97,7 +97,6 @@ const STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
   Pending: 7,
   Invoiced: 3,
   PaymentPending: 5,
-  Delivered: 3,
 };
 
 function getOverdueDays(order: Order): number {
@@ -119,6 +118,17 @@ function getOverdueDays(order: Order): number {
     }
     return 0;
   }
+  // For delivered orders: highlight only if actual delivery was after estimated delivery date
+  if (status === "Delivered" || status === "PODReceived") {
+    if (order.actualDeliveryDate && order.estimatedDeliveryDate) {
+      const actual = new Date(order.actualDeliveryDate);
+      const est = new Date(order.estimatedDeliveryDate);
+      actual.setHours(0, 0, 0, 0);
+      est.setHours(0, 0, 0, 0);
+      return actual > est ? Math.floor((actual.getTime() - est.getTime()) / 86400000) : 0;
+    }
+    return 0;
+  }
   const sla = STATUS_SLA_DAYS[status];
   if (!sla) return 0;
   let base: Date | string | null | undefined;
@@ -128,8 +138,6 @@ function getOverdueDays(order: Order): number {
     base = order.approvedAt ?? order.createdAt;
   } else if (status === "Invoiced" || status === "PaymentPending") {
     base = order.invoiceDate ?? order.createdAt;
-  } else if (status === "Delivered") {
-    base = order.actualDeliveryDate ?? order.dispatchDate ?? order.createdAt;
   }
   const age = daysSince(base);
   return age > sla ? age - sla : 0;
@@ -2067,8 +2075,9 @@ export default function OrdersPage() {
                   <tbody className="divide-y">
                     {sortedOrders.map((order) => {
                       const overdueDays = getOverdueDays(order);
+                      const isDeliveredLate = (order.status === "Delivered" || order.status === "PODReceived") && overdueDays > 0;
                       const overdueIcon = overdueDays > 0
-                        ? <Clock className="inline w-3.5 h-3.5 text-amber-500 mr-1 flex-shrink-0 align-text-bottom" title={`${overdueDays} day${overdueDays > 1 ? "s" : ""} overdue`} />
+                        ? <Clock className="inline w-3.5 h-3.5 text-amber-500 mr-1 flex-shrink-0 align-text-bottom" title={isDeliveredLate ? `Delivered ${overdueDays} day${overdueDays > 1 ? "s" : ""} late` : `${overdueDays} day${overdueDays > 1 ? "s" : ""} overdue`} />
                         : null;
                       return (
                       <tr
