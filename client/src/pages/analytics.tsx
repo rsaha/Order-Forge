@@ -669,12 +669,17 @@ export default function AnalyticsPage() {
       deliveredStatuses.includes(order.status) && order.brand?.toLowerCase() === 'biostige'
     ).length;
 
-    const totals: Record<string, { cost: number; count: number; orderValue: number }> = {};
+    const totals: Record<string, { cost: number; count: number; orderValue: number; delayedCount: number }> = {};
     let noCostCount = 0;
     let noCostValue = 0;
     let selfHandCount = 0;
     let selfHandValue = 0;
     const missingCostOrders: { id: string; partyName: string; dispatchBy: string; total: string }[] = [];
+
+    const isDeliveryDelayed = (order: any) => {
+      if (!order.actualDeliveryDate || !order.estimatedDeliveryDate) return false;
+      return new Date(order.actualDeliveryDate) > new Date(order.estimatedDeliveryDate);
+    };
 
     deliveredOrders.forEach(order => {
       const hasDispatcher = !!order.dispatchBy && order.dispatchBy.trim() !== '';
@@ -682,6 +687,7 @@ export default function AnalyticsPage() {
       const selfDelivery = hasDispatcher && isSelfDelivery(order.dispatchBy!);
       const zeroCostDispatch = hasDispatcher && isZeroCostDispatcher(order.dispatchBy!);
       const orderValue = parseFloat(order.actualOrderValue || order.total || '0');
+      const delayed = isDeliveryDelayed(order);
 
       if (handDelivery || selfDelivery || zeroCostDispatch) {
         selfHandCount++;
@@ -690,10 +696,11 @@ export default function AnalyticsPage() {
         const hasCost = order.deliveryCost && parseFloat(order.deliveryCost) > 0;
         if (hasCost && hasDispatcher) {
           const dispatcher = normalizeDispatcher(order.dispatchBy || 'Unknown');
-          if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0 };
+          if (!totals[dispatcher]) totals[dispatcher] = { cost: 0, count: 0, orderValue: 0, delayedCount: 0 };
           totals[dispatcher].cost += parseFloat(order.deliveryCost || '0');
           totals[dispatcher].count += 1;
           totals[dispatcher].orderValue += orderValue;
+          if (delayed) totals[dispatcher].delayedCount += 1;
         } else {
           noCostCount++;
           noCostValue += orderValue;
@@ -717,6 +724,7 @@ export default function AnalyticsPage() {
         orderCount: data.count,
         orderValue: data.orderValue,
         costPercentage: data.orderValue > 0 ? (data.cost / data.orderValue) * 100 : 0,
+        delayedCount: data.delayedCount,
       }))
       .sort((a, b) => b.totalCost - a.totalCost);
 
@@ -728,12 +736,14 @@ export default function AnalyticsPage() {
       const othersCost = otherRows.reduce((s, r) => s + r.totalCost, 0);
       const othersOrderValue = otherRows.reduce((s, r) => s + r.orderValue, 0);
       const othersCount = otherRows.reduce((s, r) => s + r.orderCount, 0);
+      const othersDelayed = otherRows.reduce((s, r) => s + r.delayedCount, 0);
       summaryData.push({
         dispatchBy: 'Others',
         totalCost: othersCost,
         orderCount: othersCount,
         orderValue: othersOrderValue,
         costPercentage: othersOrderValue > 0 ? (othersCost / othersOrderValue) * 100 : 0,
+        delayedCount: othersDelayed,
       });
     }
 
@@ -741,10 +751,11 @@ export default function AnalyticsPage() {
     const totalOrders = summaryData.reduce((sum, row) => sum + row.orderCount, 0);
     const grandOrderValue = summaryData.reduce((sum, row) => sum + row.orderValue, 0);
     const grandCostPercentage = grandOrderValue > 0 ? (grandTotal / grandOrderValue) * 100 : 0;
+    const grandDelayedCount = summaryData.reduce((sum, row) => sum + row.delayedCount, 0);
     const totalDeliveredValue = deliveredOrders.reduce((sum, o) => sum + parseFloat(o.actualOrderValue || o.total || '0'), 0);
 
     return {
-      summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage,
+      summaryData, grandTotal, totalOrders, grandOrderValue, grandCostPercentage, grandDelayedCount,
       noCostCount, noCostValue,
       selfHandCount, selfHandValue,
       missingCostOrders,
@@ -1425,6 +1436,7 @@ export default function AnalyticsPage() {
                             <th className="text-right py-2 px-3 font-medium">Order Value</th>
                             <th className="text-right py-2 px-3 font-medium">% of Value</th>
                             <th className="text-right py-2 px-3 font-medium">Orders</th>
+                            <th className="text-right py-2 px-3 font-medium">Delayed</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1435,6 +1447,13 @@ export default function AnalyticsPage() {
                               <td className="py-2 px-3 text-right">{formatINRFull(row.orderValue)}</td>
                               <td className="py-2 px-3 text-right">{row.costPercentage.toFixed(1)}%</td>
                               <td className="py-2 px-3 text-right">{row.orderCount}</td>
+                              <td className="py-2 px-3 text-right">
+                                {row.delayedCount > 0 ? (
+                                  <span className="text-red-600 dark:text-red-400 font-medium">{row.delayedCount}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
                             </tr>
                           ))}
                           {deliveryCostSummary.selfHandCount > 0 && (
@@ -1444,6 +1463,7 @@ export default function AnalyticsPage() {
                               <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.selfHandValue)}</td>
                               <td className="py-2 px-3 text-right">-</td>
                               <td className="py-2 px-3 text-right">{deliveryCostSummary.selfHandCount}</td>
+                              <td className="py-2 px-3 text-right">-</td>
                             </tr>
                           )}
                           {deliveryCostSummary.noCostCount > 0 && (
@@ -1453,6 +1473,7 @@ export default function AnalyticsPage() {
                               <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.noCostValue)}</td>
                               <td className="py-2 px-3 text-right">-</td>
                               <td className="py-2 px-3 text-right">{deliveryCostSummary.noCostCount}</td>
+                              <td className="py-2 px-3 text-right">-</td>
                             </tr>
                           )}
                         </tbody>
@@ -1463,6 +1484,13 @@ export default function AnalyticsPage() {
                             <td className="py-2 px-3 text-right">{formatINRFull(deliveryCostSummary.grandOrderValue)}</td>
                             <td className="py-2 px-3 text-right">{deliveryCostSummary.grandCostPercentage.toFixed(1)}%</td>
                             <td className="py-2 px-3 text-right">{deliveryCostSummary.totalOrders}</td>
+                            <td className="py-2 px-3 text-right">
+                              {deliveryCostSummary.grandDelayedCount > 0 ? (
+                                <span className="text-red-600 dark:text-red-400">{deliveryCostSummary.grandDelayedCount}</span>
+                              ) : (
+                                <span>-</span>
+                              )}
+                            </td>
                           </tr>
                         </tfoot>
                       </table>
