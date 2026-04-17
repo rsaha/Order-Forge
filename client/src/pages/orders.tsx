@@ -763,6 +763,13 @@ export default function OrdersPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Reset sort field when leaving Dispatched tab if Est. Delivery was active
+  useEffect(() => {
+    if (statusFilter !== "Dispatched" && sortField === "estimatedDeliveryDate") {
+      setSortField("createdAt");
+    }
+  }, [statusFilter]);
+
   useEffect(() => {
     if (!showPartyVerifyDialog) {
       advanceIsFirstLookupRef.current = true;
@@ -1889,7 +1896,9 @@ export default function OrdersPage() {
               </p>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground mr-0.5">Sort:</span>
-                {(["createdAt", "invoiceDate", "estimatedDeliveryDate"] as const).map(field => (
+                {(["createdAt", "invoiceDate", "estimatedDeliveryDate"] as const).filter(field =>
+                  field !== "estimatedDeliveryDate" || statusFilter === "Dispatched"
+                ).map(field => (
                   <button
                     key={field}
                     onClick={() => {
