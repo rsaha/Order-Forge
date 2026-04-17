@@ -2025,6 +2025,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium">Party</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
@@ -2339,6 +2340,7 @@ export default function OrdersPage() {
                             <td className="p-2"><div className="font-medium text-sm">{overdueIcon}{order.partyName || "Unknown"}</div></td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap text-muted-foreground">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
                             <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
