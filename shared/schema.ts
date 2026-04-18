@@ -83,12 +83,65 @@ export const brands = pgTable("brands", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull().unique(),
   isActive: boolean("is_active").notNull().default(true),
+  requiresPartyVerification: boolean("requires_party_verification").notNull().default(true),
+  requiresTransportAssignment: boolean("requires_transport_assignment").notNull().default(true),
+  excludeFromAnalytics: boolean("exclude_from_analytics").notNull().default(false),
+  displayOrder: integer("display_order").notNull().default(100),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Delivery company options
+// Delivery companies dimension table
+export const deliveryCompanies = pgTable("delivery_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(100),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Brand <-> Delivery company mapping (which delivery companies are valid for which brand)
+export const brandDeliveryCompanies = pgTable("brand_delivery_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  brandName: varchar("brand_name").notNull(),
+  deliveryCompanyName: varchar("delivery_company_name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_bdc_brand").on(table.brandName),
+]);
+
+// Dispatcher classification patterns (substring match against orders.dispatchBy)
+export const DISPATCHER_TYPES = ["transport", "self", "hand", "zero_cost"] as const;
+export type DispatcherType = typeof DISPATCHER_TYPES[number];
+export const dispatcherPatterns = pgTable("dispatcher_patterns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pattern: varchar("pattern").notNull(), // case-insensitive substring to match in dispatchBy
+  type: varchar("type").notNull(), // one of DISPATCHER_TYPES
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Per-status workflow config (SLA days, archive flag, sort order)
+export const orderStatusConfig = pgTable("order_status_config", {
+  status: varchar("status").primaryKey(), // matches ORDER_STATUSES enum
+  slaDays: integer("sla_days"), // null = no SLA
+  isArchived: boolean("is_archived").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(100),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Carton size options
+export const cartonSizes = pgTable("carton_sizes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  sortOrder: integer("sort_order").notNull().default(100),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Legacy: kept as fallback/typing only — all UI now reads delivery_companies table
 export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"] as const;
-export type DeliveryCompany = typeof DELIVERY_COMPANY_OPTIONS[number];
+export type DeliveryCompany = string;
 
 // Announcement priority levels
 export const ANNOUNCEMENT_PRIORITIES = ["info", "warning", "urgent"] as const;
@@ -318,6 +371,13 @@ export const insertUserPartyAccessSchema = createInsertSchema(userPartyAccess).o
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
+export const insertDeliveryCompanySchema = createInsertSchema(deliveryCompanies).omit({ id: true, createdAt: true });
+export const insertBrandDeliveryCompanySchema = createInsertSchema(brandDeliveryCompanies).omit({ id: true, createdAt: true });
+export const insertDispatcherPatternSchema = createInsertSchema(dispatcherPatterns).omit({ id: true, createdAt: true }).extend({
+  type: z.enum(DISPATCHER_TYPES),
+});
+export const insertOrderStatusConfigSchema = createInsertSchema(orderStatusConfig).omit({ updatedAt: true });
+export const insertCartonSizeSchema = createInsertSchema(cartonSizes).omit({ id: true, createdAt: true });
 export const insertBrandForecastSettingsSchema = createInsertSchema(brandForecastSettings).omit({ updatedAt: true });
 
 // Update schema for orders (all fields optional except id)
@@ -337,7 +397,7 @@ export const updateOrderSchema = z.object({
   actualDeliveryDate: z.string().nullable().optional(),
   deliveryCost: z.string().nullable().optional(),
   deliveryNote: z.string().nullable().optional(),
-  deliveryCompany: z.enum(DELIVERY_COMPANY_OPTIONS).nullable().optional(),
+  deliveryCompany: z.string().nullable().optional(),
   actualOrderValue: z.string().nullable().optional(),
   deliveredOnTime: z.boolean().nullable().optional(),
   approvedBy: z.string().nullable().optional(),

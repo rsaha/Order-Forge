@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useDeliveryCompanies, useBrands } from "@/hooks/useBrandConfig";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,8 @@ import type { Order } from "@shared/schema";
 import * as XLSX from "xlsx";
 
 /* ─── constants ─── */
-const ALL_BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "ACCUSURE", "Elmeric", "Blefit", "Ayouthveda"];
-const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
+const FALLBACK_BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "ACCUSURE", "Elmeric", "Blefit", "Ayouthveda"];
+const FALLBACK_DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 
 /* ─── helpers ─── */
 function getDateRange(preset: string): { startDate: string; endDate: string } | null {
@@ -162,6 +163,9 @@ type PortalOrder = Order & { createdByName?: string | null; actualCreatorName?: 
 export default function SalesOrdersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { data: deliveryCompaniesData } = useDeliveryCompanies();
+  const DELIVERY_COMPANIES = (deliveryCompaniesData && deliveryCompaniesData.length > 0) ? deliveryCompaniesData : FALLBACK_DELIVERY_COMPANIES;
+  const { data: brandConfigs = [] } = useBrands();
   const isAdmin = user?.isAdmin === true;
   const isBrandAdmin = user?.role === "BrandAdmin";
   const isCustomer = user?.role?.toLowerCase() === "customer";
@@ -204,6 +208,7 @@ export default function SalesOrdersPage() {
   });
 
   /* available brands for filter dropdown */
+  const ALL_BRANDS = brandConfigs.length > 0 ? brandConfigs.map(b => b.name) : FALLBACK_BRANDS;
   const availableBrands = isAdmin ? ALL_BRANDS : isBrandAdmin ? brandAccess : [];
 
   /* compute API date params */

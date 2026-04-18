@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Search, AlertTriangle } from "lucide-react";
+import { useDeliveryCompanies } from "@/hooks/useBrandConfig";
 
 export interface OrderDetails {
   partyName: string;
@@ -27,26 +28,7 @@ interface OrderDetailsFormProps {
   allowedDeliveryCompanies?: string[];
 }
 
-const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
-
-const GUIDED_KOL_BRANDS_UPPER = ["TYNOR", "SHIKON", "BLEFIT", "KAREMED", "UM", "VISSCO", "LIFEWEAR"];
-
-function getDeliveryOptionsForBrand(brand: string | null | undefined): string[] {
-  const brandUpper = brand?.toUpperCase();
-  if (brandUpper === "BIOSTIGE") {
-    return ["Guided"];
-  }
-  if (brandUpper === "ELMERIC") {
-    return ["Elmeric", "Guided"];
-  }
-  if (brandUpper === "MORISON") {
-    return ["Xmaple", "Elmeric"];
-  }
-  if (brandUpper && GUIDED_KOL_BRANDS_UPPER.includes(brandUpper)) {
-    return ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
-  }
-  return ["Guided", "Xmaple", "Elmeric"];
-}
+const FALLBACK_DELIVERY_OPTIONS = ["Guided", "Xmaple", "Elmeric"];
 
 export default function OrderDetailsForm({
   orderDetails,
@@ -58,8 +40,10 @@ export default function OrderDetailsForm({
   isCustomer = false,
   allowedDeliveryCompanies,
 }: OrderDetailsFormProps) {
-  // For Customers, use their allowed delivery companies, otherwise use brand-based options
-  const brandDeliveryOptions = getDeliveryOptionsForBrand(cartBrand);
+  const { data: brandDeliveryFromApi } = useDeliveryCompanies(cartBrand);
+  const brandDeliveryOptions = (brandDeliveryFromApi && brandDeliveryFromApi.length > 0)
+    ? brandDeliveryFromApi
+    : FALLBACK_DELIVERY_OPTIONS;
   const deliveryOptions = isCustomer && allowedDeliveryCompanies && allowedDeliveryCompanies.length > 0
     ? brandDeliveryOptions.filter(dc => allowedDeliveryCompanies.includes(dc))
     : brandDeliveryOptions;

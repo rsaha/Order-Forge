@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
+import { useDeliveryCompanies } from "@/hooks/useBrandConfig";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ const ORDER_STATUSES: OrderStatus[] = [
   "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled",
 ];
 
-const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
+const FALLBACK_DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 
 const statusColors: Record<OrderStatus, string> = {
   Online: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
@@ -134,6 +135,8 @@ export function OrderDetailPanel({
   onPendingWhatsApp,
 }: OrderDetailPanelProps) {
   const { toast } = useToast();
+  const { data: deliveryCompaniesData } = useDeliveryCompanies();
+  const DELIVERY_COMPANIES = (deliveryCompaniesData && deliveryCompaniesData.length > 0) ? deliveryCompaniesData : FALLBACK_DELIVERY_COMPANIES;
 
   // Local order state — updated by mutations (POD status, total changes, etc.)
   const [localOrder, setLocalOrder] = useState<Order>(order);

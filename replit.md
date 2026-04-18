@@ -55,6 +55,17 @@ Authentication supports Google OAuth 2.0 (`passport-google-oauth20`) and phone/p
 -   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Google OAuth 2.0 credentials.
 -   `CASHDESK_API_KEY`: API key for external API authentication.
 
+### Configuration API Endpoints (Internal)
+Authenticated, admin-only PUT/DELETE; GET is authenticated read-only. Used to drive white-label customization without code changes.
+-   `GET/PUT /api/brands`, `/api/admin/brands/:id`: Brand list with `requiresPartyVerification`, `requiresTransportAssignment`, `excludeFromAnalytics`, `displayOrder` flags.
+-   `GET/PUT /api/delivery-companies` (`?brand=` for brand-scoped list).
+-   `GET /api/dispatcher-patterns` (read-only public to authed users; admin CRUD via `/api/admin/dispatcher-patterns`): Pattern → type (self|hand|zero_cost|transport).
+-   `GET/PUT /api/order-status-config`: SLA days, archived flag, sort order per status.
+-   `GET/PUT /api/carton-sizes`: Carton size labels.
+
+### Branding (Frontend)
+`client/src/config/brand.ts` reads `VITE_APP_FULL_NAME`, `VITE_APP_SHORT_NAME`, `VITE_APP_TAGLINE`, `VITE_APP_FAVICON_URL` with safe defaults. `useBrandConfig` hook exposes `useBrands`, `useBrandConfig(brand)`, `useDeliveryCompanies(brand?)`.
+
 ### External API Endpoints
 All external API endpoints require `X-API-KEY` header authentication using `CASHDESK_API_KEY`.
 -   `GET /api/sales/summary`: Retrieves summarized order data by brand within a date range.

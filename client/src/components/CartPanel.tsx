@@ -10,6 +10,7 @@ import { type CartItemData } from "./CartItem";
 import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm, { type PartyVerificationStatus } from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
+import { useBrandConfig } from "@/hooks/useBrandConfig";
 
 function getEffectivePrice(product: Product): number {
   if (product.distributorPrice) {
@@ -264,9 +265,10 @@ export default function CartPanel({
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.length;
   const totalUnits = cartItems.reduce((sum, item) => sum + item.quantity + (item.freeQuantity || 0), 0);
-  const isElmericBrand = cartBrand === "Elmeric";
-  // Allow order when: Customer role (no verification), Elmeric brand (no verification needed), verified, or verification service failed (error)
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
+  const cartBrandConfig = useBrandConfig(cartBrand);
+  const skipPartyVerification = cartBrandConfig?.requiresPartyVerification === false;
+  // Allow order when: Customer role (no verification), brand opted out of party verification, verified, or verification service failed (error)
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || skipPartyVerification || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
 
   const handleClose = () => {
     setStep("cart");
@@ -428,7 +430,7 @@ export default function CartPanel({
                 {!orderDetails.partyName.trim() && (
                   <p className="text-sm text-destructive">Party name required</p>
                 )}
-                {orderDetails.partyName.trim() && !isCustomer && !isElmericBrand && partyVerificationStatus !== "verified" && (
+                {orderDetails.partyName.trim() && !isCustomer && !skipPartyVerification && partyVerificationStatus !== "verified" && (
                   <p className="text-sm text-destructive">Party must be verified before submitting</p>
                 )}
                 

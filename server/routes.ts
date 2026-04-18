@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES, orders, insertTransportCarrierSchema, insertTransportRateSchema } from "@shared/schema";
+import { insertProductSchema, updateOrderSchema, updateProductSchema, insertBrandSchema, insertAnnouncementSchema, ORDER_STATUSES, BRAND_OPTIONS, DELIVERY_COMPANY_OPTIONS, USER_ROLES, ANNOUNCEMENT_PRIORITIES, orders, insertTransportCarrierSchema, insertTransportRateSchema, DISPATCHER_TYPES } from "@shared/schema";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import multer from "multer";
@@ -1413,9 +1413,13 @@ export async function registerRoutes(
       await storage.seedBrands();
       const brandRecords = await storage.getActiveBrands();
       const brandNames = brandRecords.map(b => b.name);
+      const dcs = await storage.getDeliveryCompanies(true);
+      const deliveryCompanyNames = dcs.length > 0
+        ? dcs.map(d => d.name)
+        : [...DELIVERY_COMPANY_OPTIONS];
       res.json({
         brands: brandNames,
-        deliveryCompanies: DELIVERY_COMPANY_OPTIONS,
+        deliveryCompanies: deliveryCompanyNames,
       });
     } catch (error: any) {
       console.error("Error fetching options:", error);
@@ -4157,6 +4161,194 @@ export async function registerRoutes(
       console.error("Error deleting brand:", error);
       res.status(500).json({ message: error.message });
     }
+  });
+
+  // ===== Configurability routes =====
+  const requireAdmin = async (req: any, res: any): Promise<boolean> => {
+    const user = await storage.getUser(req.user.claims.sub);
+    if (!user?.isAdmin && user?.role !== "Admin") {
+      res.status(403).json({ message: "Admin access required" });
+      return false;
+    }
+    return true;
+  };
+
+  // Brand metadata flags update (extends existing PATCH brand)
+  app.patch('/api/admin/brands/:id/flags', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const { id } = req.params;
+      const flagsSchema = z.object({
+        requiresPartyVerification: z.boolean().optional(),
+        requiresTransportAssignment: z.boolean().optional(),
+        excludeFromAnalytics: z.boolean().optional(),
+        displayOrder: z.number().int().optional(),
+      });
+      const parsed = flagsSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid flags", errors: parsed.error.errors });
+      const { db } = await import("./db");
+      const { brands } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const [updated] = await db.update(brands).set(parsed.data).where(eq(brands.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Brand not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating brand flags:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delivery companies
+  app.get('/api/delivery-companies', isAuthenticated, async (req: any, res) => {
+    try {
+      const brand = req.query.brand as string | undefined;
+      if (brand) {
+        const names = await storage.getDeliveryCompaniesForBrand(brand);
+        return res.json(names.map(name => ({ name })));
+      }
+      const list = await storage.getDeliveryCompanies(true);
+      res.json(list);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get('/api/admin/delivery-companies', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      res.json(await storage.getDeliveryCompanies(false));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post('/api/admin/delivery-companies', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ name: z.string().min(1), isActive: z.boolean().optional(), displayOrder: z.number().int().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.upsertDeliveryCompany(p.data);
+      res.status(201).json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.patch('/api/admin/delivery-companies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ name: z.string().min(1), isActive: z.boolean().optional(), displayOrder: z.number().int().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.upsertDeliveryCompany({ id: req.params.id, ...p.data });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete('/api/admin/delivery-companies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const ok = await storage.deleteDeliveryCompany(req.params.id);
+      res.json({ ok });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Brand <-> Delivery company mapping
+  app.put('/api/admin/brands/:brand/delivery-companies', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ companies: z.array(z.string()) });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.setBrandDeliveryCompanies(req.params.brand, p.data.companies);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Dispatcher patterns - read accessible to any authenticated user (used by analytics classifier)
+  app.get('/api/dispatcher-patterns', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getDispatcherPatterns());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get('/api/admin/dispatcher-patterns', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      res.json(await storage.getDispatcherPatterns());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post('/api/admin/dispatcher-patterns', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ pattern: z.string().min(1), type: z.enum(DISPATCHER_TYPES), isActive: z.boolean().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.upsertDispatcherPattern(p.data);
+      res.status(201).json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.patch('/api/admin/dispatcher-patterns/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ pattern: z.string().min(1), type: z.enum(DISPATCHER_TYPES), isActive: z.boolean().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.upsertDispatcherPattern({ id: req.params.id, ...p.data });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete('/api/admin/dispatcher-patterns/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const ok = await storage.deleteDispatcherPattern(req.params.id);
+      res.json({ ok });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Order status config (workflow rules)
+  app.get('/api/order-status-config', isAuthenticated, async (req: any, res) => {
+    try { res.json(await storage.getOrderStatusConfig()); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.patch('/api/admin/order-status-config/:status', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ slaDays: z.number().int().nullable().optional(), isArchived: z.boolean().optional(), sortOrder: z.number().int().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.updateOrderStatusConfig(req.params.status, p.data);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Carton sizes
+  app.get('/api/carton-sizes', isAuthenticated, async (req: any, res) => {
+    try { res.json(await storage.getCartonSizes(true)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get('/api/admin/carton-sizes', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      res.json(await storage.getCartonSizes(false));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post('/api/admin/carton-sizes', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ name: z.string().min(1), sortOrder: z.number().int().optional(), isActive: z.boolean().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.upsertCartonSize(p.data);
+      res.status(201).json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.patch('/api/admin/carton-sizes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const s = z.object({ name: z.string().min(1), sortOrder: z.number().int().optional(), isActive: z.boolean().optional() });
+      const p = s.safeParse(req.body);
+      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
+      await storage.upsertCartonSize({ id: req.params.id, ...p.data });
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete('/api/admin/carton-sizes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const ok = await storage.deleteCartonSize(req.params.id);
+      res.json({ ok });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // Announcement endpoints

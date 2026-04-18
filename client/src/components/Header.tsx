@@ -3,6 +3,7 @@ import { ShoppingCart, Package, ListOrdered, Users, BarChart3, ShoppingBag, Ware
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
+import { BRAND } from "@/config/brand";
 import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderProps {
@@ -28,7 +29,7 @@ export default function Header({
     <>
       <div className="flex items-center gap-2">
         <Package className="w-6 h-6 text-primary" />
-        <h1 className="font-semibold text-lg hidden sm:block">Order Entry</h1>
+        <h1 className="font-semibold text-lg hidden sm:block">{BRAND.appName}</h1>
       </div>
 
       <nav className="flex gap-1 flex-wrap">

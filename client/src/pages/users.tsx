@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useDeliveryCompanies } from "@/hooks/useBrandConfig";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,12 +40,14 @@ interface UserWithBrands extends User {
   partyAccess?: string[];
 }
 
-const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
+const FALLBACK_DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric"];
 
 const ROLE_TABS = ["All", "Admin", "BrandAdmin", "User", "Customer"] as const;
 
 export default function UsersPage() {
   const { toast } = useToast();
+  const { data: deliveryCompaniesData } = useDeliveryCompanies();
+  const DELIVERY_COMPANIES = (deliveryCompaniesData && deliveryCompaniesData.length > 0) ? deliveryCompaniesData : FALLBACK_DELIVERY_COMPANIES;
   const { user } = useAuth();
   const [, navigate] = useLocation();
 

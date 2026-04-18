@@ -6,6 +6,7 @@ import { Trash2, Minus, Plus, Send, Loader2, ArrowLeft, ChevronRight } from "luc
 import { type OrderDetails } from "./OrderSummary";
 import OrderDetailsForm, { type PartyVerificationStatus } from "./OrderDetailsForm";
 import { formatINR, type Product } from "./ProductCard";
+import { useBrandConfig } from "@/hooks/useBrandConfig";
 import type { CartItemData } from "./CartItem";
 
 function getEffectivePrice(product: Product): number {
@@ -251,9 +252,9 @@ export default function MobileCartPage({
   const discountAmount = subtotal * (safeDiscount / 100);
   const finalTotal = subtotal - discountAmount;
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity + (item.freeQuantity || 0), 0);
-  const isElmericBrand = cartBrand === "Elmeric";
-  // Allow order when: Customer role (no verification), Elmeric brand (no verification needed), verified, or verification service failed (error)
-  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || isElmericBrand || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
+  const cartBrandConfig = useBrandConfig(cartBrand);
+  const skipPartyVerification = cartBrandConfig?.requiresPartyVerification === false;
+  const canSendOrder = cartItems.length > 0 && orderDetails.partyName.trim() !== "" && (isCustomer || skipPartyVerification || partyVerificationStatus === "verified" || partyVerificationStatus === "error");
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col" data-testid="fullpage-cart">
@@ -372,7 +373,7 @@ export default function MobileCartPage({
             {!orderDetails.partyName.trim() && (
               <p className="text-sm text-destructive">Party name required</p>
             )}
-            {orderDetails.partyName.trim() && !isElmericBrand && partyVerificationStatus !== "verified" && (
+            {orderDetails.partyName.trim() && !skipPartyVerification && partyVerificationStatus !== "verified" && (
               <p className="text-sm text-destructive">Party must be verified before submitting</p>
             )}
             

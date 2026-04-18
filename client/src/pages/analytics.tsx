@@ -33,7 +33,8 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { Order, User } from "@shared/schema";
-import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
+import { useDeliveryCompanies } from "@/hooks/useBrandConfig";
+const FALLBACK_DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 import {
   LineChart,
   Line,
@@ -343,6 +344,39 @@ export default function AnalyticsPage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: deliveryCompaniesApi } = useDeliveryCompanies();
+  const analyticsDeliveryCompanies = (deliveryCompaniesApi && deliveryCompaniesApi.length > 0) ? deliveryCompaniesApi : FALLBACK_DELIVERY_COMPANY_OPTIONS;
+
+  const { data: brandConfigs = [] } = useQuery<Array<{ name: string; excludeFromAnalytics: boolean }>>({
+    queryKey: ["/api/brands"],
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const excludedAnalyticsBrands = useMemo(
+    () => new Set(brandConfigs.filter(b => b.excludeFromAnalytics).map(b => b.name.toLowerCase())),
+    [brandConfigs]
+  );
+  const isAnalyticsExcludedBrand = useCallback(
+    (brand: string | null | undefined) => !!brand && excludedAnalyticsBrands.has(brand.toLowerCase()),
+    [excludedAnalyticsBrands]
+  );
+
+  const { data: dispatcherPatternRows = [] } = useQuery<Array<{ pattern: string; type: string; isActive: boolean }>>({
+    queryKey: ["/api/dispatcher-patterns"],
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: canViewAnalytics,
+  });
+  const classifyDispatcher = useCallback((dispatchBy: string | null | undefined): string => {
+    if (!dispatchBy) return 'transport';
+    const lower = dispatchBy.toLowerCase().trim();
+    for (const p of dispatcherPatternRows) {
+      if (!p.isActive) continue;
+      if (lower.includes(p.pattern.toLowerCase())) return p.type;
+    }
+    return 'transport';
+  }, [dispatcherPatternRows]);
+
   const { data: allUsers = [] } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     staleTime: 10 * 60 * 1000,
@@ -560,14 +594,14 @@ export default function AnalyticsPage() {
   const invoicedExcludingBiostige = useMemo(() => {
     const invoicedStatuses = ["invoiced", "paymentpending", "dispatched", "delivered", "podreceived"];
     const filtered = ordersData.filter(o => 
-      invoicedStatuses.includes(o.status.toLowerCase()) && o.brand?.toLowerCase() !== 'biostige'
+      invoicedStatuses.includes(o.status.toLowerCase()) && !isAnalyticsExcludedBrand(o.brand)
     );
     const biostigeCount = ordersData.filter(o => 
-      invoicedStatuses.includes(o.status.toLowerCase()) && o.brand?.toLowerCase() === 'biostige'
+      invoicedStatuses.includes(o.status.toLowerCase()) && isAnalyticsExcludedBrand(o.brand)
     ).length;
     const value = filtered.reduce((sum, o) => sum + parseFloat(o.actualOrderValue || o.total || '0'), 0);
     return { value, count: filtered.length, biostigeExcludedCount: biostigeCount };
-  }, [ordersData]);
+  }, [ordersData, isAnalyticsExcludedBrand]);
 
   // Velocity chart data - split into minutes (for fast transitions) and hours (for longer transitions)
   const velocityChartDataMinutes = useMemo(() => [
@@ -646,27 +680,16 @@ export default function AnalyticsPage() {
   // Delivery Cost by Dispatch By - filter and aggregate (summary totals by dispatcher)
   const deliveryCostSummary = useMemo(() => {
     const deliveredStatuses = ["Delivered", "PODReceived"];
-    const excludedDispatchers = ["hand delivery", "by hand"];
-    const zeroCostDispatchers = ["apurba", "apurbo", "baban"];
 
-    const isHandDelivery = (dispatchBy: string) => {
-      const lower = dispatchBy.toLowerCase().trim();
-      return excludedDispatchers.some(ex => lower.includes(ex));
-    };
-    const isSelfDelivery = (dispatchBy: string) => {
-      const lower = dispatchBy.toLowerCase().trim();
-      return lower === 'self';
-    };
-    const isZeroCostDispatcher = (dispatchBy: string) => {
-      const lower = dispatchBy.toLowerCase().trim();
-      return zeroCostDispatchers.some(name => lower.includes(name));
-    };
+    const isHandDelivery = (dispatchBy: string) => classifyDispatcher(dispatchBy) === 'hand';
+    const isSelfDelivery = (dispatchBy: string) => classifyDispatcher(dispatchBy) === 'self';
+    const isZeroCostDispatcher = (dispatchBy: string) => classifyDispatcher(dispatchBy) === 'zero_cost';
 
     const deliveredOrders = ordersData.filter(order => 
-      deliveredStatuses.includes(order.status) && order.brand?.toLowerCase() !== 'biostige'
+      deliveredStatuses.includes(order.status) && !isAnalyticsExcludedBrand(order.brand)
     );
     const biostigeExcludedCount = ordersData.filter(order => 
-      deliveredStatuses.includes(order.status) && order.brand?.toLowerCase() === 'biostige'
+      deliveredStatuses.includes(order.status) && isAnalyticsExcludedBrand(order.brand)
     ).length;
 
     const totals: Record<string, { cost: number; count: number; orderValue: number; delayedCount: number }> = {};
@@ -763,7 +786,7 @@ export default function AnalyticsPage() {
       totalDeliveredValue,
       biostigeExcludedCount,
     };
-  }, [ordersData, normalizeDispatcher]);
+  }, [ordersData, normalizeDispatcher, classifyDispatcher, isAnalyticsExcludedBrand]);
 
   // Order Status Over Time - aggregate by createdAt date
   const orderStatusByDay = useMemo(() => {
@@ -887,7 +910,7 @@ export default function AnalyticsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Companies</SelectItem>
-                  {DELIVERY_COMPANY_OPTIONS.map((company) => (
+                  {analyticsDeliveryCompanies.map((company) => (
                     <SelectItem key={company} value={company}>{company}</SelectItem>
                   ))}
                 </SelectContent>

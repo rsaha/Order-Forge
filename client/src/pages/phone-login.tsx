@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { BRAND } from "@/config/brand";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -58,7 +59,7 @@ export default function PhoneLogin() {
         <div className="flex items-center justify-between px-4 h-16 max-w-6xl mx-auto">
           <div className="flex items-center gap-2">
             <Package className="w-6 h-6 text-primary" />
-            <h1 className="font-semibold text-lg">Order Entry</h1>
+            <h1 className="font-semibold text-lg">{BRAND.appName}</h1>
           </div>
           <Button variant="ghost" onClick={() => navigate("/")} data-testid="button-back">
             <ArrowLeft className="w-4 h-4 mr-2" />

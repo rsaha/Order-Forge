@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
+import { BRAND } from "@/config/brand";
 import CartPanel from "@/components/CartPanel";
 import MobileCartDrawer from "@/components/MobileCartDrawer";
 import MobileCartPage from "@/components/MobileCartPage";
@@ -695,7 +696,7 @@ export default function Home() {
           !isAdmin && orderProducts.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center max-w-md">
-                <h2 className="text-2xl font-semibold mb-4">Welcome to Order Entry App</h2>
+                <h2 className="text-2xl font-semibold mb-4">Welcome to {BRAND.appFullName}</h2>
                 <p className="text-muted-foreground">
                   Please contact Tuhin Ghosh or Sujoy Kar for required access.
                 </p>
@@ -732,7 +733,7 @@ export default function Home() {
           !isAdmin && orderProducts.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center max-w-md">
-                <h2 className="text-2xl font-semibold mb-4">Welcome to Order Entry App</h2>
+                <h2 className="text-2xl font-semibold mb-4">Welcome to {BRAND.appFullName}</h2>
                 <p className="text-muted-foreground">
                   Please contact Tuhin Ghosh or Sujoy Kar for required access.
                 </p>

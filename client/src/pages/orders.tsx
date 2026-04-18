@@ -82,14 +82,14 @@ import {
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
-import { DELIVERY_COMPANY_OPTIONS } from "@shared/schema";
+import { useDeliveryCompanies } from "@/hooks/useBrandConfig";
 import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
-const ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
-const CARTON_SIZE_OPTIONS = ["Small", "Medium", "Large"];
 
-const STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
+const DEFAULT_ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
+const DEFAULT_CARTON_SIZE_OPTIONS = ["Small", "Medium", "Large"];
+const DEFAULT_STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
   Online: 1,
   Created: 2,
   Approved: 3,
@@ -98,6 +98,9 @@ const STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
   Invoiced: 3,
   PaymentPending: 5,
 };
+
+let STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = { ...DEFAULT_STATUS_SLA_DAYS };
+let ARCHIVE_STATUSES: OrderStatus[] = [...DEFAULT_ARCHIVE_STATUSES];
 
 function getOverdueDays(order: Order): number {
   const today = new Date();
@@ -247,7 +250,7 @@ interface OrderEditFormData {
 }
 
 const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "ACCUSURE", "Elmeric", "Blefit", "Ayouthveda"];
-const DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
+const FALLBACK_DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 
 function getDateRange(days: number): { fromDate: string; toDate: string } {
   const today = new Date();
@@ -495,6 +498,34 @@ export default function OrdersPage() {
   const isAdmin = user?.isAdmin || false;
   const isBrandAdmin = user?.role === 'BrandAdmin';
   const hasAdminAccess = isAdmin || isBrandAdmin;
+
+  const { data: deliveryCompaniesData } = useDeliveryCompanies();
+  const DELIVERY_COMPANIES = (deliveryCompaniesData && deliveryCompaniesData.length > 0) ? deliveryCompaniesData : FALLBACK_DELIVERY_COMPANIES;
+
+  const { data: statusConfig = [] } = useQuery<Array<{ status: string; slaDays: number | null; isArchived: boolean; sortOrder: number }>>({
+    queryKey: ["/api/order-status-config"],
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: cartonSizesData = [] } = useQuery<Array<{ id: string; name: string; sortOrder: number; isActive: boolean }>>({
+    queryKey: ["/api/carton-sizes"],
+    staleTime: 5 * 60 * 1000,
+  });
+  useEffect(() => {
+    if (statusConfig.length > 0) {
+      const sla: Partial<Record<OrderStatus, number>> = {};
+      const archived: OrderStatus[] = [];
+      for (const c of statusConfig) {
+        if (c.slaDays != null) sla[c.status as OrderStatus] = c.slaDays;
+        if (c.isArchived) archived.push(c.status as OrderStatus);
+      }
+      STATUS_SLA_DAYS = sla;
+      ARCHIVE_STATUSES = archived;
+    }
+  }, [statusConfig]);
+  const CARTON_SIZE_OPTIONS = useMemo(
+    () => (cartonSizesData.length > 0 ? cartonSizesData.filter(c => c.isActive).sort((a, b) => a.sortOrder - b.sortOrder).map(c => c.name) : DEFAULT_CARTON_SIZE_OPTIONS),
+    [cartonSizesData]
+  );
 
   const { data: allOrders = [], isLoading } = useQuery<Order[]>({
     queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", deliveryCompanyFilter, brandFilter, dateRange],
@@ -4396,7 +4427,7 @@ export default function OrdersPage() {
                       className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
                     >
                       <option value="">Select…</option>
-                      {DELIVERY_COMPANY_OPTIONS.map(c => (
+                      {DELIVERY_COMPANIES.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>

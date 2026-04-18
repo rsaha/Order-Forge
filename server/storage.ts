@@ -7,6 +7,11 @@ import {
   orders,
   orderItems,
   brands,
+  deliveryCompanies,
+  brandDeliveryCompanies,
+  dispatcherPatterns,
+  orderStatusConfig,
+  cartonSizes,
   announcements,
   brandForecastSettings,
   brandSalesSnapshots,
@@ -31,6 +36,7 @@ import {
   type UpdateProduct,
   type BrandRecord,
   type InsertBrand,
+  type DispatcherType,
   type Announcement,
   type InsertAnnouncement,
   type BrandForecastSettings,
@@ -119,7 +125,23 @@ export interface IStorage {
   updateBrand(id: string, updates: { name?: string; isActive?: boolean }): Promise<BrandRecord | undefined>;
   deleteBrand(id: string): Promise<boolean>;
   seedBrands(): Promise<void>;
-  
+
+  // Configurability: delivery companies, brand-delivery mapping, dispatcher patterns, status config, carton sizes
+  getDeliveryCompanies(activeOnly?: boolean): Promise<{ id: string; name: string; isActive: boolean; displayOrder: number }[]>;
+  upsertDeliveryCompany(input: { id?: string; name: string; isActive?: boolean; displayOrder?: number }): Promise<void>;
+  deleteDeliveryCompany(id: string): Promise<boolean>;
+  getDeliveryCompaniesForBrand(brand: string): Promise<string[]>;
+  setBrandDeliveryCompanies(brand: string, companies: string[]): Promise<void>;
+  getDispatcherPatterns(): Promise<{ id: string; pattern: string; type: DispatcherType; isActive: boolean }[]>;
+  upsertDispatcherPattern(input: { id?: string; pattern: string; type: DispatcherType; isActive?: boolean }): Promise<void>;
+  deleteDispatcherPattern(id: string): Promise<boolean>;
+  classifyDispatcher(name: string | null | undefined): Promise<DispatcherType>;
+  getOrderStatusConfig(): Promise<{ status: string; slaDays: number | null; isArchived: boolean; sortOrder: number }[]>;
+  updateOrderStatusConfig(status: string, updates: { slaDays?: number | null; isArchived?: boolean; sortOrder?: number }): Promise<void>;
+  getCartonSizes(activeOnly?: boolean): Promise<{ id: string; name: string; sortOrder: number; isActive: boolean }[]>;
+  upsertCartonSize(input: { id?: string; name: string; sortOrder?: number; isActive?: boolean }): Promise<void>;
+  deleteCartonSize(id: string): Promise<boolean>;
+
   // Pending order operations
   createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null>;
   
@@ -716,6 +738,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      cartonSize: orders.cartonSize,
       createdBy: orders.createdBy,
       createdAt: orders.createdAt,
       createdByName: sql<string | null>`concat_ws(' ', ${creatorUser.firstName}, ${creatorUser.lastName})`.as('createdByName'),
@@ -803,6 +826,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      cartonSize: orders.cartonSize,
       createdBy: orders.createdBy,
       createdAt: orders.createdAt,
       createdByName: sql<string | null>`concat_ws(' ', ${creatorUser.firstName}, ${creatorUser.lastName})`.as('createdByName'),
@@ -862,6 +886,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      cartonSize: orders.cartonSize,
       createdBy: orders.createdBy,
       createdAt: orders.createdAt,
       // Order owner info (sales user)
@@ -914,6 +939,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      cartonSize: orders.cartonSize,
       createdBy: orders.createdBy,
       createdAt: orders.createdAt,
       createdByName: users.firstName,
@@ -1035,6 +1061,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      cartonSize: orders.cartonSize,
       createdBy: orders.createdBy,
       createdAt: orders.createdAt,
       // Order owner info (sales user)
@@ -1093,6 +1120,7 @@ export class DatabaseStorage implements IStorage {
       podStatus: orders.podStatus,
       podTimestamp: orders.podTimestamp,
       parentOrderId: orders.parentOrderId,
+      cartonSize: orders.cartonSize,
       createdBy: orders.createdBy,
       createdAt: orders.createdAt,
       // Order owner info (sales user)
@@ -1582,13 +1610,17 @@ export class DatabaseStorage implements IStorage {
     // Build brand series — invoiced value per brand per time bucket (keyed by invoice date)
     const brandBuckets = new Map<string, Map<string, number>>(); // date -> (brand -> invoicedValue)
     const brandNamesSet = new Set<string>();
-    const excludedBrandsForBrand = ['Biostige'];
+    const brandSeriesExcluded = new Set(
+      (await this.getAllBrands())
+        .filter(b => b.excludeFromAnalytics)
+        .map(b => b.name.toLowerCase())
+    );
 
     for (const order of allOrders) {
       const status = order.status || 'Created';
       const value = Number(order.actualOrderValue || order.total || 0);
       const brand = order.brand || 'Unknown';
-      if (excludedBrandsForBrand.includes(brand)) continue;
+      if (brandSeriesExcluded.has(brand.toLowerCase())) continue;
       if (!invoicedStatuses.includes(status)) continue;
       if (!order.invoiceDate) continue;
 
@@ -1614,21 +1646,27 @@ export class DatabaseStorage implements IStorage {
 
     // Build transport cost series — total delivery cost per time bucket (keyed by dispatch date)
     const transportBuckets = new Map<string, number>();
-    const excludedDispatcherPatterns = ['hand delivery', 'by hand'];
-    const zeroCostPatterns = ['apurba', 'apurbo', 'baban'];
+    // Load patterns + analytics-excluded brands from DB config
+    const dispatcherPatternRows = (await this.getDispatcherPatterns()).filter(p => p.isActive);
+    const analyticsExcludedBrands = new Set(
+      (await this.getAllBrands())
+        .filter(b => b.excludeFromAnalytics)
+        .map(b => b.name.toLowerCase())
+    );
 
     // Use delivered-only statuses to match the frontend Transport Cost KPI card definition
     const deliveredOnlyStatuses = ['Delivered', 'PODReceived'];
     for (const order of allOrders) {
       const status = order.status || 'Created';
       if (!deliveredOnlyStatuses.includes(status)) continue;
-      if ((order.brand || '').toLowerCase() === 'biostige') continue;
+      if (analyticsExcludedBrands.has((order.brand || '').toLowerCase())) continue;
       const cost = Number(order.deliveryCost || 0);
       if (cost <= 0) continue;
       if (!order.dispatchBy) continue;
       const dispLower = order.dispatchBy.toLowerCase().trim();
-      if (excludedDispatcherPatterns.some(p => dispLower.includes(p))) continue;
-      if (zeroCostPatterns.some(p => dispLower.includes(p))) continue;
+      // Skip non-transport dispatchers (hand, self, zero_cost)
+      const dispType = dispatcherPatternRows.find(p => dispLower.includes(p.pattern.toLowerCase()))?.type;
+      if (dispType && dispType !== 'transport') continue;
 
       if (!order.dispatchDate) continue;
       const bucketKey = getBucketKey(new Date(order.dispatchDate));
@@ -1735,6 +1773,129 @@ export class DatabaseStorage implements IStorage {
     for (const name of defaultBrands) {
       await db.insert(brands).values({ name, isActive: true }).onConflictDoNothing();
     }
+  }
+
+  // ===== Configurability methods =====
+
+  async getDeliveryCompanies(activeOnly = false) {
+    const rows = activeOnly
+      ? await db.select().from(deliveryCompanies).where(eq(deliveryCompanies.isActive, true)).orderBy(deliveryCompanies.displayOrder, deliveryCompanies.name)
+      : await db.select().from(deliveryCompanies).orderBy(deliveryCompanies.displayOrder, deliveryCompanies.name);
+    return rows.map(r => ({ id: r.id, name: r.name, isActive: r.isActive, displayOrder: r.displayOrder }));
+  }
+
+  async upsertDeliveryCompany(input: { id?: string; name: string; isActive?: boolean; displayOrder?: number }) {
+    if (input.id) {
+      const u: Record<string, unknown> = { name: input.name };
+      if (input.isActive !== undefined) u.isActive = input.isActive;
+      if (input.displayOrder !== undefined) u.displayOrder = input.displayOrder;
+      await db.update(deliveryCompanies).set(u).where(eq(deliveryCompanies.id, input.id));
+    } else {
+      await db.insert(deliveryCompanies).values({
+        name: input.name,
+        isActive: input.isActive ?? true,
+        displayOrder: input.displayOrder ?? 100,
+      }).onConflictDoNothing();
+    }
+  }
+
+  async deleteDeliveryCompany(id: string) {
+    const r = await db.delete(deliveryCompanies).where(eq(deliveryCompanies.id, id)).returning();
+    return r.length > 0;
+  }
+
+  async getDeliveryCompaniesForBrand(brand: string): Promise<string[]> {
+    const rows = await db.select({ name: brandDeliveryCompanies.deliveryCompanyName })
+      .from(brandDeliveryCompanies)
+      .where(eq(brandDeliveryCompanies.brandName, brand));
+    if (rows.length > 0) return rows.map(r => r.name);
+    // Fallback: return all active delivery companies
+    const all = await this.getDeliveryCompanies(true);
+    return all.map(r => r.name);
+  }
+
+  async setBrandDeliveryCompanies(brand: string, companies: string[]) {
+    await db.delete(brandDeliveryCompanies).where(eq(brandDeliveryCompanies.brandName, brand));
+    if (companies.length > 0) {
+      await db.insert(brandDeliveryCompanies).values(
+        companies.map(c => ({ brandName: brand, deliveryCompanyName: c }))
+      );
+    }
+  }
+
+  async getDispatcherPatterns() {
+    const rows = await db.select().from(dispatcherPatterns).orderBy(dispatcherPatterns.pattern);
+    return rows.map(r => ({ id: r.id, pattern: r.pattern, type: r.type as DispatcherType, isActive: r.isActive }));
+  }
+
+  async upsertDispatcherPattern(input: { id?: string; pattern: string; type: DispatcherType; isActive?: boolean }) {
+    if (input.id) {
+      const u: Record<string, unknown> = { pattern: input.pattern, type: input.type };
+      if (input.isActive !== undefined) u.isActive = input.isActive;
+      await db.update(dispatcherPatterns).set(u).where(eq(dispatcherPatterns.id, input.id));
+    } else {
+      await db.insert(dispatcherPatterns).values({
+        pattern: input.pattern,
+        type: input.type,
+        isActive: input.isActive ?? true,
+      });
+    }
+  }
+
+  async deleteDispatcherPattern(id: string) {
+    const r = await db.delete(dispatcherPatterns).where(eq(dispatcherPatterns.id, id)).returning();
+    return r.length > 0;
+  }
+
+  async classifyDispatcher(name: string | null | undefined): Promise<DispatcherType> {
+    if (!name) return "transport";
+    const lower = name.toLowerCase().trim();
+    const patterns = await this.getDispatcherPatterns();
+    for (const p of patterns) {
+      if (!p.isActive) continue;
+      if (lower.includes(p.pattern.toLowerCase())) return p.type;
+    }
+    return "transport";
+  }
+
+  async getOrderStatusConfig() {
+    const rows = await db.select().from(orderStatusConfig).orderBy(orderStatusConfig.sortOrder);
+    return rows.map(r => ({ status: r.status, slaDays: r.slaDays, isArchived: r.isArchived, sortOrder: r.sortOrder }));
+  }
+
+  async updateOrderStatusConfig(status: string, updates: { slaDays?: number | null; isArchived?: boolean; sortOrder?: number }) {
+    const u: Record<string, unknown> = { updatedAt: new Date() };
+    if (updates.slaDays !== undefined) u.slaDays = updates.slaDays;
+    if (updates.isArchived !== undefined) u.isArchived = updates.isArchived;
+    if (updates.sortOrder !== undefined) u.sortOrder = updates.sortOrder;
+    await db.update(orderStatusConfig).set(u).where(eq(orderStatusConfig.status, status));
+  }
+
+  async getCartonSizes(activeOnly = false) {
+    const rows = activeOnly
+      ? await db.select().from(cartonSizes).where(eq(cartonSizes.isActive, true)).orderBy(cartonSizes.sortOrder)
+      : await db.select().from(cartonSizes).orderBy(cartonSizes.sortOrder);
+    return rows.map(r => ({ id: r.id, name: r.name, sortOrder: r.sortOrder, isActive: r.isActive }));
+  }
+
+  async upsertCartonSize(input: { id?: string; name: string; sortOrder?: number; isActive?: boolean }) {
+    if (input.id) {
+      const u: Record<string, unknown> = { name: input.name };
+      if (input.sortOrder !== undefined) u.sortOrder = input.sortOrder;
+      if (input.isActive !== undefined) u.isActive = input.isActive;
+      await db.update(cartonSizes).set(u).where(eq(cartonSizes.id, input.id));
+    } else {
+      await db.insert(cartonSizes).values({
+        name: input.name,
+        sortOrder: input.sortOrder ?? 100,
+        isActive: input.isActive ?? true,
+      }).onConflictDoNothing();
+    }
+  }
+
+  async deleteCartonSize(id: string) {
+    const r = await db.delete(cartonSizes).where(eq(cartonSizes.id, id)).returning();
+    return r.length > 0;
   }
 
   async createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null> {
@@ -2373,8 +2534,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Separate unassigned (no dispatchBy) and assigned (has dispatchBy)
-    const TRANSPORT_EXCLUDED_BRANDS = ["Elmeric", "Biostige"];
-    const unassignedOrders = invoicedOrders.filter(o => !o.dispatchBy && !TRANSPORT_EXCLUDED_BRANDS.includes(o.brand || ""));
+    // Brands flagged as not requiring transport assignment are excluded from "unassigned"
+    const transportExcludedBrandSet = new Set(
+      (await this.getAllBrands())
+        .filter(b => !b.requiresTransportAssignment)
+        .map(b => b.name)
+    );
+    const unassignedOrders = invoicedOrders.filter(o => !o.dispatchBy && !transportExcludedBrandSet.has(o.brand || ""));
     const assignedOrders = invoicedOrders.filter(o => !!o.dispatchBy);
 
     // Group unassigned by partyName

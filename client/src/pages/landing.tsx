@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Package, FileText, MessageCircle, ShoppingCart, ArrowRight, Phone } from "lucide-react";
 import { Link } from "wouter";
+import { BRAND } from "@/config/brand";
 
 export default function Landing() {
   return (
@@ -10,7 +11,7 @@ export default function Landing() {
         <div className="flex items-center justify-between px-4 h-16 max-w-6xl mx-auto">
           <div className="flex items-center gap-2">
             <Package className="w-6 h-6 text-primary" />
-            <h1 className="font-semibold text-lg">Order Entry</h1>
+            <h1 className="font-semibold text-lg">{BRAND.appName}</h1>
           </div>
           <Button asChild data-testid="button-login">
             <a href="/api/login">Log In</a>
@@ -50,7 +51,7 @@ export default function Landing() {
 
       <footer className="border-t py-6 px-4">
         <div className="max-w-6xl mx-auto text-center text-sm text-muted-foreground">
-          <p>Order Entry App</p>
+          <p>{BRAND.appFullName}</p>
         </div>
       </footer>
     </div>
