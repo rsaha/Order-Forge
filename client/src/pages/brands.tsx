@@ -12,8 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
-  ArrowLeft, Plus, Pencil, Trash2, X, Check, Loader2, Tag
+  ArrowLeft, Plus, Pencil, Trash2, X, Check, Loader2, Tag, Camera
 } from "lucide-react";
+import ImagePickerDialog from "@/components/ImagePickerDialog";
+import { transformImageUrl } from "@/lib/imageUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +46,7 @@ export default function BrandsPage() {
   const [newBrandName, setNewBrandName] = useState("");
   const [editBrandName, setEditBrandName] = useState("");
   const [editBrandActive, setEditBrandActive] = useState(true);
+  const [logoPickerBrand, setLogoPickerBrand] = useState<BrandRecord | null>(null);
 
   const isAdmin = user?.isAdmin === true;
 
@@ -95,6 +98,21 @@ export default function BrandsPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to delete brand", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const logoMutation = useMutation({
+    mutationFn: async ({ id, logoUrl }: { id: string; logoUrl: string | null }) => {
+      return apiRequest("PUT", `/api/admin/brands/${id}/logo`, { logoUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/brands"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/brands"] });
+      setLogoPickerBrand(null);
+      toast({ title: "Brand logo updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update logo", description: error.message, variant: "destructive" });
     },
   });
 
@@ -187,7 +205,17 @@ export default function BrandsPage() {
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <Tag className="w-5 h-5 text-muted-foreground" />
+                      {brand.logoUrl ? (
+                        <img
+                          src={transformImageUrl(brand.logoUrl) ?? brand.logoUrl}
+                          alt={brand.name}
+                          className="w-8 h-8 object-contain rounded"
+                          onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                          data-testid={`img-brand-logo-${brand.id}`}
+                        />
+                      ) : (
+                        <Tag className="w-5 h-5 text-muted-foreground" />
+                      )}
                       <span className="font-medium" data-testid={`text-brand-name-${brand.id}`}>
                         {brand.name}
                       </span>
@@ -199,6 +227,15 @@ export default function BrandsPage() {
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setLogoPickerBrand(brand)}
+                        title="Set logo"
+                        data-testid={`button-logo-brand-${brand.id}`}
+                      >
+                        <Camera className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -302,6 +339,16 @@ export default function BrandsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImagePickerDialog
+        open={!!logoPickerBrand}
+        onOpenChange={(open) => !open && setLogoPickerBrand(null)}
+        title={`Brand Logo — ${logoPickerBrand?.name ?? ""}`}
+        description="Paste an image URL, a Google Drive share link, or upload a file from your device."
+        currentUrl={logoPickerBrand?.logoUrl}
+        isSaving={logoMutation.isPending}
+        onSave={(url) => logoPickerBrand && logoMutation.mutate({ id: logoPickerBrand.id, logoUrl: url })}
+      />
 
       <AlertDialog open={!!brandToDelete} onOpenChange={(open) => !open && setBrandToDelete(null)}>
         <AlertDialogContent>

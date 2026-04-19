@@ -123,6 +123,7 @@ export interface IStorage {
   getBrandUsage(brandName: string): Promise<{ productCount: number; orderCount: number }>;
   createBrand(brand: InsertBrand): Promise<BrandRecord>;
   updateBrand(id: string, updates: { name?: string; isActive?: boolean }): Promise<BrandRecord | undefined>;
+  updateBrandLogo(id: string, logoUrl: string | null): Promise<BrandRecord | undefined>;
   deleteBrand(id: string): Promise<boolean>;
   seedBrands(): Promise<void>;
 
@@ -586,6 +587,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.stock !== undefined) updateData.stock = updates.stock;
     if (updates.category !== undefined) updateData.category = updates.category;
     if (updates.caseSize !== undefined) updateData.caseSize = Math.max(1, updates.caseSize);
+    if (updates.photoUrl !== undefined) updateData.photoUrl = updates.photoUrl;
 
     if (Object.keys(updateData).length === 0) {
       return this.getProduct(id);
@@ -1753,6 +1755,11 @@ export class DatabaseStorage implements IStorage {
     }
     
     const [updated] = await db.update(brands).set(updateData).where(eq(brands.id, id)).returning();
+    return updated;
+  }
+
+  async updateBrandLogo(id: string, logoUrl: string | null): Promise<BrandRecord | undefined> {
+    const [updated] = await db.update(brands).set({ logoUrl }).where(eq(brands.id, id)).returning();
     return updated;
   }
 

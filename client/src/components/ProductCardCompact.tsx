@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Minus, ShoppingCart, Check } from "lucide-react";
+import { transformImageUrl } from "@/lib/imageUtils";
 
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -26,6 +27,7 @@ export interface ProductVariant {
   alias2?: string | null;
   stock: number;
   caseSize?: number;
+  photoUrl?: string | null;
 }
 
 function getEffectivePrice(variant: ProductVariant): number {
@@ -162,9 +164,21 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
   };
 
   const hasChanges = !isInCart || unitQty !== cartQuantity;
+  const photoSrc = transformImageUrl(group.variants[0]?.photoUrl);
 
   return (
     <Card className="p-3 flex flex-col gap-2 overflow-hidden">
+      {photoSrc && (
+        <div className="w-full h-20 rounded overflow-hidden bg-muted">
+          <img
+            src={photoSrc}
+            alt={group.name}
+            className="w-full h-full object-contain"
+            onError={(e) => { (e.target as HTMLElement).parentElement!.style.display = "none"; }}
+            data-testid={`img-product-${group.baseKey}`}
+          />
+        </div>
+      )}
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground truncate" data-testid={`text-brand-${group.baseKey}`}>
           {group.brand}

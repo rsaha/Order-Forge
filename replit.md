@@ -35,6 +35,7 @@ Authentication supports Google OAuth 2.0 (`passport-google-oauth20`) and phone/p
 -   **Stock Forecast Dashboard**: Admin-only feature for per-brand stock forecasting based on sales analysis (3-month moving average + ETS). Supports two-phase stock upload and snapshot history.
 -   **Role-Based Navigation**: Navigation adapts to user roles (Admin, BrandAdmin, User, Customer), showing relevant pages like "Orders Management," "My Orders," "Analytics," "Products," and "Inventory."
 -   **Transport Prediction**: Admin-only tab for dispatching invoiced orders, integrating with `transportCarriers` and `transportRates` tables. Predicts costs based on carrier types (flat per location, per parcel by zone). Allows bulk assignment and dispatch.
+-   **Product Photos & Brand Logos**: Optional image support with zero-cost storage. Admins can attach photos to products and logos to brands via URL paste (including Google Drive share links auto-transformed to thumbnails), or upload from device (client-side canvas compression to ≤100 KB JPEG stored as base64). Images appear as thumbnails in the product catalog (ProductCard, ProductCardCompact) and brand logos on the Brands management page. New columns: `products.photo_url`, `brands.logo_url`. Backend: `PATCH /api/products/:id` accepts `photoUrl`; `PUT /api/admin/brands/:id/logo` sets logo. Shared utilities: `client/src/lib/imageUtils.ts` (transformImageUrl, compressImageFile). Reusable `ImagePickerDialog` component.
 
 ## External Dependencies
 

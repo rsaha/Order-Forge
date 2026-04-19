@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Minus, Check } from "lucide-react";
+import { Plus, Minus, Check, Package } from "lucide-react";
+import { transformImageUrl } from "@/lib/imageUtils";
 
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -22,6 +23,7 @@ export interface Product {
   stock: number;
   caseSize?: number;
   category?: string;
+  photoUrl?: string | null;
 }
 
 interface ProductCardProps {
@@ -77,8 +79,21 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
 
   const hasChanges = !isInCart || unitQty !== cartQuantity;
 
+  const photoSrc = transformImageUrl(product.photoUrl);
+
   return (
     <Card className="p-4 flex flex-col gap-2">
+      {photoSrc && (
+        <div className="w-full h-28 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+          <img
+            src={photoSrc}
+            alt={product.name}
+            className="w-full h-full object-contain"
+            onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+            data-testid={`img-product-${product.id}`}
+          />
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <p className="font-mono text-sm text-muted-foreground truncate" data-testid={`text-sku-${product.id}`}>
           {product.sku}

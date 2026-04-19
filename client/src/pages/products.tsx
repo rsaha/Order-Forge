@@ -24,11 +24,12 @@ import {
   Package, Pencil, Trash2, Download, Upload, ArrowLeft, Tag, Megaphone,
   Settings, TrendingUp, AlertTriangle, CheckCircle, XCircle, Loader2,
   RefreshCw, ChevronDown, ChevronRight, BarChart2, ArrowUpDown, ArrowUp,
-  ArrowDown, Save, History, Boxes,
+  ArrowDown, Save, History, Boxes, Camera,
 } from "lucide-react";
 import { Link } from "wouter";
 import * as XLSX from "xlsx";
 import type { Product, BrandRecord } from "@shared/schema";
+import ImagePickerDialog from "@/components/ImagePickerDialog";
 
 interface UploadedFile {
   name: string;
@@ -210,6 +211,7 @@ export default function ProductsPage() {
     name: "", brand: "", sku: "", size: "", alias1: "", alias2: "",
     price: "", distributorPrice: "", stock: "", caseSize: "1",
   });
+  const [photoPickerProduct, setPhotoPickerProduct] = useState<Product | null>(null);
 
   // ─── Stock management state ──────────────────────────────────────────────
   const [stockBrand, setStockBrand] = useState<string>("");
@@ -345,6 +347,20 @@ export default function ProductsPage() {
     },
     onError: () => {
       toast({ title: "Failed to delete product", variant: "destructive" });
+    },
+  });
+
+  const photoMutation = useMutation({
+    mutationFn: async ({ id, photoUrl }: { id: string; photoUrl: string | null }) => {
+      return apiRequest("PATCH", `/api/products/${id}`, { photoUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setPhotoPickerProduct(null);
+      toast({ title: "Product photo updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update photo", variant: "destructive" });
     },
   });
 
@@ -784,6 +800,15 @@ export default function ProductsPage() {
                               </td>
                               <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setPhotoPickerProduct(product)}
+                                    title="Set photo"
+                                    data-testid={`button-photo-${product.id}`}
+                                  >
+                                    <Camera className={`w-4 h-4 ${(product as any).photoUrl ? "text-primary" : ""}`} />
+                                  </Button>
                                   <Button size="icon" variant="ghost" onClick={() => handleProductClick(product)} data-testid={`button-edit-${product.id}`}>
                                     <Pencil className="w-4 h-4" />
                                   </Button>
@@ -1551,6 +1576,16 @@ export default function ProductsPage() {
       </Dialog>
 
       {/* Delete Product Dialog */}
+      <ImagePickerDialog
+        open={!!photoPickerProduct}
+        onOpenChange={(open) => !open && setPhotoPickerProduct(null)}
+        title={`Product Photo — ${photoPickerProduct?.name ?? ""}`}
+        description="Paste an image URL, a Google Drive share link, or upload a file from your device."
+        currentUrl={(photoPickerProduct as any)?.photoUrl}
+        isSaving={photoMutation.isPending}
+        onSave={(url) => photoPickerProduct && photoMutation.mutate({ id: photoPickerProduct.id, photoUrl: url })}
+      />
+
       <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

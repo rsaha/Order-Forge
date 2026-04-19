@@ -63,6 +63,7 @@ export const products = pgTable("products", {
   stock: integer("stock").notNull().default(0),
   caseSize: integer("case_size").notNull().default(1),
   category: varchar("category"),
+  photoUrl: text("photo_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -87,6 +88,7 @@ export const brands = pgTable("brands", {
   requiresTransportAssignment: boolean("requires_transport_assignment").notNull().default(true),
   excludeFromAnalytics: boolean("exclude_from_analytics").notNull().default(false),
   displayOrder: integer("display_order").notNull().default(100),
+  logoUrl: text("logo_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -423,6 +425,7 @@ export const updateProductSchema = z.object({
   stock: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? parseInt(v) || 0 : v).optional(),
   caseSize: z.number().int().min(1).optional(),
   category: z.string().nullable().optional(),
+  photoUrl: z.string().nullable().optional(),
 });
 export type UpdateProduct = z.infer<typeof updateProductSchema>;
 

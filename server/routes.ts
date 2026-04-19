@@ -4198,6 +4198,23 @@ export async function registerRoutes(
     }
   });
 
+  // Update brand logo URL
+  app.put('/api/admin/brands/:id/logo', isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await requireAdmin(req, res))) return;
+      const { id } = req.params;
+      const schema = z.object({ logoUrl: z.string().nullable() });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid logo URL" });
+      const updated = await storage.updateBrandLogo(id, parsed.data.logoUrl);
+      if (!updated) return res.status(404).json({ message: "Brand not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating brand logo:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Delivery companies
   app.get('/api/delivery-companies', isAuthenticated, async (req: any, res) => {
     try {
