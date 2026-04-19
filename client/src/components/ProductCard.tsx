@@ -85,13 +85,18 @@ export default function ProductCard({ product, cartQuantity, onAddToCart, brandL
   const [imgError, setImgError] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
+  // Reset error state when the photo source changes (e.g. after uploading a new photo)
+  useEffect(() => {
+    setImgError(false);
+  }, [photoSrc]);
+
   const showPhoto = !!(photoSrc && !imgError);
   const showLogo = !showPhoto && !!(logoSrc && !logoError);
 
   return (
     <Card className="p-4 flex flex-col gap-2">
       {showPhoto && (
-        <div className="w-full aspect-[3/4] rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 flex items-center justify-center">
+        <div className="w-full h-44 rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 flex items-center justify-center">
           <img
             src={photoSrc!}
             alt={product.name}
