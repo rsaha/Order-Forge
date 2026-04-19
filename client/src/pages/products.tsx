@@ -326,6 +326,7 @@ export default function ProductsPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/by-brand"] });
       setUploadedFiles(prev => [...prev, {
         name: data.fileName || "uploaded-file.xlsx",
         brand: data.brand,
@@ -344,6 +345,7 @@ export default function ProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/by-brand"] });
       toast({ title: "Product updated successfully" });
       setSelectedProduct(null);
     },
@@ -358,6 +360,7 @@ export default function ProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/by-brand"] });
       toast({ title: "Product deleted successfully" });
       setProductToDelete(null);
     },
@@ -372,6 +375,7 @@ export default function ProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/by-brand"] });
       setPhotoPickerProduct(null);
       toast({ title: "Product photo updated" });
     },
@@ -414,6 +418,7 @@ export default function ProductsPage() {
       ),
     onSuccess: (data: BulkPhotosResult) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/by-brand"] });
       const totalSkipped = (data.skipped ?? 0) + preSkippedRef.current;
       setBulkPhotosResult({ ...data, skipped: totalSkipped });
       setBulkPhotosProgress(null);
