@@ -195,6 +195,7 @@ export interface IStorage {
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
+  unassignTransportFromOrders(orderIds: string[]): Promise<number>;
 }
 
 export interface StatusMetric {
@@ -2624,6 +2625,14 @@ export class DatabaseStorage implements IStorage {
     // Only assign transport to Invoiced orders to prevent accidental modification of other statuses
     const result = await db.update(orders)
       .set({ dispatchBy })
+      .where(and(inArray(orders.id, orderIds), eq(orders.status, "Invoiced")));
+    return result.rowCount ?? 0;
+  }
+
+  async unassignTransportFromOrders(orderIds: string[]): Promise<number> {
+    if (orderIds.length === 0) return 0;
+    const result = await db.update(orders)
+      .set({ dispatchBy: null })
       .where(and(inArray(orders.id, orderIds), eq(orders.status, "Invoiced")));
     return result.rowCount ?? 0;
   }

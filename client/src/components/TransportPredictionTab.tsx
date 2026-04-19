@@ -32,6 +32,7 @@ import {
   BoxesIcon,
   MapPin,
   RefreshCw,
+  X,
 } from "lucide-react";
 import TransportFlyout from "./TransportFlyout";
 
@@ -113,6 +114,9 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
   const [assignGroup, setAssignGroup] = useState<UnassignedGroup | null>(null);
   const [assignCarrier, setAssignCarrier] = useState("");
 
+  // Unassign confirm state — holds the dispatchBy key of the group pending confirmation
+  const [unassignPending, setUnassignPending] = useState<string | null>(null);
+
   function toggleGroup(key: string) {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -141,6 +145,18 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
       setAssignCarrier("");
     },
     onError: (e: Error) => toast({ title: "Failed to assign", description: e.message, variant: "destructive" }),
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: ({ orderIds }: { orderIds: string[] }) =>
+      apiRequest("PATCH", "/api/transport/unassign", { orderIds }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport/predict"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+      toast({ title: `Unassigned ${vars.orderIds.length} order(s)` });
+      setUnassignPending(null);
+    },
+    onError: (e: Error) => toast({ title: "Failed to unassign", description: e.message, variant: "destructive" }),
   });
 
   // Get carrier name options for assign dialog (carrier names + custom input)
@@ -361,15 +377,54 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                               )}
                             </td>
                             <td className="p-2 text-right" onClick={e => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                className="gap-1 h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                                onClick={() => onDispatchGroup(group)}
-                                data-testid={`button-dispatch-${group.dispatchBy}`}
-                              >
-                                <ChevronRight className="w-3 h-3" />
-                                Dispatch All
-                              </Button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {unassignPending === group.dispatchBy ? (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1 h-7 text-xs text-muted-foreground"
+                                      onClick={() => setUnassignPending(null)}
+                                      disabled={unassignMutation.isPending}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="gap-1 h-7 text-xs"
+                                      onClick={() => unassignMutation.mutate({ orderIds: group.orderIds })}
+                                      disabled={unassignMutation.isPending}
+                                      data-testid={`button-unassign-confirm-${group.dispatchBy}`}
+                                    >
+                                      {unassignMutation.isPending
+                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                        : <X className="w-3 h-3" />}
+                                      Confirm
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="gap-1 h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => setUnassignPending(group.dispatchBy)}
+                                    data-testid={`button-unassign-${group.dispatchBy}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                    Unassign
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  className="gap-1 h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                                  onClick={() => onDispatchGroup(group)}
+                                  data-testid={`button-dispatch-${group.dispatchBy}`}
+                                >
+                                  <ChevronRight className="w-3 h-3" />
+                                  Dispatch All
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                           {isExpanded && (
