@@ -209,6 +209,7 @@ export default function OrderTab({
                         key={group.baseKey}
                         group={group}
                         cartQuantityMap={cartQuantityMap}
+                        brandLogoUrl={brandLogoMap[group.brand]}
                         onAddToCart={(variant, qty) => onAddToCart({
                           id: variant.id,
                           sku: variant.sku,
@@ -247,6 +248,7 @@ export default function OrderTab({
                                 key={group.baseKey}
                                 group={group}
                                 cartQuantityMap={cartQuantityMap}
+                                brandLogoUrl={brandLogoMap[brand]}
                                 onAddToCart={(variant, qty) => onAddToCart({
                                   id: variant.id,
                                   sku: variant.sku,

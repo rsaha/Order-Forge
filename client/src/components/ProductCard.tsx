@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Minus, Check, Package } from "lucide-react";
+import { Plus, Minus, Check } from "lucide-react";
 import { transformImageUrl } from "@/lib/imageUtils";
 
 export function formatINR(amount: number): string {
@@ -30,9 +30,10 @@ interface ProductCardProps {
   product: Product;
   cartQuantity?: number;
   onAddToCart: (product: Product, quantity: number) => void;
+  brandLogoUrl?: string | null;
 }
 
-export default function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardProps) {
+export default function ProductCard({ product, cartQuantity, onAddToCart, brandLogoUrl }: ProductCardProps) {
   const caseSize = product.caseSize && product.caseSize > 1 ? product.caseSize : null;
   const isInCart = cartQuantity !== undefined && cartQuantity > 0;
   const [casesMode, setCasesMode] = useState(false);
@@ -80,23 +81,36 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
   const hasChanges = !isInCart || unitQty !== cartQuantity;
 
   const photoSrc = transformImageUrl(product.photoUrl);
+  const logoSrc = transformImageUrl(brandLogoUrl);
   const [imgError, setImgError] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  const showPhoto = !!(photoSrc && !imgError);
+  const showLogo = !showPhoto && !!(logoSrc && !logoError);
 
   return (
     <Card className="p-4 flex flex-col gap-2">
-      <div className="w-full h-28 rounded-md overflow-hidden bg-muted flex items-center justify-center">
-        {photoSrc && !imgError ? (
-          <img
-            src={photoSrc}
-            alt={product.name}
-            className="w-full h-full object-contain"
-            onError={() => setImgError(true)}
-            data-testid={`img-product-${product.id}`}
-          />
-        ) : (
-          <Package className="w-10 h-10 text-muted-foreground/30" data-testid={`icon-no-photo-${product.id}`} />
-        )}
-      </div>
+      {(showPhoto || showLogo) && (
+        <div className={`w-full rounded-md overflow-hidden bg-muted flex items-center justify-center ${showPhoto ? "h-28" : "h-16"}`}>
+          {showPhoto ? (
+            <img
+              src={photoSrc!}
+              alt={product.name}
+              className="w-full h-full object-contain"
+              onError={() => setImgError(true)}
+              data-testid={`img-product-${product.id}`}
+            />
+          ) : (
+            <img
+              src={logoSrc!}
+              alt={product.brand}
+              className="h-10 w-auto max-w-[80%] object-contain opacity-60"
+              onError={() => setLogoError(true)}
+              data-testid={`img-brandlogo-${product.id}`}
+            />
+          )}
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <p className="font-mono text-sm text-muted-foreground truncate" data-testid={`text-sku-${product.id}`}>
           {product.sku}

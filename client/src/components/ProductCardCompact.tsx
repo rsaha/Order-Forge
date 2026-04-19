@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Minus, ShoppingCart, Check, Package } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Check } from "lucide-react";
 import { transformImageUrl } from "@/lib/imageUtils";
 
 export function formatINR(amount: number): string {
@@ -49,6 +49,7 @@ interface ProductCardCompactProps {
   group: GroupedProduct;
   cartQuantityMap?: Record<string, number>;
   onAddToCart: (variant: ProductVariant, quantity: number) => void;
+  brandLogoUrl?: string | null;
 }
 
 export function groupProductsByName(products: ProductVariant[]): GroupedProduct[] {
@@ -88,7 +89,7 @@ export function groupProductsByName(products: ProductVariant[]): GroupedProduct[
   return result;
 }
 
-export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddToCart }: ProductCardCompactProps) {
+export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddToCart, brandLogoUrl }: ProductCardCompactProps) {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     group.variants.length === 1 ? group.variants[0] : null
   );
@@ -165,23 +166,36 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
 
   const hasChanges = !isInCart || unitQty !== cartQuantity;
   const photoSrc = transformImageUrl(group.variants[0]?.photoUrl);
+  const logoSrc = transformImageUrl(brandLogoUrl);
   const [imgError, setImgError] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  const showPhoto = !!(photoSrc && !imgError);
+  const showLogo = !showPhoto && !!(logoSrc && !logoError);
 
   return (
     <Card className="p-3 flex flex-col gap-2 overflow-hidden">
-      <div className="w-full h-20 rounded overflow-hidden bg-muted flex items-center justify-center">
-        {photoSrc && !imgError ? (
-          <img
-            src={photoSrc}
-            alt={group.name}
-            className="w-full h-full object-contain"
-            onError={() => setImgError(true)}
-            data-testid={`img-product-${group.baseKey}`}
-          />
-        ) : (
-          <Package className="w-7 h-7 text-muted-foreground/25" data-testid={`icon-no-photo-${group.baseKey}`} />
-        )}
-      </div>
+      {(showPhoto || showLogo) && (
+        <div className={`w-full rounded overflow-hidden bg-muted flex items-center justify-center ${showPhoto ? "h-20" : "h-12"}`}>
+          {showPhoto ? (
+            <img
+              src={photoSrc!}
+              alt={group.name}
+              className="w-full h-full object-contain"
+              onError={() => setImgError(true)}
+              data-testid={`img-product-${group.baseKey}`}
+            />
+          ) : (
+            <img
+              src={logoSrc!}
+              alt={group.brand}
+              className="h-8 w-auto max-w-[75%] object-contain opacity-60"
+              onError={() => setLogoError(true)}
+              data-testid={`img-brandlogo-${group.baseKey}`}
+            />
+          )}
+        </div>
+      )}
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground truncate" data-testid={`text-brand-${group.baseKey}`}>
           {group.brand}
