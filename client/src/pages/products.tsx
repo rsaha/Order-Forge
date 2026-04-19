@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -42,6 +43,7 @@ interface UploadedFile {
 interface BulkPhotosResult {
   matched: number;
   unmatched: number;
+  skipped: number;
   unmatchedSkus: string[];
 }
 
@@ -223,6 +225,8 @@ export default function ProductsPage() {
   const [showBulkPhotos, setShowBulkPhotos] = useState(false);
   const [bulkPhotosProgress, setBulkPhotosProgress] = useState<string | null>(null);
   const [bulkPhotosResult, setBulkPhotosResult] = useState<BulkPhotosResult | null>(null);
+  const [skipExistingPhotos, setSkipExistingPhotos] = useState(false);
+  const preSkippedRef = useRef(0);
   const bulkPhotosInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Stock management state ──────────────────────────────────────────────
@@ -381,16 +385,18 @@ export default function ProductsPage() {
 
   async function sendBulkPhotoChunks(
     updates: { sku: string; photoUrl: string }[],
+    skipExisting: boolean,
     onProgress: (sent: number, total: number) => void,
   ): Promise<BulkPhotosResult> {
     const total = updates.length;
-    const aggregated: BulkPhotosResult = { matched: 0, unmatched: 0, unmatchedSkus: [] };
+    const aggregated: BulkPhotosResult = { matched: 0, unmatched: 0, skipped: 0, unmatchedSkus: [] };
     for (let i = 0; i < total; i += BULK_PHOTOS_CHUNK_SIZE) {
       const chunk = updates.slice(i, i + BULK_PHOTOS_CHUNK_SIZE);
-      const res = await apiRequest("POST", "/api/products/bulk-photos", { updates: chunk });
+      const res = await apiRequest("POST", "/api/products/bulk-photos", { updates: chunk, skipExisting });
       const data = (await res.json()) as BulkPhotosResult;
       aggregated.matched += data.matched;
       aggregated.unmatched += data.unmatched;
+      aggregated.skipped += data.skipped ?? 0;
       for (const sku of data.unmatchedSkus) {
         if (!aggregated.unmatchedSkus.includes(sku)) {
           aggregated.unmatchedSkus.push(sku);
@@ -403,13 +409,15 @@ export default function ProductsPage() {
 
   const bulkPhotosMutation = useMutation({
     mutationFn: (updates: { sku: string; photoUrl: string }[]): Promise<BulkPhotosResult> =>
-      sendBulkPhotoChunks(updates, (sent, total) =>
+      sendBulkPhotoChunks(updates, skipExistingPhotos, (sent, total) =>
         setBulkPhotosProgress(`Uploading… ${sent} / ${total} photos`)
       ),
     onSuccess: (data: BulkPhotosResult) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      setBulkPhotosResult(data);
+      const totalSkipped = (data.skipped ?? 0) + preSkippedRef.current;
+      setBulkPhotosResult({ ...data, skipped: totalSkipped });
       setBulkPhotosProgress(null);
+      preSkippedRef.current = 0;
     },
     onError: () => {
       setBulkPhotosProgress(null);
@@ -476,6 +484,31 @@ export default function ProductsPage() {
         title: `Too many files (${imageEntries.length}). Please upload ${BULK_PHOTOS_MAX_FILES} images or fewer at a time.`,
         variant: "destructive",
       });
+      return;
+    }
+
+    // Build a set of SKUs that already have a photo so we can skip compression for them
+    preSkippedRef.current = 0;
+    if (skipExistingPhotos) {
+      const skusWithPhoto = new Set(
+        products
+          .filter((p) => p.photoUrl)
+          .map((p) => p.sku.toLowerCase().trim())
+      );
+      const before = imageEntries.length;
+      imageEntries = imageEntries.filter((entry) => {
+        const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
+        if (!SUPPORTED_EXTENSIONS.has(ext)) return true;
+        const sku = skuFromFilename(entry.name.split("/").pop() ?? entry.name).toLowerCase().trim();
+        return !skusWithPhoto.has(sku);
+      });
+      preSkippedRef.current = before - imageEntries.length;
+    }
+
+    if (imageEntries.length === 0) {
+      setBulkPhotosProgress(null);
+      setBulkPhotosResult({ matched: 0, unmatched: 0, skipped: preSkippedRef.current, unmatchedSkus: [] });
+      preSkippedRef.current = 0;
       return;
     }
 
@@ -1739,7 +1772,22 @@ export default function ProductsPage() {
             </p>
 
             {!bulkPhotosResult && (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="skip-existing-photos"
+                    checked={skipExistingPhotos}
+                    onCheckedChange={(checked) => setSkipExistingPhotos(checked === true)}
+                    disabled={!!bulkPhotosProgress || bulkPhotosMutation.isPending}
+                    data-testid="checkbox-skip-existing"
+                  />
+                  <label
+                    htmlFor="skip-existing-photos"
+                    className="text-sm leading-none cursor-pointer select-none"
+                  >
+                    Skip products that already have a photo
+                  </label>
+                </div>
                 <input
                   ref={bulkPhotosInputRef}
                   type="file"
@@ -1804,13 +1852,21 @@ export default function ProductsPage() {
 
             {bulkPhotosResult && (
               <div className="space-y-3" data-testid="bulk-photos-result">
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                   <div className="flex items-center gap-2 text-sm">
                     <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
                     <span data-testid="text-bulk-matched">
                       <strong>{bulkPhotosResult.matched}</strong> product{bulkPhotosResult.matched !== 1 ? "s" : ""} updated
                     </span>
                   </div>
+                  {bulkPhotosResult.skipped > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <RefreshCw className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span data-testid="text-bulk-skipped">
+                        <strong>{bulkPhotosResult.skipped}</strong> skipped (already had a photo)
+                      </span>
+                    </div>
+                  )}
                   {bulkPhotosResult.unmatched > 0 && (
                     <div className="flex items-center gap-2 text-sm">
                       <XCircle className="w-4 h-4 text-muted-foreground shrink-0" />

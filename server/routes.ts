@@ -675,6 +675,7 @@ export async function registerRoutes(
           sku: z.string().min(1),
           photoUrl: z.string().min(1),
         })).min(1),
+        skipExisting: z.boolean().optional().default(false),
       });
 
       const parseResult = schema.safeParse(req.body);
@@ -682,31 +683,36 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request body", errors: parseResult.error.errors });
       }
 
-      const { updates } = parseResult.data;
+      const { updates, skipExisting } = parseResult.data;
 
-      // Load all products and build a SKU→id map (case-insensitive)
+      // Load all products and build a SKU→product map (case-insensitive)
       const allProducts = await storage.getAllProducts();
-      const skuMap = new Map<string, string>();
+      const skuMap = new Map<string, { id: string; photoUrl: string | null }>();
       for (const p of allProducts) {
-        if (p.sku) skuMap.set(p.sku.toLowerCase().trim(), p.id);
+        if (p.sku) skuMap.set(p.sku.toLowerCase().trim(), { id: p.id, photoUrl: p.photoUrl ?? null });
       }
 
       let matched = 0;
       let unmatched = 0;
+      let skipped = 0;
       const unmatchedSkus: string[] = [];
 
       for (const { sku, photoUrl } of updates) {
-        const productId = skuMap.get(sku.toLowerCase().trim());
-        if (productId) {
-          await storage.updateProduct(productId, { photoUrl });
-          matched++;
+        const product = skuMap.get(sku.toLowerCase().trim());
+        if (product) {
+          if (skipExisting && product.photoUrl) {
+            skipped++;
+          } else {
+            await storage.updateProduct(product.id, { photoUrl });
+            matched++;
+          }
         } else {
           unmatched++;
           unmatchedSkus.push(sku);
         }
       }
 
-      res.json({ matched, unmatched, unmatchedSkus: unmatchedSkus.slice(0, 50) });
+      res.json({ matched, unmatched, skipped, unmatchedSkus: unmatchedSkus.slice(0, 50) });
     } catch (error) {
       console.error("Error bulk-assigning photos:", error);
       res.status(500).json({ message: "Failed to bulk-assign photos" });
