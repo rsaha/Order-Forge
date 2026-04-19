@@ -80,16 +80,17 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
   const hasChanges = !isInCart || unitQty !== cartQuantity;
 
   const photoSrc = transformImageUrl(product.photoUrl);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <Card className="p-4 flex flex-col gap-2">
       <div className="w-full h-28 rounded-md overflow-hidden bg-muted flex items-center justify-center">
-        {photoSrc ? (
+        {photoSrc && !imgError ? (
           <img
             src={photoSrc}
             alt={product.name}
             className="w-full h-full object-contain"
-            onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+            onError={() => setImgError(true)}
             data-testid={`img-product-${product.id}`}
           />
         ) : (

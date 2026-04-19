@@ -5,11 +5,11 @@ import ProductCardCompact, { groupProductsByName, type ProductVariant } from "@/
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CartItemData } from "@/components/CartItem";
 import { useBrands } from "@/hooks/useBrandConfig";
-import { transformImageUrl } from "@/lib/imageUtils";
+import BrandLogoImg from "@/components/BrandLogoImg";
 
 interface Product {
   id: string;
@@ -230,20 +230,15 @@ export default function OrderTab({
                       grouped[g.brand].push(g);
                     }
                     return Object.entries(grouped).map(([brand, groups]) => {
-                      const logoUrl = transformImageUrl(brandLogoMap[brand]);
                       return (
                         <div key={brand} className="mb-4">
                           <div className="flex items-center gap-2 mb-2 pb-1 border-b" data-testid={`header-brand-${brand}`}>
-                            {logoUrl ? (
-                              <img
-                                src={logoUrl}
-                                alt={brand}
-                                className="h-6 w-auto max-w-[80px] object-contain"
-                                onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
-                              />
-                            ) : (
-                              <Tag className="w-4 h-4 text-muted-foreground/50 shrink-0" />
-                            )}
+                            <BrandLogoImg
+                              logoUrl={brandLogoMap[brand]}
+                              brandName={brand}
+                              className="h-6 w-auto max-w-[80px] object-contain"
+                              iconClassName="w-4 h-4 text-muted-foreground/50 shrink-0"
+                            />
                             <span className="text-sm font-semibold text-muted-foreground">{brand}</span>
                           </div>
                           <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">

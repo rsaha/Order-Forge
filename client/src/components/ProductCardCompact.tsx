@@ -165,16 +165,17 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
 
   const hasChanges = !isInCart || unitQty !== cartQuantity;
   const photoSrc = transformImageUrl(group.variants[0]?.photoUrl);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <Card className="p-3 flex flex-col gap-2 overflow-hidden">
       <div className="w-full h-20 rounded overflow-hidden bg-muted flex items-center justify-center">
-        {photoSrc ? (
+        {photoSrc && !imgError ? (
           <img
             src={photoSrc}
             alt={group.name}
             className="w-full h-full object-contain"
-            onError={(e) => { (e.target as HTMLElement).parentElement!.style.display = "none"; }}
+            onError={() => setImgError(true)}
             data-testid={`img-product-${group.baseKey}`}
           />
         ) : (

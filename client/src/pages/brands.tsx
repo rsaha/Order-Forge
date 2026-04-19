@@ -15,7 +15,7 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, X, Check, Loader2, Tag, Camera
 } from "lucide-react";
 import ImagePickerDialog from "@/components/ImagePickerDialog";
-import { transformImageUrl } from "@/lib/imageUtils";
+import BrandLogoImg from "@/components/BrandLogoImg";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -205,17 +205,13 @@ export default function BrandsPage() {
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      {brand.logoUrl ? (
-                        <img
-                          src={transformImageUrl(brand.logoUrl) ?? brand.logoUrl}
-                          alt={brand.name}
-                          className="w-8 h-8 object-contain rounded"
-                          onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
-                          data-testid={`img-brand-logo-${brand.id}`}
-                        />
-                      ) : (
-                        <Tag className="w-5 h-5 text-muted-foreground" />
-                      )}
+                      <BrandLogoImg
+                        logoUrl={brand.logoUrl}
+                        brandName={brand.name}
+                        className="w-8 h-8 object-contain rounded"
+                        iconClassName="w-5 h-5 text-muted-foreground"
+                        data-testid={`img-brand-logo-${brand.id}`}
+                      />
                       <span className="font-medium" data-testid={`text-brand-name-${brand.id}`}>
                         {brand.name}
                       </span>
