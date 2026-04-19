@@ -733,6 +733,7 @@ export default function Home() {
                 alias2: (p as any).alias2 || null,
                 stock: p.stock,
                 caseSize: p.caseSize || 1,
+                photoUrl: p.photoUrl || null,
               }))}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
