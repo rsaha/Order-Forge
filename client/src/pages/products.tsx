@@ -24,17 +24,25 @@ import {
   Package, Pencil, Trash2, Download, Upload, ArrowLeft, Tag, Megaphone,
   Settings, TrendingUp, AlertTriangle, CheckCircle, XCircle, Loader2,
   RefreshCw, ChevronDown, ChevronRight, BarChart2, ArrowUpDown, ArrowUp,
-  ArrowDown, Save, History, Boxes, Camera,
+  ArrowDown, Save, History, Boxes, Camera, Images,
 } from "lucide-react";
 import { Link } from "wouter";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import type { Product, BrandRecord } from "@shared/schema";
 import ImagePickerDialog from "@/components/ImagePickerDialog";
+import { compressImageFile } from "@/lib/imageUtils";
 
 interface UploadedFile {
   name: string;
   brand: string;
   productCount: number;
+}
+
+interface BulkPhotosResult {
+  matched: number;
+  unmatched: number;
+  unmatchedSkus: string[];
 }
 
 function formatINR(amount: number) {
@@ -212,6 +220,10 @@ export default function ProductsPage() {
     price: "", distributorPrice: "", stock: "", caseSize: "1",
   });
   const [photoPickerProduct, setPhotoPickerProduct] = useState<Product | null>(null);
+  const [showBulkPhotos, setShowBulkPhotos] = useState(false);
+  const [bulkPhotosProgress, setBulkPhotosProgress] = useState<string | null>(null);
+  const [bulkPhotosResult, setBulkPhotosResult] = useState<BulkPhotosResult | null>(null);
+  const bulkPhotosInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Stock management state ──────────────────────────────────────────────
   const [stockBrand, setStockBrand] = useState<string>("");
@@ -363,6 +375,130 @@ export default function ProductsPage() {
       toast({ title: "Failed to update photo", variant: "destructive" });
     },
   });
+
+  const BULK_PHOTOS_CHUNK_SIZE = 25;
+  const BULK_PHOTOS_MAX_FILES = 500;
+
+  async function sendBulkPhotoChunks(
+    updates: { sku: string; photoUrl: string }[],
+    onProgress: (sent: number, total: number) => void,
+  ): Promise<BulkPhotosResult> {
+    const total = updates.length;
+    const aggregated: BulkPhotosResult = { matched: 0, unmatched: 0, unmatchedSkus: [] };
+    for (let i = 0; i < total; i += BULK_PHOTOS_CHUNK_SIZE) {
+      const chunk = updates.slice(i, i + BULK_PHOTOS_CHUNK_SIZE);
+      const res = await apiRequest("POST", "/api/products/bulk-photos", { updates: chunk });
+      const data = (await res.json()) as BulkPhotosResult;
+      aggregated.matched += data.matched;
+      aggregated.unmatched += data.unmatched;
+      for (const sku of data.unmatchedSkus) {
+        if (!aggregated.unmatchedSkus.includes(sku)) {
+          aggregated.unmatchedSkus.push(sku);
+        }
+      }
+      onProgress(Math.min(i + BULK_PHOTOS_CHUNK_SIZE, total), total);
+    }
+    return aggregated;
+  }
+
+  const bulkPhotosMutation = useMutation({
+    mutationFn: (updates: { sku: string; photoUrl: string }[]): Promise<BulkPhotosResult> =>
+      sendBulkPhotoChunks(updates, (sent, total) =>
+        setBulkPhotosProgress(`Uploading… ${sent} / ${total} photos`)
+      ),
+    onSuccess: (data: BulkPhotosResult) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setBulkPhotosResult(data);
+      setBulkPhotosProgress(null);
+    },
+    onError: () => {
+      setBulkPhotosProgress(null);
+      toast({ title: "Bulk photo upload failed", variant: "destructive" });
+    },
+  });
+
+  const SUPPORTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "avif"]);
+
+  function skuFromFilename(filename: string): string {
+    return filename.replace(/\.[^/.]+$/, "").trim();
+  }
+
+  async function processImageFiles(files: { name: string; blob: Blob }[]): Promise<{ sku: string; photoUrl: string }[]> {
+    const results: { sku: string; photoUrl: string }[] = [];
+    for (const { name, blob } of files) {
+      const ext = name.split(".").pop()?.toLowerCase() ?? "";
+      if (!SUPPORTED_EXTENSIONS.has(ext)) continue;
+      const sku = skuFromFilename(name.split("/").pop() ?? name);
+      if (!sku) continue;
+      try {
+        const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+        const photoUrl = await compressImageFile(file);
+        results.push({ sku, photoUrl });
+      } catch {
+        // skip unprocessable images
+      }
+    }
+    return results;
+  }
+
+  async function handleBulkPhotosFiles(inputFiles: FileList) {
+    setBulkPhotosResult(null);
+    const fileArray = Array.from(inputFiles);
+    if (fileArray.length === 0) return;
+
+    const isZip = fileArray.length === 1 && fileArray[0].name.toLowerCase().endsWith(".zip");
+
+    let imageEntries: { name: string; blob: Blob }[] = [];
+
+    try {
+      if (isZip) {
+        setBulkPhotosProgress("Reading ZIP file…");
+        const zip = await JSZip.loadAsync(fileArray[0]);
+        const zipEntries = Object.values(zip.files).filter(f => !f.dir);
+        imageEntries = await Promise.all(
+          zipEntries.map(async (f) => ({
+            name: f.name.split("/").pop() ?? f.name,
+            blob: await f.async("blob"),
+          }))
+        );
+      } else {
+        imageEntries = fileArray.map(f => ({ name: f.name, blob: f }));
+      }
+    } catch {
+      setBulkPhotosProgress(null);
+      toast({ title: "Failed to read the ZIP file. Make sure it is a valid ZIP archive.", variant: "destructive" });
+      return;
+    }
+
+    if (imageEntries.length > BULK_PHOTOS_MAX_FILES) {
+      setBulkPhotosProgress(null);
+      toast({
+        title: `Too many files (${imageEntries.length}). Please upload ${BULK_PHOTOS_MAX_FILES} images or fewer at a time.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBulkPhotosProgress(`Compressing ${imageEntries.length} image${imageEntries.length !== 1 ? "s" : ""}…`);
+
+    let updates: { sku: string; photoUrl: string }[];
+    try {
+      updates = await processImageFiles(imageEntries);
+    } catch {
+      setBulkPhotosProgress(null);
+      toast({ title: "Failed to compress images. Please try again.", variant: "destructive" });
+      return;
+    }
+
+    if (updates.length === 0) {
+      setBulkPhotosProgress(null);
+      toast({ title: "No supported image files found", variant: "destructive" });
+      return;
+    }
+
+    setBulkPhotosProgress(`Uploading… 0 / ${updates.length} photos`);
+    bulkPhotosMutation.mutate(updates);
+  }
 
   // ─── Stock mutations ─────────────────────────────────────────────────────
   const saveSettingsMutation = useMutation({
@@ -735,6 +871,14 @@ export default function ProductsPage() {
                     <Button variant="outline" onClick={() => setShowUploadSection(true)} data-testid="button-upload-products">
                       <Upload className="w-4 h-4 mr-2" />
                       Upload
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => { setBulkPhotosResult(null); setBulkPhotosProgress(null); setShowBulkPhotos(true); }}
+                      data-testid="button-bulk-photos"
+                    >
+                      <Images className="w-4 h-4 mr-2" />
+                      Bulk Photos
                     </Button>
                     <Button
                       variant="outline"
@@ -1570,6 +1714,148 @@ export default function ProductsPage() {
             <Button onClick={handleSaveProduct} disabled={updateProductMutation.isPending}>
               {updateProductMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Photos Dialog */}
+      <Dialog
+        open={showBulkPhotos}
+        onOpenChange={(open) => {
+          if (!bulkPhotosMutation.isPending && !bulkPhotosProgress) setShowBulkPhotos(open);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Photos</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Upload a folder of images or a single ZIP file. Each image filename (without extension) must match a product SKU — for example <code className="bg-muted px-1 rounded">2001723.jpg</code>.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Supported formats: JPG, PNG, WebP, GIF, AVIF.
+            </p>
+
+            {!bulkPhotosResult && (
+              <div className="space-y-2">
+                <input
+                  ref={bulkPhotosInputRef}
+                  type="file"
+                  accept="image/*,.zip"
+                  multiple
+                  className="hidden"
+                  data-testid="input-bulk-photos"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleBulkPhotosFiles(e.target.files);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    disabled={!!bulkPhotosProgress || bulkPhotosMutation.isPending}
+                    onClick={() => {
+                      const el = bulkPhotosInputRef.current;
+                      if (el) {
+                        el.removeAttribute("webkitdirectory");
+                        el.accept = ".zip";
+                        el.multiple = false;
+                        el.click();
+                      }
+                    }}
+                    data-testid="button-select-zip"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Select ZIP
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    disabled={!!bulkPhotosProgress || bulkPhotosMutation.isPending}
+                    onClick={() => {
+                      const el = bulkPhotosInputRef.current;
+                      if (el) {
+                        el.setAttribute("webkitdirectory", "");
+                        el.accept = "image/*";
+                        el.multiple = true;
+                        el.click();
+                      }
+                    }}
+                    data-testid="button-select-folder"
+                  >
+                    <Images className="w-4 h-4 mr-2" />
+                    Select Folder
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {(bulkPhotosProgress || bulkPhotosMutation.isPending) && (
+              <div className="flex items-center gap-3 py-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                <span data-testid="text-bulk-progress">{bulkPhotosProgress ?? "Uploading…"}</span>
+              </div>
+            )}
+
+            {bulkPhotosResult && (
+              <div className="space-y-3" data-testid="bulk-photos-result">
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                    <span data-testid="text-bulk-matched">
+                      <strong>{bulkPhotosResult.matched}</strong> product{bulkPhotosResult.matched !== 1 ? "s" : ""} updated
+                    </span>
+                  </div>
+                  {bulkPhotosResult.unmatched > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <XCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span data-testid="text-bulk-unmatched">
+                        <strong>{bulkPhotosResult.unmatched}</strong> unmatched
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {bulkPhotosResult.unmatchedSkus.length > 0 && (
+                  <div className="rounded-md border bg-muted/40 p-3 max-h-32 overflow-y-auto">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Unmatched filenames (SKUs not found):</p>
+                    <div className="flex flex-wrap gap-1">
+                      {bulkPhotosResult.unmatchedSkus.map((sku) => (
+                        <Badge key={sku} variant="outline" className="font-mono text-xs" data-testid={`badge-unmatched-${sku}`}>
+                          {sku}
+                        </Badge>
+                      ))}
+                      {bulkPhotosResult.unmatched > bulkPhotosResult.unmatchedSkus.length && (
+                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                          +{bulkPhotosResult.unmatched - bulkPhotosResult.unmatchedSkus.length} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkPhotosResult(null)}
+                  data-testid="button-bulk-again"
+                >
+                  Upload More
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkPhotos(false)}
+              disabled={!!bulkPhotosProgress || bulkPhotosMutation.isPending}
+              data-testid="button-bulk-close"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

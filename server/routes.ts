@@ -661,6 +661,58 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk assign photos by SKU (Admin only)
+  app.post('/api/products/bulk-photos', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Only administrators can bulk-assign photos" });
+      }
+
+      const schema = z.object({
+        updates: z.array(z.object({
+          sku: z.string().min(1),
+          photoUrl: z.string().min(1),
+        })).min(1),
+      });
+
+      const parseResult = schema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid request body", errors: parseResult.error.errors });
+      }
+
+      const { updates } = parseResult.data;
+
+      // Load all products and build a SKU→id map (case-insensitive)
+      const allProducts = await storage.getAllProducts();
+      const skuMap = new Map<string, string>();
+      for (const p of allProducts) {
+        if (p.sku) skuMap.set(p.sku.toLowerCase().trim(), p.id);
+      }
+
+      let matched = 0;
+      let unmatched = 0;
+      const unmatchedSkus: string[] = [];
+
+      for (const { sku, photoUrl } of updates) {
+        const productId = skuMap.get(sku.toLowerCase().trim());
+        if (productId) {
+          await storage.updateProduct(productId, { photoUrl });
+          matched++;
+        } else {
+          unmatched++;
+          unmatchedSkus.push(sku);
+        }
+      }
+
+      res.json({ matched, unmatched, unmatchedSkus: unmatchedSkus.slice(0, 50) });
+    } catch (error) {
+      console.error("Error bulk-assigning photos:", error);
+      res.status(500).json({ message: "Failed to bulk-assign photos" });
+    }
+  });
+
   // Delete product (Admin only)
   app.delete('/api/products/:id', isAuthenticated, async (req: any, res) => {
     try {
