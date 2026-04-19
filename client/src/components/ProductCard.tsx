@@ -92,32 +92,33 @@ export default function ProductCard({ product, cartQuantity, onAddToCart, brandL
 
   const showPhoto = !!(photoSrc && !imgError);
   const showLogo = !showPhoto && !!(logoSrc && !logoError);
+  const hasImage = showPhoto || showLogo;
 
   return (
-    <Card className="p-4 flex flex-col gap-2">
-      {showPhoto && (
-        <div className="w-full h-44 rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 flex items-center justify-center">
-          <img
-            src={photoSrc!}
-            alt={product.name}
-            className="w-full h-full object-contain p-2"
-            onError={() => setImgError(true)}
-            data-testid={`img-product-${product.id}`}
-          />
+    <Card className="p-4 flex flex-col gap-2 relative">
+      {/* Small corner thumbnail — product photo takes priority over brand logo */}
+      {hasImage && (
+        <div className="absolute top-4 right-4 w-14 h-14 rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 shadow-sm flex items-center justify-center z-10">
+          {showPhoto ? (
+            <img
+              src={photoSrc!}
+              alt={product.name}
+              className="w-full h-full object-contain p-0.5"
+              onError={() => setImgError(true)}
+              data-testid={`img-product-${product.id}`}
+            />
+          ) : (
+            <img
+              src={logoSrc!}
+              alt={product.brand}
+              className="w-full h-full object-contain p-1 opacity-70"
+              onError={() => setLogoError(true)}
+              data-testid={`img-brandlogo-${product.id}`}
+            />
+          )}
         </div>
       )}
-      {showLogo && (
-        <div className="w-full h-14 rounded-md overflow-hidden bg-muted/40 border border-border/30 flex items-center justify-center">
-          <img
-            src={logoSrc!}
-            alt={product.brand}
-            className="h-9 w-auto max-w-[75%] object-contain opacity-75"
-            onError={() => setLogoError(true)}
-            data-testid={`img-brandlogo-${product.id}`}
-          />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
+      <div className={`flex-1 min-w-0 ${hasImage ? 'pr-16' : ''}`}>
         <p className="font-mono text-sm text-muted-foreground truncate" data-testid={`text-sku-${product.id}`}>
           {product.sku}
         </p>

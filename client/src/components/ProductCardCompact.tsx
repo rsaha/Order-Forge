@@ -177,32 +177,33 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
 
   const showPhoto = !!(photoSrc && !imgError);
   const showLogo = !showPhoto && !!(logoSrc && !logoError);
+  const hasImage = showPhoto || showLogo;
 
   return (
-    <Card className="p-3 flex flex-col gap-2 overflow-hidden">
-      {showPhoto && (
-        <div className="w-full h-44 rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 flex items-center justify-center">
-          <img
-            src={photoSrc!}
-            alt={group.name}
-            className="w-full h-full object-contain p-1.5"
-            onError={() => setImgError(true)}
-            data-testid={`img-product-${group.baseKey}`}
-          />
+    <Card className="p-3 flex flex-col gap-2 overflow-hidden relative">
+      {/* Small corner thumbnail — product photo takes priority over brand logo */}
+      {hasImage && (
+        <div className="absolute top-3 right-3 w-12 h-12 rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 shadow-sm flex items-center justify-center z-10">
+          {showPhoto ? (
+            <img
+              src={photoSrc!}
+              alt={group.name}
+              className="w-full h-full object-contain p-0.5"
+              onError={() => setImgError(true)}
+              data-testid={`img-product-${group.baseKey}`}
+            />
+          ) : (
+            <img
+              src={logoSrc!}
+              alt={group.brand}
+              className="w-full h-full object-contain p-1 opacity-70"
+              onError={() => setLogoError(true)}
+              data-testid={`img-brandlogo-${group.baseKey}`}
+            />
+          )}
         </div>
       )}
-      {showLogo && (
-        <div className="w-full h-11 rounded-md overflow-hidden bg-muted/40 border border-border/30 flex items-center justify-center">
-          <img
-            src={logoSrc!}
-            alt={group.brand}
-            className="h-7 w-auto max-w-[70%] object-contain opacity-75"
-            onError={() => setLogoError(true)}
-            data-testid={`img-brandlogo-${group.baseKey}`}
-          />
-        </div>
-      )}
-      <div className="min-w-0">
+      <div className={`min-w-0 ${hasImage ? 'pr-14' : ''}`}>
         <p className="text-xs text-muted-foreground truncate" data-testid={`text-brand-${group.baseKey}`}>
           {group.brand}
         </p>
