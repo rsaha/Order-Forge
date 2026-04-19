@@ -22,11 +22,25 @@ export async function setupVite(server: Server, app: Express) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
+        if (msg.includes("URI malformed") || msg.includes("Invalid URL") || msg.includes("ERR_CONNECTION")) {
+          return;
+        }
         process.exit(1);
       },
     },
     server: serverOptions,
     appType: "custom",
+  });
+
+  // Intercept malformed URLs before they reach Vite's middleware,
+  // which would crash on decodeURI() and show an error overlay in the browser.
+  app.use((req, res, next) => {
+    try {
+      decodeURI(req.url);
+      next();
+    } catch {
+      res.status(400).end("Bad Request: malformed URI");
+    }
   });
 
   app.use(vite.middlewares);
