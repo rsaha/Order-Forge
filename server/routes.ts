@@ -958,10 +958,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Delivery companies must be an array" });
       }
       
-      // Validate against known delivery companies
-      const validDeliveryCompanies = deliveryCompanies.filter((dc: string) => 
-        ["Guided", "Xmaple", "Elmeric"].includes(dc)
-      );
+      // Validate against active delivery companies from DB
+      const activeDeliveryCompanies = await storage.getDeliveryCompanies(true);
+      const validDcNames = new Set(activeDeliveryCompanies.map((d: { name: string }) => d.name));
+      const validDeliveryCompanies = deliveryCompanies.filter((dc: string) => validDcNames.has(dc));
       await storage.setUserDeliveryCompanyAccess(targetUserId, validDeliveryCompanies);
       
       res.json({ message: "Delivery company access updated", deliveryCompanies: validDeliveryCompanies });

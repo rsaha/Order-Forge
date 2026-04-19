@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { Loader2, Package } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Landing from "@/pages/landing";
@@ -25,8 +26,12 @@ function Router() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+        <div className="relative">
+          <Package className="w-10 h-10 text-primary/30" />
+          <Loader2 className="w-5 h-5 animate-spin text-primary absolute -bottom-1 -right-1" />
+        </div>
+        <p className="text-sm text-muted-foreground">Loading your session…</p>
       </div>
     );
   }

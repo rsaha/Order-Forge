@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -82,7 +82,7 @@ import {
 import { generateWhatsAppMessage, openWhatsApp, type WhatsAppMessageType } from "@/lib/whatsapp";
 import { Link, useLocation } from "wouter";
 import type { Order, OrderStatus, Product } from "@shared/schema";
-import { useDeliveryCompanies } from "@/hooks/useBrandConfig";
+import { useDeliveryCompanies, useBrands } from "@/hooks/useBrandConfig";
 import * as XLSX from "xlsx";
 
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
@@ -249,7 +249,6 @@ interface OrderEditFormData {
   deliveredOnTime: boolean;
 }
 
-const BRANDS = ["Tynor", "Morison", "Karemed", "UM", "Biostige", "ACCUSURE", "Elmeric", "Blefit", "Ayouthveda"];
 const FALLBACK_DELIVERY_COMPANIES = ["Guided", "Xmaple", "Elmeric", "Guided Kol"];
 
 function getDateRange(days: number): { fromDate: string; toDate: string } {
@@ -390,7 +389,7 @@ export default function OrdersPage() {
   const [pendingWhatsAppShare, setPendingWhatsAppShare] = useState<{ order: Order; status: OrderStatus } | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importBrand, setImportBrand] = useState<string>("Biostige");
+  const [importBrand, setImportBrand] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
   const [importSummary, setImportSummary] = useState<{
     count: number;
@@ -501,6 +500,13 @@ export default function OrdersPage() {
 
   const { data: deliveryCompaniesData } = useDeliveryCompanies();
   const DELIVERY_COMPANIES = (deliveryCompaniesData && deliveryCompaniesData.length > 0) ? deliveryCompaniesData : FALLBACK_DELIVERY_COMPANIES;
+
+  const { data: brandConfigs = [] } = useBrands();
+  const cfaBrandNames = useMemo(
+    () => new Set(brandConfigs.filter(b => b.excludeFromAnalytics).map(b => b.name.toLowerCase())),
+    [brandConfigs]
+  );
+  const isCfaBrand = useCallback((brand: string | null | undefined) => !!brand && cfaBrandNames.has(brand.toLowerCase()), [cfaBrandNames]);
 
   const { data: statusConfig = [] } = useQuery<Array<{ status: string; slaDays: number | null; isArchived: boolean; sortOrder: number }>>({
     queryKey: ["/api/order-status-config"],
@@ -2194,7 +2200,7 @@ export default function OrdersPage() {
                             </td>
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
-                            <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{isCfaBrand(order.brand) ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 {isAdmin && (order.status === "Online" || (order as any).ownerRole === "Customer") && (
@@ -2241,7 +2247,7 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-sm">{order.approvedBy || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.approvedAt ? new Date(order.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</td>
                             <td className="p-2 max-w-[200px] hidden lg:table-cell"><div className="truncate text-sm" title={order.deliveryNote || ""}>{order.deliveryNote || "-"}</div></td>
-                            <td className="p-2 text-right font-medium whitespace-nowrap">{order.brand === "Biostige" ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
+                            <td className="p-2 text-right font-medium whitespace-nowrap">{isCfaBrand(order.brand) ? formatINR(order.total) : <span className="text-muted-foreground text-xs">Pending Invoice</span>}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0">
                                 <Button size="icon" variant="ghost" onClick={(e) => handleWhatsAppShare(order, e)} title="Share on WhatsApp"><MessageCircle className="w-4 h-4" /></Button>
@@ -4022,7 +4028,7 @@ export default function OrdersPage() {
         setShowImportDialog(open);
         if (!open) {
           setImportFile(null);
-          setImportBrand("Biostige");
+          setImportBrand("");
         }
       }}>
         <DialogContent className="sm:max-w-md">
