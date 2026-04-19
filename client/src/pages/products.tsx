@@ -807,7 +807,7 @@ export default function ProductsPage() {
                                     title="Set photo"
                                     data-testid={`button-photo-${product.id}`}
                                   >
-                                    <Camera className={`w-4 h-4 ${(product as any).photoUrl ? "text-primary" : ""}`} />
+                                    <Camera className={`w-4 h-4 ${product.photoUrl ? "text-primary" : ""}`} />
                                   </Button>
                                   <Button size="icon" variant="ghost" onClick={() => handleProductClick(product)} data-testid={`button-edit-${product.id}`}>
                                     <Pencil className="w-4 h-4" />
@@ -1581,7 +1581,7 @@ export default function ProductsPage() {
         onOpenChange={(open) => !open && setPhotoPickerProduct(null)}
         title={`Product Photo — ${photoPickerProduct?.name ?? ""}`}
         description="Paste an image URL, a Google Drive share link, or upload a file from your device."
-        currentUrl={(photoPickerProduct as any)?.photoUrl}
+        currentUrl={photoPickerProduct?.photoUrl}
         isSaving={photoMutation.isPending}
         onSave={(url) => photoPickerProduct && photoMutation.mutate({ id: photoPickerProduct.id, photoUrl: url })}
       />

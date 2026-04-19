@@ -5,9 +5,11 @@ import ProductCardCompact, { groupProductsByName, type ProductVariant } from "@/
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CartItemData } from "@/components/CartItem";
+import { useBrands } from "@/hooks/useBrandConfig";
+import { transformImageUrl } from "@/lib/imageUtils";
 
 interface Product {
   id: string;
@@ -21,6 +23,7 @@ interface Product {
   alias2?: string | null;
   stock: number;
   caseSize?: number;
+  photoUrl?: string | null;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -49,6 +52,12 @@ export default function OrderTab({
   popularityCounts = {},
 }: OrderTabProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const { data: brandRecords = [] } = useBrands();
+  const brandLogoMap = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const b of brandRecords) map[b.name] = b.logoUrl ?? null;
+    return map;
+  }, [brandRecords]);
 
   const brands = useMemo(() => {
     const uniqueBrands = Array.from(new Set(products.map(p => p.brand)));
@@ -95,6 +104,7 @@ export default function OrderTab({
       alias2: p.alias2,
       stock: p.stock,
       caseSize: p.caseSize,
+      photoUrl: p.photoUrl,
     }));
     return groupProductsByName(variants);
   }, [filteredProducts]);
@@ -192,25 +202,74 @@ export default function OrderTab({
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
-                  {paginatedGroups.map(group => (
-                    <ProductCardCompact
-                      key={group.baseKey}
-                      group={group}
-                      cartQuantityMap={cartQuantityMap}
-                      onAddToCart={(variant, qty) => onAddToCart({
-                        id: variant.id,
-                        sku: variant.sku,
-                        name: variant.name,
-                        brand: variant.brand,
-                        price: variant.price,
-                        distributorPrice: variant.distributorPrice,
-                        stock: variant.stock,
-                        caseSize: variant.caseSize,
-                      }, qty)}
-                    />
-                  ))}
-                </div>
+                {selectedBrand ? (
+                  <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {paginatedGroups.map(group => (
+                      <ProductCardCompact
+                        key={group.baseKey}
+                        group={group}
+                        cartQuantityMap={cartQuantityMap}
+                        onAddToCart={(variant, qty) => onAddToCart({
+                          id: variant.id,
+                          sku: variant.sku,
+                          name: variant.name,
+                          brand: variant.brand,
+                          price: variant.price,
+                          distributorPrice: variant.distributorPrice,
+                          stock: variant.stock,
+                          caseSize: variant.caseSize,
+                        }, qty)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  (() => {
+                    const grouped: Record<string, typeof paginatedGroups> = {};
+                    for (const g of paginatedGroups) {
+                      if (!grouped[g.brand]) grouped[g.brand] = [];
+                      grouped[g.brand].push(g);
+                    }
+                    return Object.entries(grouped).map(([brand, groups]) => {
+                      const logoUrl = transformImageUrl(brandLogoMap[brand]);
+                      return (
+                        <div key={brand} className="mb-4">
+                          <div className="flex items-center gap-2 mb-2 pb-1 border-b" data-testid={`header-brand-${brand}`}>
+                            {logoUrl ? (
+                              <img
+                                src={logoUrl}
+                                alt={brand}
+                                className="h-6 w-auto max-w-[80px] object-contain"
+                                onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                              />
+                            ) : (
+                              <Tag className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                            )}
+                            <span className="text-sm font-semibold text-muted-foreground">{brand}</span>
+                          </div>
+                          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
+                            {groups.map(group => (
+                              <ProductCardCompact
+                                key={group.baseKey}
+                                group={group}
+                                cartQuantityMap={cartQuantityMap}
+                                onAddToCart={(variant, qty) => onAddToCart({
+                                  id: variant.id,
+                                  sku: variant.sku,
+                                  name: variant.name,
+                                  brand: variant.brand,
+                                  price: variant.price,
+                                  distributorPrice: variant.distributorPrice,
+                                  stock: variant.stock,
+                                  caseSize: variant.caseSize,
+                                }, qty)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
                 {totalPages > 1 && (
                   <div className="flex justify-center mt-4">
                     <div className="flex items-center gap-1">

@@ -83,8 +83,8 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
 
   return (
     <Card className="p-4 flex flex-col gap-2">
-      {photoSrc && (
-        <div className="w-full h-28 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+      <div className="w-full h-28 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+        {photoSrc ? (
           <img
             src={photoSrc}
             alt={product.name}
@@ -92,8 +92,10 @@ export default function ProductCard({ product, cartQuantity, onAddToCart }: Prod
             onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
             data-testid={`img-product-${product.id}`}
           />
-        </div>
-      )}
+        ) : (
+          <Package className="w-10 h-10 text-muted-foreground/30" data-testid={`icon-no-photo-${product.id}`} />
+        )}
+      </div>
       <div className="flex-1 min-w-0">
         <p className="font-mono text-sm text-muted-foreground truncate" data-testid={`text-sku-${product.id}`}>
           {product.sku}
