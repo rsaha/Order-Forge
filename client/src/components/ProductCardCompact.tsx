@@ -175,25 +175,26 @@ export default function ProductCardCompact({ group, cartQuantityMap = {}, onAddT
 
   return (
     <Card className="p-3 flex flex-col gap-2 overflow-hidden">
-      {(showPhoto || showLogo) && (
-        <div className={`w-full rounded overflow-hidden bg-muted flex items-center justify-center ${showPhoto ? "h-20" : "h-12"}`}>
-          {showPhoto ? (
-            <img
-              src={photoSrc!}
-              alt={group.name}
-              className="w-full h-full object-contain"
-              onError={() => setImgError(true)}
-              data-testid={`img-product-${group.baseKey}`}
-            />
-          ) : (
-            <img
-              src={logoSrc!}
-              alt={group.brand}
-              className="h-8 w-auto max-w-[75%] object-contain opacity-60"
-              onError={() => setLogoError(true)}
-              data-testid={`img-brandlogo-${group.baseKey}`}
-            />
-          )}
+      {showPhoto && (
+        <div className="w-full aspect-[3/4] rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 flex items-center justify-center">
+          <img
+            src={photoSrc!}
+            alt={group.name}
+            className="w-full h-full object-contain p-1.5"
+            onError={() => setImgError(true)}
+            data-testid={`img-product-${group.baseKey}`}
+          />
+        </div>
+      )}
+      {showLogo && (
+        <div className="w-full h-11 rounded-md overflow-hidden bg-muted/40 border border-border/30 flex items-center justify-center">
+          <img
+            src={logoSrc!}
+            alt={group.brand}
+            className="h-7 w-auto max-w-[70%] object-contain opacity-75"
+            onError={() => setLogoError(true)}
+            data-testid={`img-brandlogo-${group.baseKey}`}
+          />
         </div>
       )}
       <div className="min-w-0">

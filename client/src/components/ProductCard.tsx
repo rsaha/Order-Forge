@@ -90,25 +90,26 @@ export default function ProductCard({ product, cartQuantity, onAddToCart, brandL
 
   return (
     <Card className="p-4 flex flex-col gap-2">
-      {(showPhoto || showLogo) && (
-        <div className={`w-full rounded-md overflow-hidden bg-muted flex items-center justify-center ${showPhoto ? "h-28" : "h-16"}`}>
-          {showPhoto ? (
-            <img
-              src={photoSrc!}
-              alt={product.name}
-              className="w-full h-full object-contain"
-              onError={() => setImgError(true)}
-              data-testid={`img-product-${product.id}`}
-            />
-          ) : (
-            <img
-              src={logoSrc!}
-              alt={product.brand}
-              className="h-10 w-auto max-w-[80%] object-contain opacity-60"
-              onError={() => setLogoError(true)}
-              data-testid={`img-brandlogo-${product.id}`}
-            />
-          )}
+      {showPhoto && (
+        <div className="w-full aspect-[3/4] rounded-lg overflow-hidden bg-white dark:bg-gray-950 border border-border/40 flex items-center justify-center">
+          <img
+            src={photoSrc!}
+            alt={product.name}
+            className="w-full h-full object-contain p-2"
+            onError={() => setImgError(true)}
+            data-testid={`img-product-${product.id}`}
+          />
+        </div>
+      )}
+      {showLogo && (
+        <div className="w-full h-14 rounded-md overflow-hidden bg-muted/40 border border-border/30 flex items-center justify-center">
+          <img
+            src={logoSrc!}
+            alt={product.brand}
+            className="h-9 w-auto max-w-[75%] object-contain opacity-75"
+            onError={() => setLogoError(true)}
+            data-testid={`img-brandlogo-${product.id}`}
+          />
         </div>
       )}
       <div className="flex-1 min-w-0">
