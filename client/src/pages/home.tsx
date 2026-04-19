@@ -139,8 +139,8 @@ export default function Home() {
   const { data: orderProducts = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products/by-brand"],
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes - products don't change often
-    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000, // 30 seconds - short enough to pick up photo uploads quickly
+    refetchOnWindowFocus: true,
   });
 
   // Fetch product popularity counts for smart sorting
