@@ -191,7 +191,7 @@ export interface IStorage {
   seedTransportCarriers(): Promise<void>;
   getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string } | null }>;
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
@@ -2487,7 +2487,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string } | null }>;
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }> {
     const carriers = await this.getTransportCarriers();
@@ -2590,9 +2590,16 @@ export class DatabaseStorage implements IStorage {
       orderCount: number,
       locationTexts: string[],
       carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>,
-    ): { carrierId: string; carrierName: string; reason: string } | null {
+    ): { carrierId: string; carrierName: string; reason: string; tat: string | null } | null {
       const combinedLocation = locationTexts.join(" ").toLowerCase();
       const partyLower = partyName.toLowerCase().trim();
+
+      // Helper: get TAT from matched rate entry for a carrier
+      function getCarrierTat(carrier: (typeof activeCarriers)[number]): string | null {
+        const primaryLoc = locationTexts.find(l => l !== partyName) ?? locationTexts[0] ?? null;
+        const matched = (primaryLoc ? matchRate(primaryLoc, carrier.rates) : null) ?? matchRate(partyName, carrier.rates);
+        return matched?.tat ?? null;
+      }
 
       // Rule 1: Geographic override — Birbhum, Purulia, or North Bengal
       const geoRegions: { keyword: string; label: string }[] = [
@@ -2604,7 +2611,7 @@ export class DatabaseStorage implements IStorage {
         if (combinedLocation.includes(keyword) || partyLower.includes(keyword)) {
           const dhulagore = activeCarriers.find(c => c.name.toLowerCase().includes("dhulagore"));
           if (dhulagore) {
-            return { carrierId: dhulagore.id, carrierName: dhulagore.name, reason: `Assigned ${dhulagore.name} — party location matches ${label} rule` };
+            return { carrierId: dhulagore.id, carrierName: dhulagore.name, reason: `Assigned ${dhulagore.name} — party location matches ${label} rule`, tat: getCarrierTat(dhulagore) };
           }
         }
       }
@@ -2635,7 +2642,7 @@ export class DatabaseStorage implements IStorage {
             .sort((a, b) => a - b)[0] ?? Infinity;
           const best = withPartyCost[0];
           if ((best.cost ?? Infinity) <= cheapestLocationCost) {
-            return { carrierId: best.carrier.id, carrierName: best.carrier.name, reason: `Assigned ${best.carrier.name} — has a specific rate for this party` };
+            return { carrierId: best.carrier.id, carrierName: best.carrier.name, reason: `Assigned ${best.carrier.name} — has a specific rate for this party`, tat: getCarrierTat(best.carrier) };
           }
         }
       }
@@ -2649,7 +2656,7 @@ export class DatabaseStorage implements IStorage {
             .filter(x => x.cost !== null)
             .sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0];
           const toto = cheapestToto?.carrier ?? totoCarriers[0];
-          return { carrierId: toto.id, carrierName: toto.name, reason: `Assigned ${toto.name} — high volume (${totalCases} cartons) prefers toto carrier` };
+          return { carrierId: toto.id, carrierName: toto.name, reason: `Assigned ${toto.name} — high volume (${totalCases} cartons) prefers toto carrier`, tat: getCarrierTat(toto) };
         }
       }
 
@@ -2671,7 +2678,7 @@ export class DatabaseStorage implements IStorage {
               .filter(x => x.cost !== null)
               .sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0];
             if (cheapestFlat) {
-              return { carrierId: cheapestFlat.carrier.id, carrierName: cheapestFlat.carrier.name, reason: `Assigned ${cheapestFlat.carrier.name} — flat rate preferred for ${totalCases} cartons vs per-parcel` };
+              return { carrierId: cheapestFlat.carrier.id, carrierName: cheapestFlat.carrier.name, reason: `Assigned ${cheapestFlat.carrier.name} — flat rate preferred for ${totalCases} cartons vs per-parcel`, tat: getCarrierTat(cheapestFlat.carrier) };
             }
           }
         }
@@ -2683,11 +2690,11 @@ export class DatabaseStorage implements IStorage {
         .filter(x => x.cost !== null)
         .sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0];
       if (cheapest) {
-        return { carrierId: cheapest.carrier.id, carrierName: cheapest.carrier.name, reason: `Assigned ${cheapest.carrier.name} — lowest estimated cost` };
+        return { carrierId: cheapest.carrier.id, carrierName: cheapest.carrier.name, reason: `Assigned ${cheapest.carrier.name} — lowest estimated cost`, tat: getCarrierTat(cheapest.carrier) };
       }
 
       // No cost data — pick first matched carrier
-      return { carrierId: matched[0].id, carrierName: matched[0].name, reason: `Assigned ${matched[0].name} — only available carrier for this location` };
+      return { carrierId: matched[0].id, carrierName: matched[0].name, reason: `Assigned ${matched[0].name} — only available carrier for this location`, tat: getCarrierTat(matched[0]) };
     }
 
     const unassigned = Array.from(unassignedGroups.entries()).map(([partyName, grp]) => {

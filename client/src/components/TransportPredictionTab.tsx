@@ -71,6 +71,7 @@ interface Suggestion {
   carrierId: string;
   carrierName: string;
   reason: string;
+  tat: string | null;
 }
 
 interface UnassignedGroup {
@@ -523,6 +524,11 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                               <p className="text-xs text-muted-foreground leading-tight truncate max-w-[220px]" title={effectiveReason}>
                                 {effectiveReason}
                               </p>
+                              {!isManualOverride && suggestion?.tat && (
+                                <p className="text-xs text-muted-foreground leading-tight font-medium" data-testid={`text-tat-${group.partyName}`}>
+                                  TAT: {suggestion.tat}
+                                </p>
+                              )}
                             </div>
                           </td>
                           <td className="p-2 text-right">
