@@ -76,6 +76,7 @@ interface Suggestion {
 
 interface UnassignedGroup {
   partyName: string;
+  location: string | null;
   orderCount: number;
   totalCases: number;
   orderIds: string[];
@@ -491,9 +492,16 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                       return (
                         <tr key={group.partyName} className="hover:bg-muted/30 transition-colors">
                           <td className="p-2">
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                              <span className="font-medium max-w-[180px] truncate">{group.partyName}</span>
+                            <div className="flex items-start gap-1.5">
+                              <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="font-medium block max-w-[180px] truncate">{group.partyName}</span>
+                                {group.location && (
+                                  <span className="text-xs text-muted-foreground block max-w-[180px] truncate" title={group.location}>
+                                    {group.location}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="p-2 text-center">

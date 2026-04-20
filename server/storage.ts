@@ -191,7 +191,7 @@ export interface IStorage {
   seedTransportCarriers(): Promise<void>;
   getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
+    unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
@@ -2487,7 +2487,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
+    unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }> {
     const carriers = await this.getTransportCarriers();
@@ -2708,6 +2708,7 @@ export class DatabaseStorage implements IStorage {
       const suggestion = suggestCarrier(partyName, grp.totalCases, grp.orderIds.length, grp.locationTexts, carrierCosts);
       return {
         partyName,
+        location: primaryLocationText !== partyName ? primaryLocationText : null,
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
         orderIds: grp.orderIds,
