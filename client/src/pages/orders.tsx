@@ -700,6 +700,14 @@ export default function OrdersPage() {
 
   const archiveTotal = ARCHIVE_STATUSES.reduce((sum, s) => sum + (statusCounts[s] || 0), 0);
 
+  // Count invoiced/payment-pending orders that are unassigned AND have cartons — mirrors the
+  // transport tab's backend filter so the badge matches what the flyout actually shows.
+  const transportUnassignedCount = allOrders.filter(o =>
+    (o.status === "Invoiced" || o.status === "PaymentPending") &&
+    !o.dispatchBy &&
+    ((o.smallCartons ?? 0) + (o.largeCartons ?? 0)) > 0
+  ).length;
+
   // Create a lookup map: parentOrderId -> pending order (for showing pending indicators)
   const pendingOrderLookup = useMemo(() => {
     const lookup = new Map<string, Order>();
@@ -1917,9 +1925,9 @@ export default function OrdersPage() {
             >
               <Truck className="w-4 h-4" />
               Transport Planning
-              {(statusCounts["Invoiced"] || 0) > 0 && (
+              {transportUnassignedCount > 0 && (
                 <Badge variant="secondary" className="text-xs px-1.5 py-0 min-w-5 h-5 bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                  {statusCounts["Invoiced"]}
+                  {transportUnassignedCount}
                 </Badge>
               )}
             </Button>
