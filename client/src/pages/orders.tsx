@@ -457,6 +457,8 @@ export default function OrdersPage() {
   const [advanceInvoiceNumber, setAdvanceInvoiceNumber] = useState("");
   const [advanceInvoiceDate, setAdvanceInvoiceDate] = useState("");
   const [advanceActualValue, setAdvanceActualValue] = useState("");
+  const [advanceSmallCartons, setAdvanceSmallCartons] = useState("");
+  const [advanceLargeCartons, setAdvanceLargeCartons] = useState("");
 
   // Invoiced→Dispatched mandatory fields
   const [dispatchBy, setDispatchBy] = useState("");
@@ -1006,6 +1008,8 @@ export default function OrdersPage() {
       setAdvanceInvoiceNumber("");
       setAdvanceInvoiceDate("");
       setAdvanceActualValue("");
+      setAdvanceSmallCartons("");
+      setAdvanceLargeCartons("");
       setShowPartyVerifyDialog(true);
     } else if (order.status === "Invoiced" || order.status === "PaymentPending") {
       setDispatchOrder(order);
@@ -4864,6 +4868,30 @@ export default function OrdersPage() {
                     className="h-8 text-sm"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Large Cartons</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={advanceLargeCartons}
+                      onChange={e => setAdvanceLargeCartons(e.target.value)}
+                      placeholder="0"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Small Cartons</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={advanceSmallCartons}
+                      onChange={e => setAdvanceSmallCartons(e.target.value)}
+                      placeholder="0"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Footer */}
@@ -4885,6 +4913,8 @@ export default function OrdersPage() {
                       setAdvancePartyName("");
                       setAdvanceVerifyStatus("idle");
                       setAdvanceVerifyMatches([]);
+                      setAdvanceSmallCartons("");
+                      setAdvanceLargeCartons("");
                     }}
                     data-testid="button-advance-party-cancel"
                   >
@@ -4901,6 +4931,8 @@ export default function OrdersPage() {
                         invoiceNumber: advanceInvoiceNumber.trim(),
                         invoiceDate: advanceInvoiceDate,
                         actualOrderValue: advanceActualValue.trim(),
+                        smallCartonsVal: advanceSmallCartons || undefined,
+                        largeCartonsVal: advanceLargeCartons || undefined,
                       });
                     }}
                     disabled={advanceMutation.isPending || !advancePartyName.trim() || !advanceInvoiceNumber.trim() || !advanceInvoiceDate || !advanceActualValue.trim()}
