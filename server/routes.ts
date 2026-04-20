@@ -6677,16 +6677,29 @@ export async function registerRoutes(
               const text = await r.text();
               if (!text || text.trim() === '') return;
               const parsed = JSON.parse(text);
-              // External API can return array or object with matches/data property
-              const rawMatches = Array.isArray(parsed)
-                ? parsed
-                : (parsed.matches || parsed.data || (parsed.results ? parsed.results : null));
-              const first = Array.isArray(rawMatches) ? rawMatches[0] : null;
+              // Mirror the same normalisation used in /api/verify/debtor:
+              //   { found: true, matches: [{...}] }  — multi-match (new format)
+              //   { found: true, match: {...} }       — single match (old format)
+              //   [{...}]                             — bare array
+              let rawMatches: any[] = [];
+              if (Array.isArray(parsed)) {
+                rawMatches = parsed;
+              } else if (parsed && typeof parsed === 'object') {
+                if (Array.isArray(parsed.matches) && parsed.matches.length > 0) {
+                  rawMatches = parsed.matches;
+                } else if (parsed.match) {
+                  rawMatches = [parsed.match];
+                }
+              }
+              const first = rawMatches[0];
               if (first?.location) {
                 group.location = first.location;
+                console.log(`[transport/predict] location enriched for "${group.partyName}": ${first.location}`);
+              } else {
+                console.log(`[transport/predict] no location found for "${group.partyName}" — API first match:`, JSON.stringify(first ?? null).substring(0, 200));
               }
-            } catch {
-              // Ignore per-party failures — location stays null
+            } catch (err) {
+              console.warn(`[transport/predict] location lookup failed for "${group.partyName}":`, err);
             }
           }));
         }
