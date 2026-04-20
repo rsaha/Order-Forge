@@ -736,6 +736,9 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                   Suggested: {assignGroup.suggestion.carrierName}
                 </div>
                 <p className="text-xs text-muted-foreground">{assignGroup.suggestion.reason}</p>
+                {assignCarrier === assignGroup.suggestion.carrierName && assignGroup.suggestion.tat && (
+                  <p className="text-xs text-muted-foreground mt-0.5">TAT: {assignGroup.suggestion.tat}</p>
+                )}
               </div>
             )}
 
