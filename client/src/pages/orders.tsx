@@ -88,7 +88,6 @@ import * as XLSX from "xlsx";
 const ORDER_STATUSES: OrderStatus[] = ["Online", "Created", "Approved", "Backordered", "Pending", "Invoiced", "PaymentPending", "Dispatched", "Delivered", "PODReceived", "Cancelled"];
 
 const DEFAULT_ARCHIVE_STATUSES: OrderStatus[] = ["Delivered", "PODReceived", "Cancelled"];
-const DEFAULT_CARTON_SIZE_OPTIONS = ["Small", "Medium", "Large"];
 const DEFAULT_STATUS_SLA_DAYS: Partial<Record<OrderStatus, number>> = {
   Online: 1,
   Created: 2,
@@ -239,7 +238,8 @@ interface OrderEditFormData {
   dispatchDate: string;
   dispatchBy: string;
   cases: string;
-  cartonSize: string;
+  smallCartons: string;
+  largeCartons: string;
   specialNotes: string;
   estimatedDeliveryDate: string;
   actualDeliveryDate: string;
@@ -365,7 +365,8 @@ export default function OrdersPage() {
     dispatchDate: "",
     dispatchBy: "",
     cases: "",
-    cartonSize: "",
+    smallCartons: "",
+    largeCartons: "",
     specialNotes: "",
     estimatedDeliveryDate: "",
     actualDeliveryDate: "",
@@ -454,8 +455,8 @@ export default function OrdersPage() {
   // Invoiced→Dispatched mandatory fields
   const [dispatchBy, setDispatchBy] = useState("");
   const [dispatchDate, setDispatchDate] = useState("");
-  const [dispatchCases, setDispatchCases] = useState("");
-  const [dispatchCartonSize, setDispatchCartonSize] = useState("");
+  const [dispatchSmallCartons, setDispatchSmallCartons] = useState("");
+  const [dispatchLargeCartons, setDispatchLargeCartons] = useState("");
   const [dispatchDeliveryCompany, setDispatchDeliveryCompany] = useState("");
   const [dispatchEstimatedDate, setDispatchEstimatedDate] = useState("");
 
@@ -512,10 +513,6 @@ export default function OrdersPage() {
     queryKey: ["/api/order-status-config"],
     staleTime: 5 * 60 * 1000,
   });
-  const { data: cartonSizesData = [] } = useQuery<Array<{ id: string; name: string; sortOrder: number; isActive: boolean }>>({
-    queryKey: ["/api/carton-sizes"],
-    staleTime: 5 * 60 * 1000,
-  });
   useEffect(() => {
     if (statusConfig.length > 0) {
       const sla: Partial<Record<OrderStatus, number>> = {};
@@ -528,11 +525,6 @@ export default function OrdersPage() {
       ARCHIVE_STATUSES = archived;
     }
   }, [statusConfig]);
-  const CARTON_SIZE_OPTIONS = useMemo(
-    () => (cartonSizesData.length > 0 ? cartonSizesData.filter(c => c.isActive).sort((a, b) => a.sortOrder - b.sortOrder).map(c => c.name) : DEFAULT_CARTON_SIZE_OPTIONS),
-    [cartonSizesData]
-  );
-
   const { data: allOrders = [], isLoading } = useQuery<Order[]>({
     queryKey: [hasAdminAccess ? "/api/admin/orders" : "/api/orders", deliveryCompanyFilter, brandFilter, dateRange],
     queryFn: async () => {
@@ -756,8 +748,8 @@ export default function OrdersPage() {
       if (updates.invoiceDate !== undefined) payload.invoiceDate = updates.invoiceDate || null;
       if (updates.dispatchDate !== undefined) payload.dispatchDate = updates.dispatchDate || null;
       if (updates.dispatchBy !== undefined) payload.dispatchBy = updates.dispatchBy || null;
-      if (updates.cases !== undefined) payload.cases = updates.cases ? parseInt(updates.cases) : null;
-      if (updates.cartonSize !== undefined) payload.cartonSize = updates.cartonSize || null;
+      if (updates.smallCartons !== undefined) payload.smallCartons = updates.smallCartons ? parseInt(updates.smallCartons) : null;
+      if (updates.largeCartons !== undefined) payload.largeCartons = updates.largeCartons ? parseInt(updates.largeCartons) : null;
       if (updates.specialNotes !== undefined) payload.specialNotes = updates.specialNotes || null;
       if (updates.estimatedDeliveryDate !== undefined) payload.estimatedDeliveryDate = updates.estimatedDeliveryDate || null;
       if (updates.actualDeliveryDate !== undefined) payload.actualDeliveryDate = updates.actualDeliveryDate || null;
@@ -923,10 +915,10 @@ export default function OrdersPage() {
   });
 
   const advanceMutation = useMutation({
-    mutationFn: async ({ id, status, partyName, invoiceNumber, invoiceDate, actualOrderValue, dispatchByVal, dispatchDateVal, casesVal, cartonSizeVal, deliveryCompanyVal, estimatedDeliveryDateVal, actualDeliveryDateVal }: {
+    mutationFn: async ({ id, status, partyName, invoiceNumber, invoiceDate, actualOrderValue, dispatchByVal, dispatchDateVal, smallCartonsVal, largeCartonsVal, deliveryCompanyVal, estimatedDeliveryDateVal, actualDeliveryDateVal }: {
       id: string; status: string; partyName?: string;
       invoiceNumber?: string; invoiceDate?: string; actualOrderValue?: string;
-      dispatchByVal?: string; dispatchDateVal?: string; casesVal?: string; cartonSizeVal?: string; deliveryCompanyVal?: string; estimatedDeliveryDateVal?: string;
+      dispatchByVal?: string; dispatchDateVal?: string; smallCartonsVal?: string; largeCartonsVal?: string; deliveryCompanyVal?: string; estimatedDeliveryDateVal?: string;
       actualDeliveryDateVal?: string;
     }) => {
       const payload: Record<string, unknown> = { status };
@@ -936,8 +928,8 @@ export default function OrdersPage() {
       if (actualOrderValue) payload.actualOrderValue = actualOrderValue;
       if (dispatchByVal) payload.dispatchBy = dispatchByVal;
       if (dispatchDateVal) payload.dispatchDate = dispatchDateVal;
-      if (casesVal) payload.cases = parseInt(casesVal);
-      if (cartonSizeVal) payload.cartonSize = cartonSizeVal;
+      if (smallCartonsVal !== undefined) payload.smallCartons = smallCartonsVal ? parseInt(smallCartonsVal) : null;
+      if (largeCartonsVal !== undefined) payload.largeCartons = largeCartonsVal ? parseInt(largeCartonsVal) : null;
       if (deliveryCompanyVal) payload.deliveryCompany = deliveryCompanyVal;
       if (estimatedDeliveryDateVal) payload.estimatedDeliveryDate = estimatedDeliveryDateVal;
       if (actualDeliveryDateVal) payload.actualDeliveryDate = actualDeliveryDateVal;
@@ -1015,8 +1007,8 @@ export default function OrdersPage() {
       setDispatchTransportData(null);
       setDispatchBy("");
       setDispatchDate("");
-      setDispatchCases("");
-      setDispatchCartonSize(order.cartonSize?.toString() || "");
+      setDispatchSmallCartons(order.smallCartons?.toString() || "");
+      setDispatchLargeCartons(order.largeCartons?.toString() || "");
       setDispatchDeliveryCompany(order.deliveryCompany || "");
       setDispatchEstimatedDate("");
       setShowDispatchDialog(true);
@@ -1222,7 +1214,8 @@ export default function OrdersPage() {
       dispatchDate: order.dispatchDate ? new Date(order.dispatchDate).toISOString().split("T")[0] : "",
       dispatchBy: order.dispatchBy || "",
       cases: order.cases?.toString() || "",
-      cartonSize: order.cartonSize?.toString() || "",
+      smallCartons: order.smallCartons?.toString() || "",
+      largeCartons: order.largeCartons?.toString() || "",
       specialNotes: order.specialNotes || "",
       estimatedDeliveryDate: order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toISOString().split("T")[0] : "",
       actualDeliveryDate: order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toISOString().split("T")[0] : "",
@@ -2388,7 +2381,11 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap text-muted-foreground">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
-                            <td className="p-2 text-center hidden md:table-cell text-sm">{order.cases || "-"}</td>
+                            <td className="p-2 text-center hidden md:table-cell text-sm">
+                              {(order.smallCartons != null || order.largeCartons != null)
+                                ? `${order.smallCartons ?? 0}s + ${order.largeCartons ?? 0}l`
+                                : order.cases || "-"}
+                            </td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 hidden lg:table-cell text-xs whitespace-nowrap">{order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -3093,32 +3090,30 @@ export default function OrdersPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label htmlFor="cases">Cartons</Label>
+                        <Label htmlFor="smallCartons">Small Ctns</Label>
                         <Input
-                          id="cases"
+                          id="smallCartons"
                           type="number"
-                          value={editFormData.cases}
-                          onChange={(e) => setEditFormData({ ...editFormData, cases: e.target.value })}
+                          min="0"
+                          value={editFormData.smallCartons}
+                          onChange={(e) => setEditFormData({ ...editFormData, smallCartons: e.target.value })}
                           placeholder="0"
                           disabled={selectedOrder.status === "PODReceived"}
-                          data-testid="input-cases"
+                          data-testid="input-small-cartons"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="cartonSize">Carton Size</Label>
-                        <select
-                          id="cartonSize"
-                          value={editFormData.cartonSize}
-                          onChange={(e) => setEditFormData({ ...editFormData, cartonSize: e.target.value })}
+                        <Label htmlFor="largeCartons">Large Ctns</Label>
+                        <Input
+                          id="largeCartons"
+                          type="number"
+                          min="0"
+                          value={editFormData.largeCartons}
+                          onChange={(e) => setEditFormData({ ...editFormData, largeCartons: e.target.value })}
+                          placeholder="0"
                           disabled={selectedOrder.status === "PODReceived"}
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          data-testid="select-carton-size"
-                        >
-                          <option value="">Select size…</option>
-                          {CARTON_SIZE_OPTIONS.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+                          data-testid="input-large-cartons"
+                        />
                       </div>
                       {isAdmin && (
                         <div>
@@ -3823,7 +3818,9 @@ export default function OrdersPage() {
                             if (group.deliveryCompany) {
                               msg += `*Transport:* ${group.deliveryCompany}\n`;
                             }
-                            if (o.cases) {
+                            if (o.smallCartons != null || o.largeCartons != null) {
+                              msg += `*Small Ctns:* ${o.smallCartons ?? 0}, *Large Ctns:* ${o.largeCartons ?? 0}\n`;
+                            } else if (o.cases) {
                               msg += `*No. of Cases:* ${o.cases}\n`;
                             }
                             if (o.estimatedDeliveryDate) {
@@ -3841,7 +3838,9 @@ export default function OrdersPage() {
                               msg += `*Invoice Date:* ${formatDateFn(o.invoiceDate)}\n`;
                             }
                             msg += `*Actual Order Value:* ${formatCurrencyFn(o.actualOrderValue || o.total)}\n`;
-                            if (o.cases) {
+                            if (o.smallCartons != null || o.largeCartons != null) {
+                              msg += `*Small Ctns:* ${o.smallCartons ?? 0}, *Large Ctns:* ${o.largeCartons ?? 0}\n`;
+                            } else if (o.cases) {
                               msg += `*No. of Cases:* ${o.cases}\n`;
                             }
                             if (o.dispatchDate) {
@@ -4402,28 +4401,28 @@ export default function OrdersPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Cartons</label>
+                    <label className="text-xs font-medium">Small Ctns</label>
                     <Input
                       type="number"
-                      min="1"
-                      value={dispatchCases}
-                      onChange={e => setDispatchCases(e.target.value)}
-                      placeholder="No. of cartons"
+                      min="0"
+                      value={dispatchSmallCartons}
+                      onChange={e => setDispatchSmallCartons(e.target.value)}
+                      placeholder="0"
                       className="h-8 text-sm"
+                      data-testid="input-dispatch-small-cartons"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Carton Size</label>
-                    <select
-                      value={dispatchCartonSize}
-                      onChange={e => setDispatchCartonSize(e.target.value)}
-                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                    >
-                      <option value="">Select size…</option>
-                      {CARTON_SIZE_OPTIONS.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
+                    <label className="text-xs font-medium">Large Ctns</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={dispatchLargeCartons}
+                      onChange={e => setDispatchLargeCartons(e.target.value)}
+                      placeholder="0"
+                      className="h-8 text-sm"
+                      data-testid="input-dispatch-large-cartons"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Delivery Company <span className="text-red-500">*</span></label>
@@ -4474,8 +4473,8 @@ export default function OrdersPage() {
                       status: "Dispatched",
                       dispatchByVal: dispatchBy.trim(),
                       dispatchDateVal: dispatchDate,
-                      casesVal: dispatchCases,
-                      cartonSizeVal: dispatchCartonSize || undefined,
+                      smallCartonsVal: dispatchSmallCartons || undefined,
+                      largeCartonsVal: dispatchLargeCartons || undefined,
                       deliveryCompanyVal: dispatchDeliveryCompany,
                       estimatedDeliveryDateVal: dispatchEstimatedDate || undefined,
                     });
@@ -4998,7 +4997,11 @@ export default function OrdersPage() {
                                 </div>
                                 <div className="text-right text-sm shrink-0">
                                   {order.cases != null ? (
-                                    <span className="font-medium">{order.cases} ctns</span>
+                                    <span className="font-medium">
+                                      {(order.smallCartons != null || order.largeCartons != null)
+                                        ? `${order.smallCartons ?? 0}s + ${order.largeCartons ?? 0}l`
+                                        : `${order.cases} ctns`}
+                                    </span>
                                   ) : (
                                     <span className="text-amber-600 dark:text-amber-400 text-xs font-medium">No cases</span>
                                   )}

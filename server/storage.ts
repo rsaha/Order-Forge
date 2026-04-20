@@ -191,7 +191,7 @@ export interface IStorage {
   seedTransportCarriers(): Promise<void>;
   getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string } | null }>;
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
@@ -1265,6 +1265,16 @@ export class DatabaseStorage implements IStorage {
     if (updates.dispatchBy !== undefined) updateData.dispatchBy = updates.dispatchBy;
     if (updates.cases !== undefined) updateData.cases = updates.cases;
     if (updates.cartonSize !== undefined) updateData.cartonSize = updates.cartonSize;
+    if (updates.smallCartons !== undefined) updateData.smallCartons = updates.smallCartons;
+    if (updates.largeCartons !== undefined) updateData.largeCartons = updates.largeCartons;
+    // Derive total cases from small + large, but only when at least one count is non-null
+    if (updates.smallCartons !== undefined || updates.largeCartons !== undefined) {
+      const small = updates.smallCartons ?? null;
+      const large = updates.largeCartons ?? null;
+      if (small !== null || large !== null) {
+        updateData.cases = ((small || 0) + (large || 0)) || null;
+      }
+    }
     if (updates.specialNotes !== undefined) updateData.specialNotes = updates.specialNotes;
     if (updates.estimatedDeliveryDate !== undefined) updateData.estimatedDeliveryDate = updates.estimatedDeliveryDate ? new Date(updates.estimatedDeliveryDate) : null;
     if (updates.actualDeliveryDate !== undefined) updateData.actualDeliveryDate = updates.actualDeliveryDate ? new Date(updates.actualDeliveryDate) : null;
@@ -2477,7 +2487,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTransportPredict(): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; cartonSizes: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string } | null }>;
+    unassigned: Array<{ partyName: string; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
   }> {
     const carriers = await this.getTransportCarriers();
@@ -2558,16 +2568,15 @@ export class DatabaseStorage implements IStorage {
     const assignedOrders = invoicedOrders.filter(o => !!o.dispatchBy);
 
     // Group unassigned by partyName, also collecting delivery addresses for geo matching
-    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; cartonSizes: Set<string>; locationTexts: string[] }>();
+    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; locationTexts: string[] }>();
     for (const order of unassignedOrders) {
       const key = order.partyName || "(No Party)";
       if (!unassignedGroups.has(key)) {
-        unassignedGroups.set(key, { orderIds: [], totalCases: 0, cartonSizes: new Set(), locationTexts: [] });
+        unassignedGroups.set(key, { orderIds: [], totalCases: 0, locationTexts: [] });
       }
       const grp = unassignedGroups.get(key)!;
       grp.orderIds.push(order.id);
       grp.totalCases += order.cases || 0;
-      if (order.cartonSize) grp.cartonSizes.add(order.cartonSize);
       // Use deliveryAddress as the location source (orders schema has no dedicated partyLocation field;
       // deliveryAddress is the closest equivalent), falling back to partyName for geo-rule matching.
       const loc = order.deliveryAddress || order.partyName;
@@ -2695,7 +2704,6 @@ export class DatabaseStorage implements IStorage {
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
         orderIds: grp.orderIds,
-        cartonSizes: Array.from(grp.cartonSizes),
         carrierCosts,
         suggestion,
       };

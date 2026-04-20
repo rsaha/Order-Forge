@@ -30,7 +30,6 @@ import {
   Check,
   ChevronRight,
   ChevronDown,
-  BoxesIcon,
   MapPin,
   RefreshCw,
   X,
@@ -79,7 +78,6 @@ interface UnassignedGroup {
   orderCount: number;
   totalCases: number;
   orderIds: string[];
-  cartonSizes: string[];
   carrierCosts: Record<string, CarrierCost>;
   suggestion: Suggestion | null;
 }
@@ -477,7 +475,6 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                       <th className="text-left p-2 font-medium">Party</th>
                       <th className="text-center p-2 font-medium">Orders</th>
                       <th className="text-center p-2 font-medium">Cartons</th>
-                      <th className="text-left p-2 font-medium hidden md:table-cell">Carton Size</th>
                       <th className="text-left p-2 font-medium">Suggested Carrier</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
@@ -505,19 +502,6 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                             <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
                               {group.totalCases || "-"}
                             </span>
-                          </td>
-                          <td className="p-2 hidden md:table-cell">
-                            {group.cartonSizes.length > 0 ? (
-                              <div className="flex gap-1 flex-wrap">
-                                {group.cartonSizes.map(cs => (
-                                  <Badge key={cs} variant="secondary" className="text-xs px-1.5 py-0">
-                                    <BoxesIcon className="w-2.5 h-2.5 mr-0.5" />{cs}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">-</span>
-                            )}
                           </td>
                           <td className="p-2">
                             <div className="space-y-1 min-w-[180px]">
