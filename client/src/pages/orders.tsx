@@ -7,6 +7,12 @@ import { filterProductsWithFuzzySearch } from "@/lib/fuzzySearch";
 import Header from "@/components/Header";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import TransportPredictionTab, { AssignedGroup as TransportAssignedGroup } from "@/components/TransportPredictionTab";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1821,13 +1827,13 @@ export default function OrdersPage() {
               .filter(status => !ARCHIVE_STATUSES.includes(status))
               .filter(status => status !== "PaymentPending")
               .filter(status => status !== "PODReceived" || isAdmin)
-              .filter(status => statusCounts[status] > 0 || (!showTransportTab && statusFilter === status))
+              .filter(status => statusCounts[status] > 0 || statusFilter === status)
               .map((status) => (
                 <button
                   key={status}
-                  onClick={() => { setStatusFilter(status); setShowTransportTab(false); setShowArchiveDropdown(false); }}
+                  onClick={() => { setStatusFilter(status); setShowArchiveDropdown(false); }}
                   className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                    !showTransportTab && statusFilter === status
+                    statusFilter === status
                       ? `${tabColors[status]} ${tabBgColors[status]} border-b-2`
                       : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
@@ -1837,7 +1843,7 @@ export default function OrdersPage() {
                   {statusCounts[status] > 0 && (
                     <Badge
                       variant="secondary"
-                      className={`text-xs px-1.5 py-0 min-w-5 h-5 ${!showTransportTab && statusFilter === status ? statusColors[status] : ""}`}
+                      className={`text-xs px-1.5 py-0 min-w-5 h-5 ${statusFilter === status ? statusColors[status] : ""}`}
                     >
                       {statusCounts[status]}
                     </Badge>
@@ -1849,7 +1855,7 @@ export default function OrdersPage() {
             <button
               onClick={() => setShowArchiveDropdown(prev => !prev)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                !showTransportTab && ARCHIVE_STATUSES.includes(statusFilter)
+                ARCHIVE_STATUSES.includes(statusFilter)
                   ? "border-slate-500 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
@@ -1857,33 +1863,12 @@ export default function OrdersPage() {
             >
               Archive
               {archiveTotal > 0 && (
-                <Badge variant="secondary" className={`text-xs px-1.5 py-0 min-w-5 h-5 ${!showTransportTab && ARCHIVE_STATUSES.includes(statusFilter) ? "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300" : ""}`}>
+                <Badge variant="secondary" className={`text-xs px-1.5 py-0 min-w-5 h-5 ${ARCHIVE_STATUSES.includes(statusFilter) ? "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300" : ""}`}>
                   {archiveTotal}
                 </Badge>
               )}
               <ChevronDown className={`w-3 h-3 transition-transform ${showArchiveDropdown ? "rotate-180" : ""}`} />
             </button>
-
-          {/* Transport tab — admin only */}
-          {isAdmin && (
-            <button
-              onClick={() => { setShowTransportTab(true); setShowArchiveDropdown(false); }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all border-b-2 ml-2 ${
-                showTransportTab
-                  ? "border-orange-500 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950 border-b-2"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-              data-testid="tab-transport"
-            >
-              <span className="text-base leading-none">🚚</span>
-              Transport
-              {(statusCounts["Invoiced"] || 0) > 0 && (
-                <Badge variant="secondary" className={`text-xs px-1.5 py-0 min-w-5 h-5 ${showTransportTab ? "bg-orange-100 text-orange-800" : ""}`}>
-                  {statusCounts["Invoiced"]}
-                </Badge>
-              )}
-            </button>
-          )}
           </div>
           {/* Archive popup — rendered outside overflow-x-auto so it isn't clipped */}
           {showArchiveDropdown && (
@@ -1893,9 +1878,9 @@ export default function OrdersPage() {
                 .map(status => (
                   <button
                     key={status}
-                    onClick={() => { setStatusFilter(status); setShowTransportTab(false); setShowArchiveDropdown(false); }}
+                    onClick={() => { setStatusFilter(status); setShowArchiveDropdown(false); }}
                     className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/60 transition-colors ${
-                      !showTransportTab && statusFilter === status
+                      statusFilter === status
                         ? `${tabColors[status]} font-medium`
                         : "text-foreground"
                     }`}
@@ -1905,7 +1890,7 @@ export default function OrdersPage() {
                     {statusCounts[status] > 0 && (
                       <Badge
                         variant="secondary"
-                        className={`text-xs px-1.5 py-0 min-w-5 h-5 ml-2 ${!showTransportTab && statusFilter === status ? statusColors[status] : ""}`}
+                        className={`text-xs px-1.5 py-0 min-w-5 h-5 ml-2 ${statusFilter === status ? statusColors[status] : ""}`}
                       >
                         {statusCounts[status]}
                       </Badge>
@@ -1915,12 +1900,45 @@ export default function OrdersPage() {
             </div>
           )}
         </div>
+
+        {/* Transport Planning flyout button — admin only */}
+        {isAdmin && (
+          <div className="px-4 pb-2 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
+              onClick={() => setShowTransportTab(true)}
+              data-testid="button-transport-planning"
+            >
+              <Truck className="w-4 h-4" />
+              Transport Planning
+              {(statusCounts["Invoiced"] || 0) > 0 && (
+                <Badge variant="secondary" className="text-xs px-1.5 py-0 min-w-5 h-5 bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                  {statusCounts["Invoiced"]}
+                </Badge>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto p-4">
-          {showTransportTab ? (
+      {/* Transport Planning Sheet flyout */}
+      <Sheet open={showTransportTab} onOpenChange={setShowTransportTab}>
+        <SheetContent side="right" className="w-full sm:max-w-4xl p-0 flex flex-col">
+          <SheetHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+            <SheetTitle className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-orange-500" />
+              Transport Planning
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-auto">
             <TransportPredictionTab onDispatchGroup={handleDispatchGroup} orders={allOrders} />
-          ) : (
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <div className="flex-1 min-h-0 overflow-auto p-4">
           <>
           {orders.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
@@ -2044,6 +2062,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Created By</th>
                         <th className="text-left p-2 font-medium">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Carton Count</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-center p-2 font-medium hidden md:table-cell">Pending</th>
                         <th className="text-center p-2 font-medium"></th>
@@ -2072,7 +2091,7 @@ export default function OrdersPage() {
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice #</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Invoice Date</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dispatch By</th>
-                        <th className="text-center p-2 font-medium hidden md:table-cell">Cases</th>
+                        <th className="text-left p-2 font-medium hidden md:table-cell">Carton Count</th>
                         <th className="text-right p-2 font-medium">Order Value</th>
                         <th className="text-left p-2 font-medium hidden lg:table-cell">Est. Delivery</th>
                         <th className="text-center p-2 font-medium"></th>
@@ -2309,6 +2328,11 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-sm">{formatCreatedBy(order)}</td>
                             <td className="p-2 text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
+                            <td className="p-2 hidden md:table-cell text-xs leading-snug">
+                              {(order.largeCartons ?? 0) > 0 && <div>Large - {order.largeCartons}</div>}
+                              {(order.smallCartons ?? 0) > 0 && <div>Small - {order.smallCartons}</div>}
+                              {!(order.largeCartons ?? 0) && !(order.smallCartons ?? 0) && <span className="text-muted-foreground">-</span>}
+                            </td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                               {pendingOrderLookup.has(order.id) ? (
@@ -2387,10 +2411,10 @@ export default function OrdersPage() {
                             <td className="p-2 hidden md:table-cell text-sm font-medium">{order.invoiceNumber || "-"}</td>
                             <td className="p-2 hidden md:table-cell text-xs whitespace-nowrap text-muted-foreground">{order.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
                             <td className="p-2 hidden md:table-cell text-sm">{order.dispatchBy || "-"}</td>
-                            <td className="p-2 text-center hidden md:table-cell text-sm">
-                              {(order.smallCartons != null || order.largeCartons != null)
-                                ? `${order.smallCartons ?? 0}s + ${order.largeCartons ?? 0}l`
-                                : order.cases || "-"}
+                            <td className="p-2 hidden md:table-cell text-xs leading-snug">
+                              {(order.largeCartons ?? 0) > 0 && <div>Large - {order.largeCartons}</div>}
+                              {(order.smallCartons ?? 0) > 0 && <div>Small - {order.smallCartons}</div>}
+                              {!(order.largeCartons ?? 0) && !(order.smallCartons ?? 0) && <span className="text-muted-foreground">{order.cases || "-"}</span>}
                             </td>
                             <td className="p-2 text-right font-medium whitespace-nowrap">{formatINR(order.actualOrderValue || order.total)}</td>
                             <td className="p-2 hidden lg:table-cell text-xs whitespace-nowrap">{order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-"}</td>
@@ -2497,7 +2521,6 @@ export default function OrdersPage() {
             </div>
           )}
           </>
-          )}
       </div>
 
       <Dialog open={!!selectedOrder} onOpenChange={async (open) => {
