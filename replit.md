@@ -63,7 +63,6 @@ Authenticated, admin-only PUT/DELETE; GET is authenticated read-only. Used to dr
 -   `GET/PUT /api/delivery-companies` (`?brand=` for brand-scoped list).
 -   `GET /api/dispatcher-patterns` (read-only public to authed users; admin CRUD via `/api/admin/dispatcher-patterns`): Pattern → type (self|hand|zero_cost|transport).
 -   `GET/PUT /api/order-status-config`: SLA days, archived flag, sort order per status.
--   `GET/PUT /api/carton-sizes`: Carton size labels.
 
 ### Branding (Frontend)
 `client/src/config/brand.ts` reads `VITE_APP_FULL_NAME`, `VITE_APP_SHORT_NAME`, `VITE_APP_TAGLINE`, `VITE_APP_FAVICON_URL` with safe defaults. `useBrandConfig` hook exposes `useBrands`, `useBrandConfig(brand)`, `useDeliveryCompanies(brand?)`.
