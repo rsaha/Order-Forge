@@ -496,9 +496,12 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                               <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
                               <div className="min-w-0">
                                 <span className="font-medium block max-w-[180px] truncate">{group.partyName}</span>
-                                {group.location && (
-                                  <span className="text-xs text-muted-foreground block max-w-[180px] truncate" title={group.location}>
-                                    {group.location}
+                                <span className={`text-xs block max-w-[180px] truncate ${group.location ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`} title={group.location ?? undefined}>
+                                  {group.location ?? "Location not mentioned"}
+                                </span>
+                                {group.suggestion && (
+                                  <span className="text-xs text-blue-600 dark:text-blue-400 block max-w-[180px] truncate font-medium">
+                                    Pref: {group.suggestion.carrierName}
                                   </span>
                                 )}
                               </div>

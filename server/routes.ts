@@ -6564,9 +6564,6 @@ export async function registerRoutes(
 
   // ─── Transport Carrier & Prediction Routes ───────────────────────────────────
 
-  // Seed transport carriers on startup (idempotent)
-  storage.seedTransportCarriers().catch(e => console.error("Failed to seed transport carriers:", e));
-
   // GET /api/transport/carriers — list all carriers with rates (admin only)
   app.get("/api/transport/carriers", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;
