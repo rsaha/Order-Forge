@@ -188,8 +188,8 @@ export interface IStorage {
   getInvoicedUnassignedPartyInfo(): Promise<{ partyName: string; deliveryAddress: string | null }[]>;
   getTransportPredict(locationOverrides?: Record<string, string>): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
-    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
+    unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; smallCartons: number; largeCartons: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
+    assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; smallCartons: number; largeCartons: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
   unassignTransportFromOrders(orderIds: string[]): Promise<number>;
@@ -2555,15 +2555,17 @@ export class DatabaseStorage implements IStorage {
     // Group unassigned by partyName, collecting actual delivery addresses for geo/rate matching.
     // We do NOT fall back to partyName here — partyName is used as a last resort only after
     // all enrichment sources (deliveryAddress, locationOverrides) have been exhausted.
-    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; locationTexts: string[] }>();
+    const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; smallCartons: number; largeCartons: number; locationTexts: string[] }>();
     for (const order of unassignedOrders) {
       const key = order.partyName || "(No Party)";
       if (!unassignedGroups.has(key)) {
-        unassignedGroups.set(key, { orderIds: [], totalCases: 0, locationTexts: [] });
+        unassignedGroups.set(key, { orderIds: [], totalCases: 0, smallCartons: 0, largeCartons: 0, locationTexts: [] });
       }
       const grp = unassignedGroups.get(key)!;
       grp.orderIds.push(order.id);
       grp.totalCases += order.cases || 0;
+      grp.smallCartons += order.smallCartons || 0;
+      grp.largeCartons += order.largeCartons || 0;
       if (order.deliveryAddress) grp.locationTexts.push(order.deliveryAddress);
     }
 
@@ -2713,6 +2715,8 @@ export class DatabaseStorage implements IStorage {
         location: displayLocation,
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
+        smallCartons: grp.smallCartons,
+        largeCartons: grp.largeCartons,
         orderIds: grp.orderIds,
         carrierCosts,
         suggestion,
@@ -2721,13 +2725,15 @@ export class DatabaseStorage implements IStorage {
 
     // Group assigned by dispatchBy, computing per-party cost using matched carrier
     // Track locationText (deliveryAddress) per party for accurate cost computation
-    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number; partyOrders: Map<string, { count: number; locationText: string | null }> }>();
+    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number; smallCartons: number; largeCartons: number; partyOrders: Map<string, { count: number; locationText: string | null }> }>();
     for (const order of assignedOrders) {
       const key = order.dispatchBy!;
-      if (!assignedGroups.has(key)) assignedGroups.set(key, { orderIds: [], totalCases: 0, partyOrders: new Map() });
+      if (!assignedGroups.has(key)) assignedGroups.set(key, { orderIds: [], totalCases: 0, smallCartons: 0, largeCartons: 0, partyOrders: new Map() });
       const grp = assignedGroups.get(key)!;
       grp.orderIds.push(order.id);
       grp.totalCases += order.cases || 0;
+      grp.smallCartons += order.smallCartons || 0;
+      grp.largeCartons += order.largeCartons || 0;
       const pn = order.partyName || "(No Party)";
       const locationText = order.deliveryAddress || order.partyName || null;
       const existing = grp.partyOrders.get(pn);
@@ -2760,6 +2766,8 @@ export class DatabaseStorage implements IStorage {
         dispatchBy,
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
+        smallCartons: grp.smallCartons,
+        largeCartons: grp.largeCartons,
         orderIds: grp.orderIds,
         estimatedCost,
       };

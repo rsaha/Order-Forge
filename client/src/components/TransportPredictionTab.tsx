@@ -79,6 +79,8 @@ interface UnassignedGroup {
   location: string | null;
   orderCount: number;
   totalCases: number;
+  smallCartons: number;
+  largeCartons: number;
   orderIds: string[];
   carrierCosts: Record<string, CarrierCost>;
   suggestion: Suggestion | null;
@@ -88,6 +90,8 @@ export interface AssignedGroup {
   dispatchBy: string;
   orderCount: number;
   totalCases: number;
+  smallCartons: number;
+  largeCartons: number;
   orderIds: string[];
   estimatedCost: number | null;
 }
@@ -106,8 +110,22 @@ interface OrderSummary {
   actualOrderValue: string | null;
   total: string | null;
   cases: number | null;
+  smallCartons: number | null;
+  largeCartons: number | null;
   status: string;
   deliveryAddress?: string | null;
+}
+
+function CartonCount({ large, small }: { large: number | null | undefined; small: number | null | undefined }) {
+  const l = large ?? 0;
+  const s = small ?? 0;
+  if (l === 0 && s === 0) return <span className="text-muted-foreground">-</span>;
+  return (
+    <div className="text-left leading-snug space-y-0.5">
+      {l > 0 && <div>Large - {l}</div>}
+      {s > 0 && <div>Small - {s}</div>}
+    </div>
+  );
 }
 
 function formatINR(n: number | string | null | undefined) {
@@ -476,7 +494,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                     <tr>
                       <th className="text-left p-2 font-medium">Party</th>
                       <th className="text-center p-2 font-medium">Orders</th>
-                      <th className="text-center p-2 font-medium">Cartons</th>
+                      <th className="text-left p-2 font-medium">Carton Count</th>
                       <th className="text-left p-2 font-medium">Suggested Carrier</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
@@ -510,10 +528,8 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                           <td className="p-2 text-center">
                             <Badge variant="outline">{group.orderCount}</Badge>
                           </td>
-                          <td className="p-2 text-center">
-                            <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
-                              {group.totalCases || "-"}
-                            </span>
+                          <td className="p-2 font-medium text-sm">
+                            <CartonCount large={group.largeCartons} small={group.smallCartons} />
                           </td>
                           <td className="p-2">
                             <div className="space-y-1 min-w-[180px]">
@@ -585,7 +601,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                     <tr>
                       <th className="text-left p-2 font-medium">Carrier / Dispatch By</th>
                       <th className="text-center p-2 font-medium">Orders</th>
-                      <th className="text-center p-2 font-medium">Total Cartons</th>
+                      <th className="text-left p-2 font-medium">Carton Count</th>
                       <th className="text-right p-2 font-medium">Est. Cost</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
@@ -613,10 +629,8 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                             <td className="p-2 text-center">
                               <Badge variant="outline">{group.orderCount}</Badge>
                             </td>
-                            <td className="p-2 text-center">
-                              <span className={group.totalCases === 0 ? "text-muted-foreground" : "font-medium"}>
-                                {group.totalCases || "-"}
-                              </span>
+                            <td className="p-2 font-medium text-sm">
+                              <CartonCount large={group.largeCartons} small={group.smallCartons} />
                             </td>
                             <td className="p-2 text-right">
                               {group.estimatedCost !== null ? (
@@ -690,7 +704,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                                         <th className="text-left py-1 pl-8 font-medium text-muted-foreground">Party</th>
                                         <th className="text-left py-1 font-medium text-muted-foreground hidden sm:table-cell">Brand</th>
                                         <th className="text-left py-1 font-medium text-muted-foreground">Invoice #</th>
-                                        <th className="text-center py-1 font-medium text-muted-foreground">Cartons</th>
+                                        <th className="text-left py-1 font-medium text-muted-foreground">Carton Count</th>
                                         <th className="text-right py-1 pr-2 font-medium text-muted-foreground">Value</th>
                                       </tr>
                                     </thead>
@@ -700,7 +714,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                                           <td className="py-1.5 pl-8">{o.partyName || "-"}</td>
                                           <td className="py-1.5 hidden sm:table-cell text-muted-foreground">{o.brand || "-"}</td>
                                           <td className="py-1.5 text-muted-foreground">{o.invoiceNumber || "-"}</td>
-                                          <td className="py-1.5 text-center">{o.cases ?? "-"}</td>
+                                          <td className="py-1.5 font-medium"><CartonCount large={o.largeCartons} small={o.smallCartons} /></td>
                                           <td className="py-1.5 text-right pr-2 font-medium">{formatINR(o.actualOrderValue || o.total)}</td>
                                         </tr>
                                       ))}
