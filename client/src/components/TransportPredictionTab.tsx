@@ -77,6 +77,7 @@ interface Suggestion {
 interface UnassignedGroup {
   partyName: string;
   location: string | null;
+  preferredTransport: string | null;
   orderCount: number;
   totalCases: number;
   smallCartons: number;
@@ -523,7 +524,22 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                                     ⚠ No location in Party API
                                   </span>
                                 )}
-                                {group.suggestion ? (
+                                {group.preferredTransport ? (
+                                  (() => {
+                                    const apiPrefMatchesSuggestion =
+                                      group.suggestion?.reason === "Party's preferred carrier from API";
+                                    return (
+                                      <>
+                                        <span className={`text-xs block max-w-[200px] truncate font-medium ${apiPrefMatchesSuggestion ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
+                                          title={apiPrefMatchesSuggestion ? `Matched to carrier: ${group.suggestion?.carrierName}` : `"${group.preferredTransport}" not matched to any carrier`}>
+                                          {apiPrefMatchesSuggestion
+                                            ? `★ ${group.preferredTransport}`
+                                            : `⚠ API Pref: ${group.preferredTransport} (no match)`}
+                                        </span>
+                                      </>
+                                    );
+                                  })()
+                                ) : group.suggestion ? (
                                   <span className="text-xs text-blue-600 dark:text-blue-400 block max-w-[180px] truncate font-medium">
                                     Pref: {group.suggestion.carrierName}
                                   </span>

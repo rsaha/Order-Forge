@@ -186,9 +186,9 @@ export interface IStorage {
   deleteTransportRate(id: string): Promise<boolean>;
   seedTransportCarriers(): Promise<void>;
   getInvoicedUnassignedPartyInfo(): Promise<{ partyName: string; deliveryAddress: string | null }[]>;
-  getTransportPredict(locationOverrides?: Record<string, string>): Promise<{
+  getTransportPredict(locationOverrides?: Record<string, string>, preferredTransportOverrides?: Record<string, string>): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
-    unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; smallCartons: number; largeCartons: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
+    unassigned: Array<{ partyName: string; location: string | null; preferredTransport: string | null; orderCount: number; totalCases: number; smallCartons: number; largeCartons: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; smallCartons: number; largeCartons: number; orderIds: string[]; estimatedCost: number | null }>;
   }>;
   assignTransportToOrders(orderIds: string[], dispatchBy: string): Promise<number>;
@@ -2467,7 +2467,7 @@ export class DatabaseStorage implements IStorage {
     return rows.filter(r => r.partyName !== null) as { partyName: string; deliveryAddress: string | null }[];
   }
 
-  async getTransportPredict(locationOverrides?: Record<string, string>): Promise<{
+  async getTransportPredict(locationOverrides?: Record<string, string>, preferredTransportOverrides?: Record<string, string>): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
     unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
@@ -2705,14 +2705,31 @@ export class DatabaseStorage implements IStorage {
       for (const carrier of activeCarriers) {
         carrierCosts[carrier.id] = computeCarrierCost(partyName, primaryLocationText, grp.orderIds.length, carrier);
       }
-      const suggestion = suggestCarrier(partyName, grp.totalCases, grp.orderIds.length, grp.locationTexts, carrierCosts);
+      let suggestion = suggestCarrier(partyName, grp.totalCases, grp.orderIds.length, grp.locationTexts, carrierCosts);
       // Determine display location: prefer override (from party API), then delivery address,
       // then null (shown as "Location not mentioned" in the UI).
       const displayLocation = locationOverrides?.[partyName]
         ?? (primaryLocationText !== partyName ? primaryLocationText : null);
+      // If the party API specifies a preferredTransport, use it as the suggestion
+      // (overrides any cost-computed suggestion). Match by carrier name, case-insensitive.
+      const rawPreferredTransport = preferredTransportOverrides?.[partyName] ?? null;
+      if (rawPreferredTransport) {
+        const prefCarrier = activeCarriers.find(
+          c => c.name.toLowerCase() === rawPreferredTransport.toLowerCase()
+        );
+        if (prefCarrier) {
+          suggestion = {
+            carrierId: prefCarrier.id,
+            carrierName: prefCarrier.name,
+            reason: `Party's preferred carrier from API`,
+            tat: getCarrierTat(prefCarrier),
+          };
+        }
+      }
       return {
         partyName,
         location: displayLocation,
+        preferredTransport: rawPreferredTransport,
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
         smallCartons: grp.smallCartons,

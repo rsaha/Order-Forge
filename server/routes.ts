@@ -6666,6 +6666,7 @@ export async function registerRoutes(
       // matched against carrier rates using the raw party name — missing the fact
       // that their location is "Nadia", which IS covered by Business & Logistics.
       const locationOverrides: Record<string, string> = {};
+      const preferredTransportOverrides: Record<string, string> = {};
       const apiKey = process.env.CASHDESK_API_KEY;
       if (apiKey) {
         const partyInfo = await storage.getInvoicedUnassignedPartyInfo();
@@ -6700,6 +6701,10 @@ export async function registerRoutes(
               } else {
                 console.log(`[transport/predict] no location in party API for "${partyName}" — match:`, JSON.stringify(first ?? null).substring(0, 200));
               }
+              if (first?.preferredTransport) {
+                preferredTransportOverrides[partyName] = first.preferredTransport;
+                console.log(`[transport/predict] preferredTransport for "${partyName}": ${first.preferredTransport}`);
+              }
             } catch (err) {
               console.warn(`[transport/predict] party API lookup failed for "${partyName}":`, err);
             }
@@ -6708,7 +6713,7 @@ export async function registerRoutes(
       }
 
       // ── Step 2: Compute predictions with enriched locations ─────────────────
-      const data = await storage.getTransportPredict(locationOverrides);
+      const data = await storage.getTransportPredict(locationOverrides, preferredTransportOverrides);
       res.json(data);
     } catch (e) {
       console.error("Error fetching transport predictions:", e);
