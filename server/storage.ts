@@ -11,7 +11,6 @@ import {
   brandDeliveryCompanies,
   dispatcherPatterns,
   orderStatusConfig,
-  cartonSizes,
   announcements,
   brandForecastSettings,
   brandSalesSnapshots,
@@ -139,9 +138,6 @@ export interface IStorage {
   classifyDispatcher(name: string | null | undefined): Promise<DispatcherType>;
   getOrderStatusConfig(): Promise<{ status: string; slaDays: number | null; isArchived: boolean; sortOrder: number }[]>;
   updateOrderStatusConfig(status: string, updates: { slaDays?: number | null; isArchived?: boolean; sortOrder?: number }): Promise<void>;
-  getCartonSizes(activeOnly?: boolean): Promise<{ id: string; name: string; sortOrder: number; isActive: boolean }[]>;
-  upsertCartonSize(input: { id?: string; name: string; sortOrder?: number; isActive?: boolean }): Promise<void>;
-  deleteCartonSize(id: string): Promise<boolean>;
 
   // Pending order operations
   createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null>;
@@ -1887,33 +1883,6 @@ export class DatabaseStorage implements IStorage {
     if (updates.isArchived !== undefined) u.isArchived = updates.isArchived;
     if (updates.sortOrder !== undefined) u.sortOrder = updates.sortOrder;
     await db.update(orderStatusConfig).set(u).where(eq(orderStatusConfig.status, status));
-  }
-
-  async getCartonSizes(activeOnly = false) {
-    const rows = activeOnly
-      ? await db.select().from(cartonSizes).where(eq(cartonSizes.isActive, true)).orderBy(cartonSizes.sortOrder)
-      : await db.select().from(cartonSizes).orderBy(cartonSizes.sortOrder);
-    return rows.map(r => ({ id: r.id, name: r.name, sortOrder: r.sortOrder, isActive: r.isActive }));
-  }
-
-  async upsertCartonSize(input: { id?: string; name: string; sortOrder?: number; isActive?: boolean }) {
-    if (input.id) {
-      const u: Record<string, unknown> = { name: input.name };
-      if (input.sortOrder !== undefined) u.sortOrder = input.sortOrder;
-      if (input.isActive !== undefined) u.isActive = input.isActive;
-      await db.update(cartonSizes).set(u).where(eq(cartonSizes.id, input.id));
-    } else {
-      await db.insert(cartonSizes).values({
-        name: input.name,
-        sortOrder: input.sortOrder ?? 100,
-        isActive: input.isActive ?? true,
-      }).onConflictDoNothing();
-    }
-  }
-
-  async deleteCartonSize(id: string) {
-    const r = await db.delete(cartonSizes).where(eq(cartonSizes.id, id)).returning();
-    return r.length > 0;
   }
 
   async createPendingOrder(orderId: string, userId: string): Promise<{ pendingOrder: Order; pendingItems: OrderItem[] } | null> {

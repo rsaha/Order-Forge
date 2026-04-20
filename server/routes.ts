@@ -4387,45 +4387,6 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // Carton sizes
-  app.get('/api/carton-sizes', isAuthenticated, async (req: any, res) => {
-    try { res.json(await storage.getCartonSizes(true)); }
-    catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-  app.get('/api/admin/carton-sizes', isAuthenticated, async (req: any, res) => {
-    try {
-      if (!(await requireAdmin(req, res))) return;
-      res.json(await storage.getCartonSizes(false));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-  app.post('/api/admin/carton-sizes', isAuthenticated, async (req: any, res) => {
-    try {
-      if (!(await requireAdmin(req, res))) return;
-      const s = z.object({ name: z.string().min(1), sortOrder: z.number().int().optional(), isActive: z.boolean().optional() });
-      const p = s.safeParse(req.body);
-      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
-      await storage.upsertCartonSize(p.data);
-      res.status(201).json({ ok: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-  app.patch('/api/admin/carton-sizes/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      if (!(await requireAdmin(req, res))) return;
-      const s = z.object({ name: z.string().min(1), sortOrder: z.number().int().optional(), isActive: z.boolean().optional() });
-      const p = s.safeParse(req.body);
-      if (!p.success) return res.status(400).json({ message: "Invalid", errors: p.error.errors });
-      await storage.upsertCartonSize({ id: req.params.id, ...p.data });
-      res.json({ ok: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-  app.delete('/api/admin/carton-sizes/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      if (!(await requireAdmin(req, res))) return;
-      const ok = await storage.deleteCartonSize(req.params.id);
-      res.json({ ok });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
   // Announcement endpoints
   app.get('/api/announcements', isAuthenticated, async (req: any, res) => {
     try {
