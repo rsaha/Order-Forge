@@ -1272,7 +1272,7 @@ export class DatabaseStorage implements IStorage {
       const small = updates.smallCartons ?? null;
       const large = updates.largeCartons ?? null;
       if (small !== null || large !== null) {
-        updateData.cases = ((small || 0) + (large || 0)) || null;
+        updateData.cases = (small || 0) + (large || 0);
       }
     }
     if (updates.specialNotes !== undefined) updateData.specialNotes = updates.specialNotes;
