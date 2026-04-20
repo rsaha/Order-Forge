@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
-  ArrowLeft, Plus, Pencil, Trash2, X, Check, Loader2, Tag, Camera
+  ArrowLeft, Plus, Pencil, Trash2, X, Check, Loader2, Tag, Camera, Truck
 } from "lucide-react";
 import ImagePickerDialog from "@/components/ImagePickerDialog";
 import BrandLogoImg from "@/components/BrandLogoImg";
@@ -116,6 +116,19 @@ export default function BrandsPage() {
     },
   });
 
+  const flagsMutation = useMutation({
+    mutationFn: async ({ id, requiresTransportAssignment }: { id: string; requiresTransportAssignment: boolean }) => {
+      return apiRequest("PATCH", `/api/admin/brands/${id}/flags`, { requiresTransportAssignment });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/brands"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/brands"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update transport setting", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleEdit = (brand: BrandRecord) => {
     setEditingBrand(brand);
     setEditBrandName(brand.name);
@@ -204,25 +217,42 @@ export default function BrandsPage() {
               <Card key={brand.id} data-testid={`card-brand-${brand.id}`}>
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <BrandLogoImg
                         logoUrl={brand.logoUrl}
                         brandName={brand.name}
-                        className="w-8 h-8 object-contain rounded"
+                        className="w-8 h-8 object-contain rounded shrink-0"
                         iconClassName="w-5 h-5 text-muted-foreground"
                         data-testid={`img-brand-logo-${brand.id}`}
                       />
-                      <span className="font-medium" data-testid={`text-brand-name-${brand.id}`}>
+                      <span className="font-medium truncate" data-testid={`text-brand-name-${brand.id}`}>
                         {brand.name}
                       </span>
                       <Badge 
                         variant={brand.isActive ? "default" : "secondary"}
+                        className="shrink-0"
                         data-testid={`badge-brand-status-${brand.id}`}
                       >
                         {brand.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div
+                        className="flex items-center gap-1.5 cursor-pointer"
+                        title={brand.requiresTransportAssignment ? "Included in Transport tab — click to exclude" : "Excluded from Transport tab — click to include"}
+                        onClick={() => flagsMutation.mutate({ id: brand.id, requiresTransportAssignment: !brand.requiresTransportAssignment })}
+                        data-testid={`toggle-transport-brand-${brand.id}`}
+                      >
+                        <Truck className={`w-3.5 h-3.5 shrink-0 ${brand.requiresTransportAssignment ? "text-orange-500" : "text-muted-foreground/40"}`} />
+                        <Switch
+                          checked={brand.requiresTransportAssignment}
+                          onCheckedChange={(val) => flagsMutation.mutate({ id: brand.id, requiresTransportAssignment: val })}
+                          disabled={flagsMutation.isPending}
+                          className="scale-75 origin-right"
+                          data-testid={`switch-transport-brand-${brand.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
