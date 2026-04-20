@@ -2459,7 +2459,11 @@ export class DatabaseStorage implements IStorage {
     const rows = await db
       .selectDistinct({ partyName: orders.partyName, deliveryAddress: orders.deliveryAddress })
       .from(orders)
-      .where(and(eq(orders.status, "Invoiced"), isNull(orders.dispatchBy)));
+      .where(and(
+        eq(orders.status, "Invoiced"),
+        isNull(orders.dispatchBy),
+        sql`(COALESCE(${orders.smallCartons}, 0) + COALESCE(${orders.largeCartons}, 0)) > 0`,
+      ));
     return rows.filter(r => r.partyName !== null) as { partyName: string; deliveryAddress: string | null }[];
   }
 
@@ -2472,7 +2476,10 @@ export class DatabaseStorage implements IStorage {
     const activeCarriers = carriers.filter(c => c.isActive);
 
     // Get all invoiced orders
-    const invoicedOrders = await db.select().from(orders).where(eq(orders.status, "Invoiced"));
+    const invoicedOrders = await db.select().from(orders).where(and(
+      eq(orders.status, "Invoiced"),
+      sql`(COALESCE(${orders.smallCartons}, 0) + COALESCE(${orders.largeCartons}, 0)) > 0`,
+    ));
 
 
     // Helper: match partyName against rate locations (case-insensitive partial match).
