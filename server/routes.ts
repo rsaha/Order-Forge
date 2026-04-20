@@ -6660,6 +6660,38 @@ export async function registerRoutes(
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const data = await storage.getTransportPredict();
+
+      // Enrich locations from external party API for groups that have no delivery address on their orders
+      const apiKey = process.env.CASHDESK_API_KEY;
+      if (apiKey) {
+        const needsEnrichment = data.unassigned.filter(g => g.location === null);
+        if (needsEnrichment.length > 0) {
+          await Promise.all(needsEnrichment.map(async (group) => {
+            try {
+              const url = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(group.partyName)}&limit=1`;
+              const r = await fetch(url, {
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                signal: AbortSignal.timeout(4000),
+              });
+              if (!r.ok) return;
+              const text = await r.text();
+              if (!text || text.trim() === '') return;
+              const parsed = JSON.parse(text);
+              // External API can return array or object with matches/data property
+              const rawMatches = Array.isArray(parsed)
+                ? parsed
+                : (parsed.matches || parsed.data || (parsed.results ? parsed.results : null));
+              const first = Array.isArray(rawMatches) ? rawMatches[0] : null;
+              if (first?.location) {
+                group.location = first.location;
+              }
+            } catch {
+              // Ignore per-party failures — location stays null
+            }
+          }));
+        }
+      }
+
       res.json(data);
     } catch (e) {
       console.error("Error fetching transport predictions:", e);
