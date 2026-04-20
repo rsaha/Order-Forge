@@ -132,15 +132,6 @@ export const orderStatusConfig = pgTable("order_status_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Carton size options
-export const cartonSizes = pgTable("carton_sizes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name").notNull().unique(),
-  sortOrder: integer("sort_order").notNull().default(100),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 // Legacy: kept as fallback/typing only — all UI now reads delivery_companies table
 export const DELIVERY_COMPANY_OPTIONS = ["Guided", "Xmaple", "Elmeric", "Guided Kol"] as const;
 export type DeliveryCompany = string;
@@ -381,7 +372,6 @@ export const insertDispatcherPatternSchema = createInsertSchema(dispatcherPatter
   type: z.enum(DISPATCHER_TYPES),
 });
 export const insertOrderStatusConfigSchema = createInsertSchema(orderStatusConfig).omit({ updatedAt: true });
-export const insertCartonSizeSchema = createInsertSchema(cartonSizes).omit({ id: true, createdAt: true });
 export const insertBrandForecastSettingsSchema = createInsertSchema(brandForecastSettings).omit({ updatedAt: true });
 
 // Update schema for orders (all fields optional except id)
