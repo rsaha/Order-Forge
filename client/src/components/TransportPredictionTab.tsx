@@ -514,14 +514,24 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                               <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
                               <div className="min-w-0">
                                 <span className="font-medium block max-w-[180px] truncate">{group.partyName}</span>
-                                <span className={`text-xs block max-w-[180px] truncate ${group.location ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`} title={group.location ?? undefined}>
-                                  {group.location ?? "Location not mentioned"}
-                                </span>
-                                {group.suggestion && (
+                                {group.location ? (
+                                  <span className="text-xs text-muted-foreground block max-w-[180px] truncate" title={group.location}>
+                                    {group.location}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 block max-w-[200px] font-medium" title="This party has no location in the Party API — add it there to enable carrier suggestions">
+                                    ⚠ No location in Party API
+                                  </span>
+                                )}
+                                {group.suggestion ? (
                                   <span className="text-xs text-blue-600 dark:text-blue-400 block max-w-[180px] truncate font-medium">
                                     Pref: {group.suggestion.carrierName}
                                   </span>
-                                )}
+                                ) : group.location ? (
+                                  <span className="text-xs text-muted-foreground/60 italic block">
+                                    No carrier match
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                           </td>
