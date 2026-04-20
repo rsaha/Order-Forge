@@ -6659,16 +6659,21 @@ export async function registerRoutes(
     const user = await storage.getUser(userId);
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
-      const data = await storage.getTransportPredict();
-
-      // Enrich locations from external party API for groups that have no delivery address on their orders
+      // ── Step 1: Pre-fetch party locations from the external Party API ────────
+      // We do this BEFORE calling getTransportPredict so the locations feed into
+      // the carrier matching engine (not just the display). Without this, a party
+      // like "Ghosh Enterprise" whose orders have no deliveryAddress would be
+      // matched against carrier rates using the raw party name — missing the fact
+      // that their location is "Nadia", which IS covered by Business & Logistics.
+      const locationOverrides: Record<string, string> = {};
       const apiKey = process.env.CASHDESK_API_KEY;
       if (apiKey) {
-        const needsEnrichment = data.unassigned.filter(g => g.location === null);
-        if (needsEnrichment.length > 0) {
-          await Promise.all(needsEnrichment.map(async (group) => {
+        const partyInfo = await storage.getInvoicedUnassignedPartyInfo();
+        const needsLookup = partyInfo.filter(p => !p.deliveryAddress);
+        if (needsLookup.length > 0) {
+          await Promise.all(needsLookup.map(async ({ partyName }) => {
             try {
-              const url = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(group.partyName)}&limit=1`;
+              const url = `https://cash.guidedgateway.com/api/verify/debtor?name=${encodeURIComponent(partyName)}&limit=1`;
               const r = await fetch(url, {
                 headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
                 signal: AbortSignal.timeout(4000),
@@ -6677,10 +6682,7 @@ export async function registerRoutes(
               const text = await r.text();
               if (!text || text.trim() === '') return;
               const parsed = JSON.parse(text);
-              // Mirror the same normalisation used in /api/verify/debtor:
-              //   { found: true, matches: [{...}] }  — multi-match (new format)
-              //   { found: true, match: {...} }       — single match (old format)
-              //   [{...}]                             — bare array
+              // Normalise: { matches:[...] } | { match:{...} } | [...]
               let rawMatches: any[] = [];
               if (Array.isArray(parsed)) {
                 rawMatches = parsed;
@@ -6693,18 +6695,20 @@ export async function registerRoutes(
               }
               const first = rawMatches[0];
               if (first?.location) {
-                group.location = first.location;
-                console.log(`[transport/predict] location enriched for "${group.partyName}": ${first.location}`);
+                locationOverrides[partyName] = first.location;
+                console.log(`[transport/predict] location pre-fetched for "${partyName}": ${first.location}`);
               } else {
-                console.log(`[transport/predict] no location found for "${group.partyName}" — API first match:`, JSON.stringify(first ?? null).substring(0, 200));
+                console.log(`[transport/predict] no location in party API for "${partyName}" — match:`, JSON.stringify(first ?? null).substring(0, 200));
               }
             } catch (err) {
-              console.warn(`[transport/predict] location lookup failed for "${group.partyName}":`, err);
+              console.warn(`[transport/predict] party API lookup failed for "${partyName}":`, err);
             }
           }));
         }
       }
 
+      // ── Step 2: Compute predictions with enriched locations ─────────────────
+      const data = await storage.getTransportPredict(locationOverrides);
       res.json(data);
     } catch (e) {
       console.error("Error fetching transport predictions:", e);

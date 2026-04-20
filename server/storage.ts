@@ -45,7 +45,7 @@ import {
   type InsertTransportRate,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray, desc, gte, lte, or, not, sql } from "drizzle-orm";
+import { eq, and, inArray, desc, gte, lte, or, not, sql, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
@@ -185,7 +185,8 @@ export interface IStorage {
   updateTransportRate(id: string, data: Partial<InsertTransportRate>): Promise<TransportRate | undefined>;
   deleteTransportRate(id: string): Promise<boolean>;
   seedTransportCarriers(): Promise<void>;
-  getTransportPredict(): Promise<{
+  getInvoicedUnassignedPartyInfo(): Promise<{ partyName: string; deliveryAddress: string | null }[]>;
+  getTransportPredict(locationOverrides?: Record<string, string>): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
     unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
@@ -2454,7 +2455,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getTransportPredict(): Promise<{
+  async getInvoicedUnassignedPartyInfo(): Promise<{ partyName: string; deliveryAddress: string | null }[]> {
+    const rows = await db
+      .selectDistinct({ partyName: orders.partyName, deliveryAddress: orders.deliveryAddress })
+      .from(orders)
+      .where(and(eq(orders.status, "Invoiced"), isNull(orders.dispatchBy)));
+    return rows.filter(r => r.partyName !== null) as { partyName: string; deliveryAddress: string | null }[];
+  }
+
+  async getTransportPredict(locationOverrides?: Record<string, string>): Promise<{
     carriers: (TransportCarrier & { rates: TransportRate[] })[];
     unassigned: Array<{ partyName: string; location: string | null; orderCount: number; totalCases: number; orderIds: string[]; carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }>; suggestion: { carrierId: string; carrierName: string; reason: string; tat: string | null } | null }>;
     assigned: Array<{ dispatchBy: string; orderCount: number; totalCases: number; orderIds: string[]; estimatedCost: number | null }>;
@@ -2536,7 +2545,9 @@ export class DatabaseStorage implements IStorage {
     const unassignedOrders = invoicedOrders.filter(o => !o.dispatchBy && !transportExcludedBrandSet.has(o.brand || ""));
     const assignedOrders = invoicedOrders.filter(o => !!o.dispatchBy);
 
-    // Group unassigned by partyName, also collecting delivery addresses for geo matching
+    // Group unassigned by partyName, collecting actual delivery addresses for geo/rate matching.
+    // We do NOT fall back to partyName here — partyName is used as a last resort only after
+    // all enrichment sources (deliveryAddress, locationOverrides) have been exhausted.
     const unassignedGroups = new Map<string, { orderIds: string[]; totalCases: number; locationTexts: string[] }>();
     for (const order of unassignedOrders) {
       const key = order.partyName || "(No Party)";
@@ -2546,10 +2557,21 @@ export class DatabaseStorage implements IStorage {
       const grp = unassignedGroups.get(key)!;
       grp.orderIds.push(order.id);
       grp.totalCases += order.cases || 0;
-      // Use deliveryAddress as the location source (orders schema has no dedicated partyLocation field;
-      // deliveryAddress is the closest equivalent), falling back to partyName for geo-rule matching.
-      const loc = order.deliveryAddress || order.partyName;
-      if (loc) grp.locationTexts.push(loc);
+      if (order.deliveryAddress) grp.locationTexts.push(order.deliveryAddress);
+    }
+
+    // Inject party API locations for parties with no delivery address on their orders.
+    // This allows the carrier matching engine to use e.g. "Nadia" (from the party record)
+    // instead of falling back to the raw party name like "Ghosh Enterprise".
+    for (const [partyName, grp] of unassignedGroups.entries()) {
+      if (grp.locationTexts.length === 0 && locationOverrides?.[partyName]) {
+        grp.locationTexts.push(locationOverrides[partyName]);
+      }
+      // Final fallback: if still no location, use partyName so geo-keyword rules and
+      // party-specific rate entries (Rule 1, Rule 2) still work.
+      if (grp.locationTexts.length === 0) {
+        grp.locationTexts.push(partyName);
+      }
     }
 
     // Auto-suggestion engine: applies 5-rule priority chain
@@ -2675,9 +2697,13 @@ export class DatabaseStorage implements IStorage {
         carrierCosts[carrier.id] = computeCarrierCost(partyName, primaryLocationText, grp.orderIds.length, carrier);
       }
       const suggestion = suggestCarrier(partyName, grp.totalCases, grp.orderIds.length, grp.locationTexts, carrierCosts);
+      // Determine display location: prefer override (from party API), then delivery address,
+      // then null (shown as "Location not mentioned" in the UI).
+      const displayLocation = locationOverrides?.[partyName]
+        ?? (primaryLocationText !== partyName ? primaryLocationText : null);
       return {
         partyName,
-        location: primaryLocationText !== partyName ? primaryLocationText : null,
+        location: displayLocation,
         orderCount: grp.orderIds.length,
         totalCases: grp.totalCases,
         orderIds: grp.orderIds,
