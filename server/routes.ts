@@ -6633,13 +6633,23 @@ export async function registerRoutes(
     }
   });
 
+  // Helper: coerce empty-string values to null for numeric fields so Postgres doesn't choke
+  function sanitizeRateNumericFields<T extends Record<string, unknown>>(data: T): T {
+    const numericFields = ["rate", "minRate", "maxRate"] as const;
+    const out = { ...data };
+    for (const f of numericFields) {
+      if ((out as any)[f] === "") (out as any)[f] = null;
+    }
+    return out;
+  }
+
   // POST /api/transport/rates — create rate (admin only)
   app.post("/api/transport/rates", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUser(userId);
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
-    const parsed = insertTransportRateSchema.safeParse(req.body);
+    const parsed = insertTransportRateSchema.safeParse(sanitizeRateNumericFields(req.body));
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     try {
       const rate = await storage.createTransportRate(parsed.data);
@@ -6656,7 +6666,7 @@ export async function registerRoutes(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const user = await storage.getUser(userId);
     if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
-    const parsed = insertTransportRateSchema.partial().safeParse(req.body);
+    const parsed = insertTransportRateSchema.partial().safeParse(sanitizeRateNumericFields(req.body));
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     try {
       const rate = await storage.updateTransportRate(req.params.id, parsed.data);
