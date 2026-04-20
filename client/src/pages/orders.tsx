@@ -1462,9 +1462,13 @@ export default function OrdersPage() {
       if (exportType === "summary") {
         // Summary: one row per order, no product fetching
         const wsData: any[][] = [
-          ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Order Total", "Actual Order Value", "No of Cases", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
+          ["Order Date", "Order ID", "Party Name", "Brand", "Status", "Created By", "Order Total", "Actual Order Value", "No of Cases", "Small Ctns", "Large Ctns", "Notes", "Delivery Company", "Invoice #", "Invoice Date", "Dispatch Date", "Dispatch By", "Transport Cost", "POD Received"]
         ];
         ordersToExport.forEach((order) => {
+          const derivedCases =
+            order.smallCartons != null || order.largeCartons != null
+              ? (order.smallCartons || 0) + (order.largeCartons || 0)
+              : order.cases || "";
           wsData.push([
             order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "",
             order.id,
@@ -1474,7 +1478,9 @@ export default function OrdersPage() {
             formatCreatedBy(order),
             Number(order.total) || 0,
             order.actualOrderValue ? Number(order.actualOrderValue) : "",
-            order.cases || "",
+            derivedCases,
+            order.smallCartons != null ? order.smallCartons : "",
+            order.largeCartons != null ? order.largeCartons : "",
             order.specialNotes || "",
             order.deliveryCompany || "",
             order.invoiceNumber || "",
