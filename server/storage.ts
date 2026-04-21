@@ -2475,9 +2475,9 @@ export class DatabaseStorage implements IStorage {
     const carriers = await this.getTransportCarriers();
     const activeCarriers = carriers.filter(c => c.isActive);
 
-    // Get all invoiced/payment-pending orders that have carton counts set
+    // Get all Invoiced orders that have carton counts set (PaymentPending excluded — awaiting payment before dispatch)
     const invoicedOrders = await db.select().from(orders).where(and(
-      inArray(orders.status, ["Invoiced", "PaymentPending"]),
+      eq(orders.status, "Invoiced"),
       sql`(COALESCE(${orders.smallCartons}, 0) + COALESCE(${orders.largeCartons}, 0)) > 0`,
     ));
 
