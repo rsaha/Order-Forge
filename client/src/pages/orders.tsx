@@ -779,6 +779,7 @@ export default function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport/predict"] });
       toast({ title: "Order updated successfully" });
       setSelectedOrder(null);
     },
@@ -954,6 +955,7 @@ export default function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport/predict"] });
       setAdvanceOrder(null);
       setShowPartyVerifyDialog(false);
       setShowDispatchDialog(false);
