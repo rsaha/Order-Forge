@@ -2614,7 +2614,7 @@ export class DatabaseStorage implements IStorage {
         if (combinedLocation.includes(keyword) || partyLower.includes(keyword)) {
           const dhulagore = activeCarriers.find(c => c.name.toLowerCase().includes("dhulagore"));
           if (dhulagore) {
-            return { carrierId: dhulagore.id, carrierName: dhulagore.name, reason: `Assigned ${dhulagore.name} — party location matches ${label} rule`, tat: getCarrierTat(dhulagore) };
+            return { carrierId: dhulagore.id, carrierName: dhulagore.name, reason: `Rule 1 – Geographic: location contains '${label}', routed to ${dhulagore.name}`, tat: getCarrierTat(dhulagore) };
           }
         }
       }
@@ -2645,7 +2645,7 @@ export class DatabaseStorage implements IStorage {
             .sort((a, b) => a - b)[0] ?? Infinity;
           const best = withPartyCost[0];
           if ((best.cost ?? Infinity) <= cheapestLocationCost) {
-            return { carrierId: best.carrier.id, carrierName: best.carrier.name, reason: `Assigned ${best.carrier.name} — has a specific rate for this party`, tat: getCarrierTat(best.carrier) };
+            return { carrierId: best.carrier.id, carrierName: best.carrier.name, reason: `Rule 2 – Party-specific rate: ${best.carrier.name} has a dedicated rate entry for this party`, tat: getCarrierTat(best.carrier) };
           }
         }
       }
@@ -2659,7 +2659,7 @@ export class DatabaseStorage implements IStorage {
             .filter(x => x.cost !== null)
             .sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0];
           const toto = cheapestToto?.carrier ?? totoCarriers[0];
-          return { carrierId: toto.id, carrierName: toto.name, reason: `Assigned ${toto.name} — high volume (${totalCases} cartons) prefers toto carrier`, tat: getCarrierTat(toto) };
+          return { carrierId: toto.id, carrierName: toto.name, reason: `Rule 3 – High volume: ${totalCases} cartons exceeds threshold, toto carrier preferred`, tat: getCarrierTat(toto) };
         }
       }
 
@@ -2673,7 +2673,7 @@ export class DatabaseStorage implements IStorage {
           if (!byMatchedLocation.has(loc)) byMatchedLocation.set(loc, []);
           byMatchedLocation.get(loc)!.push(c);
         }
-        for (const carriersAtLoc of byMatchedLocation.values()) {
+        for (const [zoneLoc, carriersAtLoc] of byMatchedLocation.entries()) {
           if (carriersAtLoc.length > 1) {
             const cheapestFlat = carriersAtLoc
               .filter(c => c.type === "flat_per_location")
@@ -2681,19 +2681,25 @@ export class DatabaseStorage implements IStorage {
               .filter(x => x.cost !== null)
               .sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0];
             if (cheapestFlat) {
-              return { carrierId: cheapestFlat.carrier.id, carrierName: cheapestFlat.carrier.name, reason: `Assigned ${cheapestFlat.carrier.name} — flat rate preferred for ${totalCases} cartons vs per-parcel`, tat: getCarrierTat(cheapestFlat.carrier) };
+              return { carrierId: cheapestFlat.carrier.id, carrierName: cheapestFlat.carrier.name, reason: `Rule 4 – Flat rate: multiple carriers cover '${zoneLoc}', flat rate cheaper than per-parcel for ${totalCases} cartons`, tat: getCarrierTat(cheapestFlat.carrier) };
             }
           }
         }
       }
 
-      // Rule 5: Lowest cost fallback
+      // Rule 5: Location-matched fallback — pick the carrier with the lowest rate among those
+      // whose rate table covers this party's location or delivery address.
       const cheapest = matched
         .map(c => ({ carrier: c, cost: carrierCosts[c.id]?.estimatedCost }))
         .filter(x => x.cost !== null)
         .sort((a, b) => (a.cost ?? 0) - (b.cost ?? 0))[0];
       if (cheapest) {
-        return { carrierId: cheapest.carrier.id, carrierName: cheapest.carrier.name, reason: `Assigned ${cheapest.carrier.name} — lowest estimated cost`, tat: getCarrierTat(cheapest.carrier) };
+        const matchedZone = carrierCosts[cheapest.carrier.id]?.location ?? null;
+        const zoneDesc = matchedZone ? `'${matchedZone}' rate zone` : "this location";
+        const selectionReason = matched.length === 1
+          ? `only carrier with a rate for ${zoneDesc}`
+          : `lowest rate among ${matched.length} carriers covering ${zoneDesc}`;
+        return { carrierId: cheapest.carrier.id, carrierName: cheapest.carrier.name, reason: `Rule 5 – Location match: ${selectionReason}`, tat: getCarrierTat(cheapest.carrier) };
       }
 
       // No cost data — pick first matched carrier
