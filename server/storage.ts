@@ -2475,9 +2475,9 @@ export class DatabaseStorage implements IStorage {
     const carriers = await this.getTransportCarriers();
     const activeCarriers = carriers.filter(c => c.isActive);
 
-    // Get all invoiced orders
+    // Get all invoiced/payment-pending orders that have carton counts set
     const invoicedOrders = await db.select().from(orders).where(and(
-      eq(orders.status, "Invoiced"),
+      inArray(orders.status, ["Invoiced", "PaymentPending"]),
       sql`(COALESCE(${orders.smallCartons}, 0) + COALESCE(${orders.largeCartons}, 0)) > 0`,
     ));
 
@@ -2504,11 +2504,13 @@ export class DatabaseStorage implements IStorage {
     // Compute carrier cost for a party group.
     // Tries locationText (deliveryAddress) first for rate matching, then falls back to partyName.
     // locationText represents the actual delivery location; partyName is a secondary key.
+    // parcelCount: total cartons (small + large) — used for per_parcel carriers instead of orderCount.
     function computeCarrierCost(
       partyName: string,
       locationText: string | null,
       orderCount: number,
-      carrier: TransportCarrier & { rates: TransportRate[] }
+      carrier: TransportCarrier & { rates: TransportRate[] },
+      parcelCount?: number,
     ): { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null } {
       // Try locationText first (most accurate for routing), then partyName as fallback
       let matchedRate = locationText ? matchRate(locationText, carrier.rates) : null;
@@ -2528,15 +2530,16 @@ export class DatabaseStorage implements IStorage {
           location: matchedRate.location,
         };
       } else {
-        // per_parcel: matched zone rate * orderCount
+        // per_parcel: rate × total cartons (preferred) or order count as fallback
         const minR = matchedRate.minRate ? Number(matchedRate.minRate) : null;
         const maxR = matchedRate.maxRate ? Number(matchedRate.maxRate) : null;
+        const units = parcelCount != null && parcelCount > 0 ? parcelCount : orderCount;
         return {
           matched: true,
           rate: null,
           minRate: minR,
           maxRate: maxR,
-          estimatedCost: minR ? minR * orderCount : null,
+          estimatedCost: minR ? minR * units : null,
           location: matchedRate.location,
         };
       }
@@ -2702,8 +2705,9 @@ export class DatabaseStorage implements IStorage {
       // null means matchRate will fall back to partyName inside computeCarrierCost.
       const primaryLocationText = grp.locationTexts.find(l => l !== partyName) ?? grp.locationTexts[0] ?? null;
       const carrierCosts: Record<string, { matched: boolean; rate: number | null; minRate: number | null; maxRate: number | null; estimatedCost: number | null; location: string | null }> = {};
+      const totalCartons = grp.smallCartons + grp.largeCartons;
       for (const carrier of activeCarriers) {
-        carrierCosts[carrier.id] = computeCarrierCost(partyName, primaryLocationText, grp.orderIds.length, carrier);
+        carrierCosts[carrier.id] = computeCarrierCost(partyName, primaryLocationText, grp.orderIds.length, carrier, totalCartons);
       }
       let suggestion = suggestCarrier(partyName, grp.totalCases, grp.orderIds.length, grp.locationTexts, carrierCosts);
       // Determine display location: prefer override (from party API), then delivery address,
@@ -2741,8 +2745,8 @@ export class DatabaseStorage implements IStorage {
     }).sort((a, b) => a.partyName.localeCompare(b.partyName));
 
     // Group assigned by dispatchBy, computing per-party cost using matched carrier
-    // Track locationText (deliveryAddress) per party for accurate cost computation
-    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number; smallCartons: number; largeCartons: number; partyOrders: Map<string, { count: number; locationText: string | null }> }>();
+    // Track locationText and carton counts per party for accurate cost computation
+    const assignedGroups = new Map<string, { orderIds: string[]; totalCases: number; smallCartons: number; largeCartons: number; partyOrders: Map<string, { count: number; locationText: string | null; smallCartons: number; largeCartons: number }> }>();
     for (const order of assignedOrders) {
       const key = order.dispatchBy!;
       if (!assignedGroups.has(key)) assignedGroups.set(key, { orderIds: [], totalCases: 0, smallCartons: 0, largeCartons: 0, partyOrders: new Map() });
@@ -2756,9 +2760,11 @@ export class DatabaseStorage implements IStorage {
       const existing = grp.partyOrders.get(pn);
       if (existing) {
         existing.count++;
+        existing.smallCartons += order.smallCartons || 0;
+        existing.largeCartons += order.largeCartons || 0;
         if (!existing.locationText && locationText) existing.locationText = locationText;
       } else {
-        grp.partyOrders.set(pn, { count: 1, locationText });
+        grp.partyOrders.set(pn, { count: 1, locationText, smallCartons: order.smallCartons || 0, largeCartons: order.largeCartons || 0 });
       }
     }
 
@@ -2769,8 +2775,9 @@ export class DatabaseStorage implements IStorage {
       if (carrier) {
         let total = 0;
         let allMatched = true;
-        for (const [partyName, { count, locationText }] of grp.partyOrders.entries()) {
-          const cost = computeCarrierCost(partyName, locationText, count, carrier);
+        for (const [partyName, { count, locationText, smallCartons, largeCartons }] of grp.partyOrders.entries()) {
+          const parcelCount = smallCartons + largeCartons;
+          const cost = computeCarrierCost(partyName, locationText, count, carrier, parcelCount);
           if (cost.estimatedCost !== null) {
             total += cost.estimatedCost;
           } else {

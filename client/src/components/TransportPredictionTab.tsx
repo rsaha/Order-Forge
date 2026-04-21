@@ -497,6 +497,7 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                       <th className="text-center p-2 font-medium">Orders</th>
                       <th className="text-left p-2 font-medium">Carton Count</th>
                       <th className="text-left p-2 font-medium">Suggested Carrier</th>
+                      <th className="text-right p-2 font-medium">Est. Cost</th>
                       <th className="text-right p-2 font-medium">Action</th>
                     </tr>
                   </thead>
@@ -583,6 +584,16 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                                 </p>
                               )}
                             </div>
+                          </td>
+                          <td className="p-2 text-right whitespace-nowrap">
+                            {(() => {
+                              const effectiveCarrier = carriers.find(c => c.name === effectiveCarrierName);
+                              const costInfo = effectiveCarrier ? group.carrierCosts[effectiveCarrier.id] : null;
+                              if (!effectiveCarrierName) return <span className="text-muted-foreground text-xs">-</span>;
+                              if (!costInfo?.matched) return <span className="text-muted-foreground text-xs">No rate</span>;
+                              if (costInfo.estimatedCost === null) return <span className="text-muted-foreground text-xs">-</span>;
+                              return <span className="font-semibold text-green-700 dark:text-green-400 text-xs">{formatINR(costInfo.estimatedCost)}</span>;
+                            })()}
                           </td>
                           <td className="p-2 text-right">
                             <Button
