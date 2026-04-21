@@ -530,23 +530,17 @@ export default function TransportPredictionTab({ onDispatchGroup, orders = [] }:
                                     const apiPrefMatchesSuggestion =
                                       group.suggestion?.reason === "Party's preferred carrier from API";
                                     return (
-                                      <>
-                                        <span className={`text-xs block max-w-[200px] truncate font-medium ${apiPrefMatchesSuggestion ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
-                                          title={apiPrefMatchesSuggestion ? `Matched to carrier: ${group.suggestion?.carrierName}` : `"${group.preferredTransport}" not matched to any carrier`}>
-                                          {apiPrefMatchesSuggestion
-                                            ? `★ ${group.preferredTransport}`
-                                            : `⚠ API Pref: ${group.preferredTransport} (no match)`}
-                                        </span>
-                                      </>
+                                      <span className={`text-xs block max-w-[200px] truncate font-medium ${apiPrefMatchesSuggestion ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
+                                        title={apiPrefMatchesSuggestion ? `Matched to carrier: ${group.suggestion?.carrierName}` : `"${group.preferredTransport}" is not configured as a carrier in the system`}>
+                                        {apiPrefMatchesSuggestion
+                                          ? `★ Pref: ${group.preferredTransport}`
+                                          : `⚠ Pref: ${group.preferredTransport} (not in system)`}
+                                      </span>
                                     );
                                   })()
-                                ) : group.suggestion ? (
-                                  <span className="text-xs text-blue-600 dark:text-blue-400 block max-w-[180px] truncate font-medium">
-                                    Pref: {group.suggestion.carrierName}
-                                  </span>
                                 ) : group.location ? (
                                   <span className="text-xs text-muted-foreground/60 italic block">
-                                    No carrier match
+                                    {group.suggestion ? "No transport preferred" : "No carrier match"}
                                   </span>
                                 ) : null}
                               </div>
