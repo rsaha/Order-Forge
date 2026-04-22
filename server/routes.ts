@@ -1711,9 +1711,10 @@ export async function registerRoutes(
       ]);
 
       // Extract KPI totals for comparison
-      const CFA_BRANDS = ['biostige', 'ayouthveda'];
       const summarize = (data: any) => {
-        // Sum brand series buckets into per-brand totals
+        // Sum brand series buckets into per-brand totals.
+        // brandSeries already excludes analytics-excluded (CFA) brands at the storage layer,
+        // so invoicedValueExclCFA is simply the sum of all brand totals.
         const brandTotals: Record<string, number> = {};
         for (const bucket of (data.brandSeries || [])) {
           for (const [key, val] of Object.entries(bucket)) {
@@ -1730,9 +1731,8 @@ export async function registerRoutes(
           (data.backordered?.count || 0) +
           (data.pending?.count || 0) +
           (data.cancelled?.count || 0);
-        const invoicedValueExclCFA = Object.entries(brandTotals)
-          .filter(([brand]) => !CFA_BRANDS.includes(brand.toLowerCase()))
-          .reduce((s, [, v]) => s + (v as number), 0);
+        const invoicedValueExclCFA = Object.values(brandTotals)
+          .reduce((s, v) => s + v, 0);
         return {
           totalOrders,
           invoicedValueExclCFA,

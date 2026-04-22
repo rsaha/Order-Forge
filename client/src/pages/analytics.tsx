@@ -356,6 +356,10 @@ export default function AnalyticsPage() {
     () => new Set(brandConfigs.filter(b => b.excludeFromAnalytics).map(b => b.name.toLowerCase())),
     [brandConfigs]
   );
+  const excludedBrandNames = useMemo(
+    () => brandConfigs.filter(b => b.excludeFromAnalytics).map(b => b.name),
+    [brandConfigs]
+  );
   const isAnalyticsExcludedBrand = useCallback(
     (brand: string | null | undefined) => !!brand && excludedAnalyticsBrands.has(brand.toLowerCase()),
     [excludedAnalyticsBrands]
@@ -988,7 +992,9 @@ export default function AnalyticsPage() {
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  excl. CFA orders (Biostige, Ayouthveda)
+                  {excludedBrandNames.length > 0
+                    ? `excl. CFA orders (${excludedBrandNames.join(', ')})`
+                    : 'excl. CFA orders'}
                   {comparisonData && (
                     <span className="block text-xs mt-0.5">vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'd MMM')}</span>
                   )}
@@ -1013,7 +1019,7 @@ export default function AnalyticsPage() {
                   {deliveryCostSummary.totalDeliveredValue > 0 
                     ? ((deliveryCostSummary.grandTotal / deliveryCostSummary.totalDeliveredValue) * 100).toFixed(1)
                     : 0
-                  }% of delivered value (excl. Biostige)
+                  }% of delivered value{excludedBrandNames.length > 0 ? ` (excl. ${excludedBrandNames.join(', ')})` : ''}
                   {comparisonData && (
                     <span className="block text-xs mt-0.5">vs {format(parseISO(comparisonData.previousPeriod.fromDate), 'd MMM')}–{format(parseISO(comparisonData.previousPeriod.toDate), 'd MMM')}</span>
                   )}
@@ -1447,7 +1453,7 @@ export default function AnalyticsPage() {
                     <p className="text-xs text-muted-foreground mb-4">
                       {deliveryCostSummary.totalDeliveredOrders} delivered orders — {deliveryCostSummary.totalOrders} with transport cost, {deliveryCostSummary.selfHandCount} self/hand delivered, {deliveryCostSummary.noCostCount} without cost
                       {deliveryCostSummary.biostigeExcludedCount > 0 && (
-                        <span> ({deliveryCostSummary.biostigeExcludedCount} Biostige excluded)</span>
+                        <span> ({deliveryCostSummary.biostigeExcludedCount} CFA brand orders excluded)</span>
                       )}
                     </p>
                     <div className="overflow-x-auto">
