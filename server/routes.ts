@@ -443,6 +443,18 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Startup data migration: ensure any brand with the name "Biostige" has
+  // exclude_from_analytics = true in all environments (dev + production).
+  // This is idempotent and safe to run on every startup.
+  try {
+    await db.execute(sql`
+      UPDATE brands SET exclude_from_analytics = true
+      WHERE LOWER(name) = 'biostige' AND exclude_from_analytics = false
+    `);
+  } catch (e) {
+    console.error('[startup] Failed to set Biostige analytics exclusion flag:', e);
+  }
+
   // Auth middleware
   await setupAuth(app);
 
