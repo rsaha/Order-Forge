@@ -78,6 +78,8 @@ interface BrandTimeBucket {
 }
 
 interface ComparisonKPIs {
+  totalOrders: number;
+  invoicedValueExclCFA: number;
   invoicedCount: number;
   invoicedValue: number;
   dispatchedCount: number;
@@ -85,11 +87,14 @@ interface ComparisonKPIs {
   deliveredCount: number;
   deliveredValue: number;
   transportCost: number;
+  onTimeDeliveryRate: number;
+  brandTotals: Record<string, number>;
 }
 
 interface ComparisonData {
   current: ComparisonKPIs;
   previous: ComparisonKPIs;
+  brandNames: string[];
   previousPeriod: { fromDate: string; toDate: string };
 }
 

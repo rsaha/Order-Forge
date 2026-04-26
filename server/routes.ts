@@ -1713,8 +1713,7 @@ export async function registerRoutes(
       // Extract KPI totals for comparison
       const summarize = (data: any) => {
         // Sum brand series buckets into per-brand totals.
-        // brandSeries already excludes analytics-excluded (CFA) brands at the storage layer,
-        // so invoicedValueExclCFA is simply the sum of all brand totals.
+        // brandSeries always excludes analytics-excluded (CFA) brands at the storage layer.
         const brandTotals: Record<string, number> = {};
         for (const bucket of (data.brandSeries || [])) {
           for (const [key, val] of Object.entries(bucket)) {
@@ -1731,8 +1730,14 @@ export async function registerRoutes(
           (data.backordered?.count || 0) +
           (data.pending?.count || 0) +
           (data.cancelled?.count || 0);
-        const invoicedValueExclCFA = Object.values(brandTotals)
-          .reduce((s, v) => s + v, 0);
+        // Derive invoicedValueExclCFA from the main status-metric values, which are
+        // already CFA-excluded by the getOrderAnalytics main loop.  This is the sum of
+        // all orders that have reached Invoiced status or beyond (regardless of whether
+        // they still have that status), which matches what the frontend KPI card shows.
+        const invoicedValueExclCFA =
+          (data.invoiced?.value || 0) +
+          (data.dispatched?.value || 0) +
+          (data.delivered?.value || 0);
         return {
           totalOrders,
           invoicedValueExclCFA,

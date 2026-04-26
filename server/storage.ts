@@ -1490,16 +1490,15 @@ export class DatabaseStorage implements IStorage {
     const dispatchedStatuses = ['Dispatched', 'Delivered', 'PODReceived'];
     const deliveredStatuses = ['Delivered', 'PODReceived'];
 
-    // Build CFA/excluded-brand set once, before all loops.
-    // Only apply the exclusion when no specific brand filter is active — if the admin
-    // explicitly selects a CFA brand they should still see its data.
-    const excludedBrandsSet: Set<string> = filters?.brand
-      ? new Set()
-      : new Set(
-          (await this.getAllBrands())
-            .filter(b => b.excludeFromAnalytics)
-            .map(b => b.name.toLowerCase())
-        );
+    // Load all brands once — used for CFA/excluded-brand filtering across all loops.
+    const allBrandsData = await this.getAllBrands();
+    // cfaExcludedSet: brands marked excludeFromAnalytics — always excluded from brand series
+    const cfaExcludedSet = new Set(
+      allBrandsData.filter(b => b.excludeFromAnalytics).map(b => b.name.toLowerCase())
+    );
+    // excludedBrandsSet for the main metrics loop: exclude CFA brands UNLESS the admin
+    // has explicitly selected a specific brand (so they can still drill into CFA brand data).
+    const excludedBrandsSet: Set<string> = filters?.brand ? new Set() : cfaExcludedSet;
 
     for (const order of allOrders) {
       const status = order.status || "Created";
@@ -1643,22 +1642,16 @@ export class DatabaseStorage implements IStorage {
       });
 
     // Build brand series — invoiced value per brand per time bucket (keyed by invoice date)
+    // Always use cfaExcludedSet here: CFA brands never appear in the brand chart,
+    // even when the admin has a specific brand filter active.
     const brandBuckets = new Map<string, Map<string, number>>(); // date -> (brand -> invoicedValue)
     const brandNamesSet = new Set<string>();
-    // Reuse excludedBrandsSet built above (always exclude CFA brands from brand series)
-    const brandSeriesExcluded = excludedBrandsSet.size > 0
-      ? excludedBrandsSet
-      : new Set(
-          (await this.getAllBrands())
-            .filter(b => b.excludeFromAnalytics)
-            .map(b => b.name.toLowerCase())
-        );
 
     for (const order of allOrders) {
       const status = order.status || 'Created';
       const value = Number(order.actualOrderValue || order.total || 0);
       const brand = order.brand || 'Unknown';
-      if (brandSeriesExcluded.has(brand.toLowerCase())) continue;
+      if (cfaExcludedSet.has(brand.toLowerCase())) continue;
       if (!invoicedStatuses.includes(status)) continue;
       if (!order.invoiceDate) continue;
 
@@ -1684,7 +1677,7 @@ export class DatabaseStorage implements IStorage {
 
     // Build transport cost series — total delivery cost per time bucket (keyed by dispatch date)
     const transportBuckets = new Map<string, number>();
-    // Load dispatcher patterns from DB config; reuse brandSeriesExcluded for CFA exclusion
+    // Load dispatcher patterns from DB config; use cfaExcludedSet for CFA brand exclusion
     const dispatcherPatternRows = (await this.getDispatcherPatterns()).filter(p => p.isActive);
 
     // Use delivered-only statuses to match the frontend Transport Cost KPI card definition
@@ -1692,7 +1685,7 @@ export class DatabaseStorage implements IStorage {
     for (const order of allOrders) {
       const status = order.status || 'Created';
       if (!deliveredOnlyStatuses.includes(status)) continue;
-      if (brandSeriesExcluded.has((order.brand || '').toLowerCase())) continue;
+      if (cfaExcludedSet.has((order.brand || '').toLowerCase())) continue;
       const cost = Number(order.deliveryCost || 0);
       if (cost <= 0) continue;
       if (!order.dispatchBy) continue;
