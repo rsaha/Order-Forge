@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "t5UJP_L3j2B3MxITqCosw"
+uri = "file://client/public/order-entry-app-features.pdf"
+type = "pdf"
+title = "Order Entry App — Feature Reference (PDF)"
